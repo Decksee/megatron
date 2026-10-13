@@ -1,0 +1,398 @@
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { Settings2 } from "lucide-react";
+import { useData } from "./useData";
+import { isHeld } from "./hold";
+import { useTheme } from "./theme";
+import { isSpeaking, useSpeechPrefs } from "./ai/speech";
+import { listenAfterWake, useAssistantShortcut, useCountdownWatcher, useIdleAutoPause, useWakeWord } from "./background";
+import { focusElapsedMs, useFocusMonitor } from "./focus";
+import { dueReminders, SNOOZE_MINUTES, useReminderWatcher } from "./reminders";
+import { useMood, useNotchCursor, useNotchOccupied } from "./mood";
+import { formatTrackTime, mediaAppName, mediaPosition, useMedia } from "./media";
+import { aiStore, useAi } from "./ai/session";
+import { completeReminder, snoozeReminder } from "./db";
+import { addDays, formatClock, formatDuration, isRunning, startOfDay, timerElapsed, totalMs } from "./time";
+import { Bot } from "./components/Bot";
+import { SoundCurves } from "./components/SoundCurves";
+import { Today } from "./views/Today";
+import { Controls } from "./views/Controls";
+import { Tasks } from "./views/Tasks";
+import { Projects } from "./views/Projects";
+import { Time } from "./views/Time";
+import { Focus } from "./views/Focus";
+import { Reminders } from "./views/Reminders";
+import { Assistant } from "./views/Assistant";
+
+const isTauri = "__TAURI_INTERNALS__" in window;
+
+const COLLAPSED = { width: 230, height: 36 };
+/** Pilule un peu plus large quand une musique joue (titre + avancement). */
+const COLLAPSED_MEDIA = { width: 340, height: 40 };
+/** Encoche entrouverte quand un rappel arrive. */
+const ALERT = { width: 420, height: 64 };
+/** Au repos (rien en cours), l'encoche se réduit à une fine barre qui ne cache presque rien. */
+const MINI = { width: 150, height: 6 };
+/**
+ * Zone de survol de la fine barre : la barre elle-même, tout en haut de l'écran, sans marge.
+ * Il faut pousser la souris contre le bord : naviguer dans les onglets juste en dessous ne l'ouvre pas.
+ */
+const MINI_HOVER = { width: 150, height: 5 };
+// Zone de survol un peu plus large que l'encoche fermée, pour l'attraper facilement.
+const HOVER_MARGIN = 8;
+const COLLAPSE_DELAY_MS = 250;
+/** La souris doit s'arrêter un instant pour ouvrir : on peut viser un onglet juste en dessous sans l'ouvrir. */
+const OPEN_DELAY_MS = 280;
+/** Plus long pour la fine barre, qui est posée sur d'autres fenêtres. */
+const OPEN_DELAY_MINI_MS = 180;
+/** La fine barre s'épaissit dès que la souris la touche, avant de s'ouvrir : réaction immédiate. */
+const MINI_HOVERED = { width: 190, height: 12 };
+
+const spring = { type: "spring", stiffness: 380, damping: 34, mass: 0.9 } as const;
+
+/** Chaque onglet a sa taille : l'encoche s'élargit ou se resserre en changeant d'onglet. */
+const TABS = [
+  { id: "today", label: "Aujourd'hui", width: 800, height: 336 },
+  { id: "controls", label: "Contrôles", width: 660, height: 404 },
+  { id: "tasks", label: "Tâches", width: 720, height: 410 },
+  { id: "projects", label: "Projets", width: 760, height: 470 },
+  { id: "time", label: "Temps", width: 740, height: 440 },
+  { id: "focus", label: "Focus", width: 820, height: 420 },
+  { id: "reminders", label: "Rappels", width: 780, height: 420 },
+  { id: "assistant", label: "IA", width: 780, height: 468 },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
+
+function useNow(intervalMs = 1000) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+/** `interactive` : l'encoche reçoit les clics ; sinon ils passent aux applications en dessous. */
+function reportHitArea(size: { width: number; height: number }, interactive: boolean, margin = HOVER_MARGIN) {
+  if (!isTauri) return;
+  invoke("set_hit_area", {
+    width: size.width + margin * 2,
+    height: size.height + margin,
+    interactive,
+  }).catch(console.error);
+}
+
+export function App() {
+  const [expanded, setExpanded] = useState(false);
+  const [tab, setTab] = useState<TabId>("today");
+  const collapseTimer = useRef<number | undefined>(undefined);
+  const openTimer = useRef<number | undefined>(undefined);
+  const miniRef = useRef(false);
+  const [hovering, setHovering] = useState(false);
+  const hoveredRef = useRef(false);
+  const now = useNow();
+  const data = useData();
+  useTheme(data.settings);
+  useIdleAutoPause(data);
+  useCountdownWatcher(data);
+  useReminderWatcher(data);
+  useAssistantShortcut(data, () => {
+    setTab("assistant");
+    setExpanded(true);
+  });
+  useSpeechPrefs(data.settings);
+  useWakeWord(data, () => {
+    if (isSpeaking()) return; // c'est sa propre voix qu'il entend
+    setTab("assistant");
+    setExpanded(true);
+    listenAfterWake(data);
+  });
+  const focus = useFocusMonitor(data);
+  const focusSession = focus && data.focusSessions.find((s) => s.id === focus.sessionId);
+  const focusOver = !!focusSession && focus!.distractionMs > focusSession.budget_minutes * 60_000;
+  const due = dueReminders(data.reminders, now);
+  const alert = !expanded ? due[0] : undefined;
+  const ai = useAi();
+  const mood = useMood(data, focus, due, { listening: ai.recording, thinking: ai.busy || ai.transcribing });
+  const cursor = useNotchCursor();
+  const media = useMedia(expanded && (tab === "controls" || tab === "today"));
+  const occupied = useNotchOccupied();
+
+  // Pendant un rappel, le survol ne déplie pas l'encoche : il faut pouvoir cliquer sur ses boutons.
+  const alertRef = useRef(false);
+  alertRef.current = !!due.length;
+
+  // On reste ouvert tant qu'on tape dans un champ ou qu'une action est en cours ;
+  // dans ce cas l'encoche se ferme quand la fenêtre perd le focus.
+  const isBusy = () => {
+    const el = document.activeElement;
+    const state = aiStore.get();
+    if (state.recording || state.busy || state.transcribing) return true;
+    return isHeld() || (el instanceof HTMLElement && el.matches('input, textarea, select, [aria-expanded="true"]'));
+  };
+
+  const setHovered = (hovered: boolean) => {
+    hoveredRef.current = hovered;
+    setHovering(hovered);
+    window.clearTimeout(collapseTimer.current);
+    window.clearTimeout(openTimer.current);
+    if (hovered) {
+      if (!alertRef.current) {
+        const delay = miniRef.current ? OPEN_DELAY_MINI_MS : OPEN_DELAY_MS;
+        openTimer.current = window.setTimeout(() => setExpanded(true), delay);
+      }
+    } else {
+      collapseTimer.current = window.setTimeout(() => {
+        if (!hoveredRef.current && !isBusy()) setExpanded(false);
+      }, COLLAPSE_DELAY_MS);
+    }
+  };
+
+  useEffect(() => {
+    const onBlur = () => {
+      if (!hoveredRef.current && !isHeld()) setExpanded(false);
+    };
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  }, []);
+
+  // Le survol est détecté côté Rust (la fenêtre laisse passer les clics hors de l'encoche).
+  useEffect(() => {
+    if (!isTauri) return;
+    const unlisten = getCurrentWebviewWindow().listen<boolean>("notch-hover", (e) => setHovered(e.payload));
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  const current = TABS.find((t) => t.id === tab)!;
+  const busyPill =
+    ai.recording || ai.busy || ai.transcribing || !!focusSession || data.timers.length > 0;
+  const mediaPill = !busyPill && !!media?.playing;
+  // Fine barre : « auto » = quand une fenêtre est derrière (sauf alerte importante),
+  // « always » = dès que rien n'est en cours, « never » = jamais.
+  const miniMode = data.settings.notch_mini === "0" ? "never" : data.settings.notch_mini === "1" ? "always" : (data.settings.notch_mini ?? "auto");
+  const important = ai.recording || ai.busy || ai.transcribing || !!focus?.distraction;
+  const activity = busyPill || mediaPill;
+  const mini =
+    !expanded &&
+    !alert &&
+    (miniMode === "always" ? !activity : miniMode === "auto" ? occupied && !important : false);
+  const size = expanded
+    ? current
+    : alert
+      ? ALERT
+      : mini
+        ? hovering
+          ? MINI_HOVERED
+          : MINI
+        : mediaPill
+          ? COLLAPSED_MEDIA
+          : COLLAPSED;
+  // Ouverte ou rappel affiché : cliquable. Fermée : survol seulement, les clics traversent.
+  const interactive = expanded || !!alert;
+  // Pour entrer, il faut toucher le bord (zone étroite) ; une fois dessus, la zone suit la barre épaissie.
+  const hoverZone = mini ? (hovering ? MINI_HOVERED : MINI_HOVER) : size;
+  miniRef.current = mini;
+  useEffect(() => {
+    reportHitArea(hoverZone, interactive, mini ? 0 : HOVER_MARGIN);
+  }, [hoverZone.width, hoverZone.height, interactive, mini]);
+
+  const time = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const remaining = data.tasks.filter((t) => !t.done).length;
+  const runningTimers = data.timers.filter((t) => isRunning(data.entries, t.project_id));
+  const first = runningTimers[0];
+  const today = totalMs(data.entries, startOfDay(now), addDays(startOfDay(now), 1), now);
+  const glow = focus?.distraction ? (focusOver ? "bad" : "warn") : undefined;
+
+  const openSettings = () => invoke("open_settings", { section: null }).catch(console.error);
+
+  return (
+    <div className="stage">
+      <motion.div
+        className="notch"
+        data-glow={glow}
+        data-mini={mini || undefined}
+        data-active={(mini && activity) || undefined}
+        initial={false}
+        animate={{
+          width: size.width,
+          height: size.height,
+          borderBottomLeftRadius: expanded ? 30 : alert ? 22 : mini ? 4 : 16,
+          borderBottomRightRadius: expanded ? 30 : alert ? 22 : mini ? 4 : 16,
+        }}
+        transition={spring}
+        onMouseEnter={isTauri ? undefined : () => setHovered(true)}
+        onMouseLeave={isTauri ? undefined : () => setHovered(false)}
+      >
+        <div className="clip">
+          <AnimatePresence mode="popLayout" initial={false}>
+            {expanded ? (
+              <motion.div
+                key="panel"
+                className="panel"
+                style={{ width: current.width, height: current.height, marginLeft: -current.width / 2 }}
+                initial={{ opacity: 0, filter: "blur(6px)", y: -6 }}
+                animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+                exit={{ opacity: 0, filter: "blur(6px)", y: -6, transition: { duration: 0.12 } }}
+                transition={{ duration: 0.22, delay: 0.06 }}
+              >
+                <header className="panel-header">
+                  <Bot bare mood={mood} size={22} cursor={cursor} />
+                  <nav className="tabs" aria-label="Sections">
+                    {TABS.map((t) => (
+                      <button
+                        key={t.id}
+                        className={t.id === tab ? "tab active" : "tab"}
+                        onClick={() => setTab(t.id)}
+                        aria-current={t.id === tab ? "page" : undefined}
+                      >
+                        {t.id === tab && <motion.span layoutId="tab-pill" className="tab-pill" transition={spring} />}
+                        <span className="tab-label">{t.label}</span>
+                      </button>
+                    ))}
+                  </nav>
+                  <button className="icon-round" onClick={openSettings} aria-label="Ouvrir les réglages" title="Réglages">
+                    <Settings2 size={15} />
+                  </button>
+                </header>
+
+                <AnimatePresence mode="wait">
+                  <motion.section
+                    key={tab}
+                    className="panel-body"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6, transition: { duration: 0.1 } }}
+                    transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    {tab === "today" && <Today {...data} now={now} onOpen={setTab} />}
+                    {tab === "controls" && <Controls media={media} now={now} />}
+                    {tab === "tasks" && <Tasks {...data} />}
+                    {tab === "projects" && <Projects {...data} />}
+                    {tab === "time" && <Time {...data} now={now} />}
+                    {tab === "focus" && <Focus {...data} now={now} status={focus} />}
+                    {tab === "reminders" && <Reminders {...data} now={now} />}
+                    {tab === "assistant" && <Assistant {...data} />}
+                  </motion.section>
+                </AnimatePresence>
+              </motion.div>
+            ) : alert ? (
+              <motion.div
+                key={`alert-${alert.id}`}
+                className="alert"
+                initial={{ opacity: 0, filter: "blur(4px)", y: -4 }}
+                animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+                exit={{ opacity: 0, filter: "blur(4px)" }}
+                transition={{ duration: 0.2, delay: 0.08 }}
+              >
+                <Bot bare mood="alert" size={26} cursor={cursor} />
+                <button
+                  className="alert-text"
+                  onClick={() => {
+                    setTab("reminders");
+                    setExpanded(true);
+                  }}
+                  title="Voir les rappels"
+                >
+                  <span className="alert-title">{alert.title}</span>
+                  <span className="muted small">
+                    {due.length > 1 ? `+ ${due.length - 1} autre${due.length > 2 ? "s" : ""} · ` : ""}
+                    {new Date(alert.due_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </button>
+                <button className="btn ghost icon" onClick={() => snoozeReminder(alert, SNOOZE_MINUTES)}>
+                  +{SNOOZE_MINUTES} min
+                </button>
+                <button className="btn primary icon" onClick={() => completeReminder(alert)}>
+                  Fait
+                </button>
+              </motion.div>
+            ) : mini ? (
+              <motion.div
+                key="mini"
+                className="mini-notch"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              />
+            ) : (
+              <motion.div
+                key="pill"
+                className="pill"
+                initial={{ opacity: 0, filter: "blur(4px)" }}
+                animate={{ opacity: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, filter: "blur(4px)" }}
+                transition={{ duration: 0.15 }}
+              >
+                <Bot bare mood={mood} size={20} cursor={cursor} />
+                {ai.recording || ai.busy || ai.transcribing ? (
+                  <>
+                    <span className="pill-time">{ai.recording ? "Je t'écoute…" : "Je réfléchis…"}</span>
+                    <span className="pill-work">IA</span>
+                  </>
+                ) : focusSession ? (
+                  <>
+                    <span className={focus!.distraction ? "pill-time bad" : "pill-time"}>
+                      {focus!.distraction ??
+                        formatClock(focusSession.planned_minutes * 60_000 - focusElapsedMs(focusSession, now))}
+                    </span>
+                    <span className={focusOver ? "pill-work bad" : "pill-work"}>
+                      {focusOver
+                        ? "budget dépassé"
+                        : `${formatClock(Math.max(0, focusSession.budget_minutes * 60_000 - focus!.distractionMs))} dispo`}
+                    </span>
+                  </>
+                ) : first ? (
+                  <>
+                    <span className="pill-time">
+                      {runningTimers.length > 1
+                        ? `${runningTimers.length} projets`
+                        : formatClock(timerElapsed(first, data.entries, now))}
+                    </span>
+                    <span className="pill-work">{formatDuration(today)} auj.</span>
+                  </>
+                ) : data.timers.length ? (
+                  <>
+                    <span className="pill-time">En pause</span>
+                    <span className="pill-work">{formatDuration(today)} auj.</span>
+                  </>
+                ) : mediaPill && media ? (
+                  <>
+                    <span className="pill-time pill-track" title={`${media.title} · ${media.artist}`}>
+                      {media.title}
+                    </span>
+                    {media.durationMs > 0 ? (
+                      <>
+                        <SoundCurves
+                          playing={media.playing}
+                          ratio={mediaPosition(media, now.getTime()) / media.durationMs}
+                          width={110}
+                          height={30}
+                        />
+                        <span className="pill-work">{formatTrackTime(mediaPosition(media, now.getTime()))}</span>
+                      </>
+                    ) : (
+                      // Certains lecteurs (navigateurs) ne donnent pas la durée : on affiche l'artiste.
+                      <>
+                        <SoundCurves playing={media.playing} ratio={1} width={90} height={30} />
+                        <span className="pill-work pill-artist">{media.artist || mediaAppName(media.app)}</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="pill-time">{time}</span>
+                    <span className="pill-work">{remaining ? `${remaining} à faire` : "à jour"}</span>
+                  </>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    </div>
+  );
+}

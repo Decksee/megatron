@@ -1,0 +1,291 @@
+<title>Brief logo Mégatron</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Mise en page : une colonne de lecture, l'encoche de l'app comme élément signature en tête. */
+  :root {
+    --bg: #f4f5f7;
+    --paper: #ffffff;
+    --fg: #15171c;
+    --muted: #5d6270;
+    --line: #dfe2e8;
+    --notch: #000000;
+    --accent: #0a84ff;
+    --status: #34c759;
+    --warn-bg: #fff4e0;
+    --warn-fg: #7a4a00;
+    --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e0f12; --paper: #17191e; --fg: #eceef2; --muted: #9aa0ad; --line: #2a2d35;
+      --notch: #000000; --accent: #3d9bff; --status: #34c759; --warn-bg: #2e2412; --warn-fg: #ffc46b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e0f12; --paper: #17191e; --fg: #eceef2; --muted: #9aa0ad; --line: #2a2d35;
+    --notch: #000000; --accent: #3d9bff; --status: #34c759; --warn-bg: #2e2412; --warn-fg: #ffc46b;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    padding-inline: 16px;
+    padding-block: 0 64px;
+  }
+  .page { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+
+  header.hero { display: flex; flex-direction: column; align-items: center; gap: 20px; padding-top: 0; text-align: center; }
+  .hero svg { width: min(420px, 100%); height: auto; }
+  .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(36px, 7vw, 56px); line-height: 1.05; margin: 0; text-wrap: balance; }
+  .lede { font-size: 18px; color: var(--muted); max-width: 58ch; margin: 0; text-wrap: pretty; }
+
+  section { display: flex; flex-direction: column; gap: 14px; }
+  h2 { font-family: var(--font-display); font-weight: 700; font-size: 26px; line-height: 1.2; margin: 0; text-wrap: balance; }
+  h3 { font-family: var(--font-display); font-weight: 500; font-size: 18px; margin: 0; }
+  p { margin: 0; max-width: 65ch; }
+  ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  strong { font-weight: 600; }
+
+  .note {
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+  .note strong { color: inherit; }
+  .todo {
+    border: 1.5px dashed var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .compare > div { background: var(--paper); border-radius: 14px; padding: 16px; min-width: 0; }
+  .compare h3 { margin-bottom: 8px; }
+  .compare ul { list-style: none; padding: 0; }
+  .yes li::before { content: "+ "; color: var(--status); font-weight: 700; }
+  .no li::before { content: "– "; color: var(--muted); font-weight: 700; }
+
+  .tracks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .track { background: var(--paper); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .track svg { width: 100%; height: 72px; }
+  .track .letter { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .track p { font-size: 14.5px; }
+
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .swatch { background: var(--paper); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .swatch .chip { height: 56px; border-bottom: 1px solid var(--line); }
+  .swatch .meta { padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .swatch .name { font-weight: 600; font-size: 14px; }
+  .swatch .hex { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+  .swatch .role { font-size: 12.5px; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .table-wrap { overflow-x: auto; background: var(--paper); border-radius: 14px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  td.size { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .meta-list { display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; background: var(--paper); border-radius: 14px; padding: 16px; }
+  .meta-list dt { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); padding-top: 2px; }
+  .meta-list dd { margin: 0; }
+  .blank { color: var(--muted); font-style: italic; }
+
+  @media (max-width: 640px) {
+    .compare, .tracks { grid-template-columns: 1fr; }
+    .meta-list { grid-template-columns: 1fr; gap: 2px; }
+    .meta-list dd { margin-bottom: 10px; }
+  }
+</style>
+
+<div class="page">
+  <header class="hero">
+    <svg viewBox="0 0 420 120" role="img" aria-label="L'encoche Mégatron, fermée, en haut d'un écran">
+      <rect x="0" y="0" width="420" height="120" rx="14" fill="var(--paper)" />
+      <rect x="0" y="0" width="420" height="2" fill="var(--line)" />
+      <!-- oreilles concaves -->
+      <path d="M118 0 H130 V12 A12 12 0 0 0 118 0 Z" fill="var(--notch)" />
+      <path d="M302 0 H290 V12 A12 12 0 0 1 302 0 Z" fill="var(--notch)" />
+      <path d="M130 0 H290 V22 A14 14 0 0 1 276 36 H144 A14 14 0 0 1 130 22 Z" fill="var(--notch)" />
+      <circle cx="150" cy="18" r="4" fill="var(--status)" />
+      <text x="164" y="22.5" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="12" font-weight="600" fill="#f5f5f7">14:32</text>
+      <text x="274" y="22.5" text-anchor="end" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="12" font-weight="600" fill="#8e8e93">3 à faire</text>
+      <text x="210" y="84" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)">l'encoche telle qu'elle existe dans l'app aujourd'hui</text>
+    </svg>
+    <span class="eyebrow">Brief de création · logo &amp; icône</span>
+    <h1>Mégatron</h1>
+    <p class="lede">Une app de bureau gratuite qui vit dans une petite encoche noire en haut de l'écran : tâches, projets clients, temps de travail et concentration, sans ouvrir de logiciel.</p>
+  </header>
+
+  <section>
+    <h2>Le projet</h2>
+    <p>Mégatron est une application Windows. Elle prend la forme d'une encoche noire collée au bord supérieur de l'écran, dans l'esprit de la Dynamic Island de l'iPhone. Au repos, c'est une petite pilule qui affiche l'heure ou le chrono en cours. Au survol de la souris, elle s'ouvre avec une animation fluide et donne accès à :</p>
+    <ul>
+      <li>une liste de tâches, générale et par projet&nbsp;;</li>
+      <li>les projets clients (nom, client, prix, deadline, avancement)&nbsp;;</li>
+      <li>le suivi du temps par jour, semaine et mois, avec le taux horaire réel de chaque projet&nbsp;;</li>
+      <li>un mode focus qui repère les distractions (YouTube, réseaux sociaux…) et peut les bloquer&nbsp;;</li>
+      <li>bientôt des rappels et un assistant IA à qui on parle.</li>
+    </ul>
+    <p><strong>Pour qui :</strong> des freelances et des personnes qui travaillent sur ordinateur et veulent voir où passe leur temps. <strong>Modèle :</strong> projet personnel, partagé gratuitement. Aucune ambition commerciale, mais il doit avoir l'air d'un vrai produit soigné.</p>
+  </section>
+
+  <section>
+    <h2>Le nom</h2>
+    <p>Une lecture possible : <strong>« Méga »</strong> (grand, puissant) + <strong>« -tron »</strong>, le suffixe des machines électroniques (cyclotron, Tron). L'idée serait une machine puissante qui travaille avec toi, posée en haut de ton écran. L'accent du <strong>é</strong> fait partie du nom et doit être soigné dans le logotype.</p>
+    <div class="todo"><strong>À compléter par le créateur de l'app :</strong> d'où vient vraiment le nom, pourquoi ce choix, ce qu'il représente pour toi.</div>
+    <div class="note"><strong>Point de vigilance.</strong> « Megatron » est aussi le nom du chef des Decepticons dans <em>Transformers</em> (marque Hasbro) et celui d'un outil d'IA de NVIDIA. Un robot est tout à fait possible, et un <strong>léger clin d'œil</strong> au personnage aussi (une attitude, un regard, une silhouette qui l'évoque). Il ne faut simplement pas pousser jusqu'à la copie : pas d'insigne Decepticon, pas de reprise fidèle du visage ou du corps du personnage, pour que le logo reste le nôtre.</div>
+  </section>
+
+  <section>
+    <h2>Personnalité : un caractère à choisir</h2>
+    <p>Mégatron est une machine qui t'accompagne pendant que tu bosses. Son caractère est <strong>ouvert</strong> : un robot est bienvenu, et il peut être gentil comme méchant. Ce qui compte, c'est qu'il ait une vraie personnalité. Quatre directions possibles, à combiner ou à dépasser :</p>
+    <div class="compare">
+      <div class="yes">
+        <h3>Le coach qui te brusque</h3>
+        <p>Exigeant, un peu dur, il te pousse à performer. Regard sévère, posture droite, énergie.</p>
+      </div>
+      <div class="yes">
+        <h3>L'allié bienveillant</h3>
+        <p>Docile et serviable, il t'aide sans te juger. Formes rondes, regard doux, présence rassurante.</p>
+      </div>
+      <div class="yes">
+        <h3>Le méchant assumé</h3>
+        <p>Un petit tyran de la productivité, avec de l'humour : il surveille et ne laisse rien passer.</p>
+      </div>
+      <div class="yes">
+        <h3>La machine pure</h3>
+        <p>Pas de visage : une forme, une lumière, une précision mécanique. Sobre et puissante.</p>
+      </div>
+    </div>
+    <p>Quelle que soit la direction, le logo doit rester simple et lisible en très petit (voir les contraintes plus bas).</p>
+  </section>
+
+  <section>
+    <h2>Le point de départ : l'encoche</h2>
+    <p>L'encoche est ce qui rend l'app reconnaissable : une forme noire collée au bord de l'écran, des coins bas arrondis, deux petites « oreilles » concaves qui la raccordent au bord, et un point lumineux vert qui indique l'état. Trois pistes pour démarrer, et tu peux bien sûr en proposer d'autres :</p>
+    <div class="tracks">
+      <div class="track">
+        <svg viewBox="0 0 120 72" aria-hidden="true">
+          <path d="M22 14 H32 V24 A10 10 0 0 0 22 14 Z" fill="var(--notch)" />
+          <path d="M98 14 H88 V24 A10 10 0 0 1 98 14 Z" fill="var(--notch)" />
+          <path d="M32 14 H88 V36 A12 12 0 0 1 76 48 H44 A12 12 0 0 1 32 36 Z" fill="var(--notch)" />
+          <circle cx="46" cy="30" r="4" fill="var(--status)" />
+        </svg>
+        <span class="letter">Piste A</span>
+        <h3>L'encoche comme symbole</h3>
+        <p>La silhouette de l'encoche, simplifiée, devient le symbole. Reconnaissable immédiatement par ceux qui utilisent l'app.</p>
+      </div>
+      <div class="track">
+        <svg viewBox="0 0 120 72" aria-hidden="true">
+          <path d="M30 14 H90 V44 A12 12 0 0 1 78 56 H42 A12 12 0 0 1 30 44 Z" fill="var(--notch)" />
+          <path d="M44 46 V26 L60 38 L76 26 V46" fill="none" stroke="#f5f5f7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="letter">Piste B</span>
+        <h3>Le M dans l'encoche</h3>
+        <p>Un M dessiné dans ou par la forme de l'encoche. Plus explicite, il fonctionne bien comme icône d'application.</p>
+      </div>
+      <div class="track">
+        <svg viewBox="0 0 120 72" aria-hidden="true">
+          <circle cx="60" cy="36" r="20" fill="var(--status)" opacity="0.18" />
+          <circle cx="60" cy="36" r="10" fill="var(--status)" />
+        </svg>
+        <span class="letter">Piste C</span>
+        <h3>Le témoin allumé</h3>
+        <p>Le point lumineux vert, comme le témoin d'une machine en marche, devient la signature. Peut être combiné à A ou B.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Un logo qui vit : animations</h2>
+    <p>Le logo ne sera pas seulement une image fixe. Comme un petit personnage, il vivra <strong>dans l'encoche</strong> et réagira à ce qui se passe sur l'ordinateur. Il doit donc être conçu pour bouger : des parties simples et séparables (yeux, lumière, forme, antennes…) qu'on peut animer indépendamment.</p>
+    <p>Les états dont l'app a besoin, chacun relié à un vrai moment de l'app :</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>État</th><th>Quand</th><th>Idée d'animation</th></tr></thead>
+        <tbody>
+          <tr><td>Au repos</td><td>rien ne se passe</td><td>respiration lente, clignement des yeux de temps en temps</td></tr>
+          <tr><td>Au travail</td><td>un minuteur tourne</td><td>témoin allumé qui pulse, regard concentré</td></tr>
+          <tr><td>En pause</td><td>minuteur en pause</td><td>posture relâchée, lumière orange atténuée</td></tr>
+          <tr><td>Focus</td><td>session de focus en cours</td><td>regard fixe, posture tendue</td></tr>
+          <tr><td>Distraction repérée</td><td>YouTube, réseaux… pendant un focus</td><td>il te fixe, sourcil froncé, lueur orange</td></tr>
+          <tr><td>Budget dépassé</td><td>trop de distraction</td><td>colère ou alarme, lueur rouge, secousse</td></tr>
+          <tr><td>Bravo</td><td>tâche cochée, session terminée</td><td>petit saut, yeux qui sourient</td></tr>
+          <tr><td>Endormi</td><td>tu n'as pas touché au PC depuis un moment</td><td>yeux fermés, « z » qui flottent</td></tr>
+          <tr><td>Rappel</td><td>un rappel arrive</td><td>il se réveille et attire l'œil</td></tr>
+          <tr><td>Écoute / parle</td><td>assistant vocal (bientôt)</td><td>réagit à la voix, bouche ou lumière qui suit le son</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Le personnage peut aussi <strong>suivre la souris du regard</strong> quand elle passe près de l'encoche, et parler avec de petites bulles de texte.</p>
+    <p><strong>Format idéal pour l'animation :</strong> un fichier <strong>Rive</strong> (.riv) avec une machine à états, qui s'intègre directement dans l'app. À défaut, un SVG avec chaque partie sur son propre calque nommé (yeux, paupières, lumière, corps…) : on l'anime ensuite dans le code. Une courte vidéo ou un GIF de chaque état aide aussi beaucoup.</p>
+  </section>
+
+  <section>
+    <h2>Les couleurs de l'app</h2>
+    <p>Ce sont les couleurs utilisées aujourd'hui dans l'interface. Le logo doit d'abord fonctionner <strong>sur fond noir</strong>, puisqu'il vivra à côté de l'encoche. L'orange et le rouge sont réservés aux états (pause, distraction) et ne doivent pas devenir la couleur de la marque. La piste naturelle est le noir avec le vert ou le bleu, mais tu es libre de proposer autre chose.</p>
+    <div class="swatches">
+      <div class="swatch"><div class="chip" style="background:#000000"></div><div class="meta"><span class="name">Noir encoche</span><span class="hex">#000000</span><span class="role">fond de l'encoche</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#34c759"></div><div class="meta"><span class="name">Vert témoin</span><span class="hex">#34C759</span><span class="role">statut, « ça tourne »</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#0a84ff"></div><div class="meta"><span class="name">Bleu action</span><span class="hex">#0A84FF</span><span class="role">boutons, graphiques</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#f5f5f7"></div><div class="meta"><span class="name">Blanc texte</span><span class="hex">#F5F5F7</span><span class="role">texte sur noir</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#8e8e93"></div><div class="meta"><span class="name">Gris</span><span class="hex">#8E8E93</span><span class="role">texte secondaire</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#ff9f0a"></div><div class="meta"><span class="name">Orange pause</span><span class="hex">#FF9F0A</span><span class="role">réservé aux états</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#ff453a"></div><div class="meta"><span class="name">Rouge distraction</span><span class="hex">#FF453A</span><span class="role">réservé aux états</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Typographie</h2>
+    <p>L'interface utilise la police système de Windows (Segoe UI Variable). Pour le logotype, on cherche une linéale (sans serif) aux formes rondes et tendues, cohérente avec les arrondis de l'encoche. Le <strong>é</strong> doit rester lisible et élégant en petit. Majuscule initiale ou tout en minuscules : à proposer.</p>
+  </section>
+
+  <section>
+    <h2>Contraintes techniques</h2>
+    <ul>
+      <li><strong>Lisible à 16 × 16 px</strong> : l'icône apparaît dans la zone de notification de Windows, à côté de l'horloge. Il faut tester cette taille en priorité.</li>
+      <li>Une <strong>version monochrome blanche</strong> pour la barre système, et une noire.</li>
+      <li>Fonctionne sur fond noir <strong>et</strong> sur fond clair (thème clair de Windows).</li>
+      <li>Pas de dégradés fins ni de détails qui disparaissent en petit.</li>
+      <li>Icône d'application <strong>carrée</strong>, avec une marge intérieure pour respirer.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Livrables attendus</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Fichier</th><th>Détail</th></tr></thead>
+        <tbody>
+          <tr><td>Fichiers sources vectoriels</td><td>SVG : symbole seul, logotype seul, combinaison horizontale</td></tr>
+          <tr><td>Icône d'app (PNG transparent)</td><td class="size">16 · 32 · 48 · 64 · 128 · 256 · 512 · 1024 px</td></tr>
+          <tr><td>Icône Windows</td><td>un fichier <span class="size">.ico</span> multi-tailles (16 à 256 px)</td></tr>
+          <tr><td>Versions monochromes</td><td>blanc et noir, pour la barre système et les fonds variés</td></tr>
+          <tr><td>Fichier animé</td><td>Rive (.riv) avec les états ci-dessus, ou SVG en calques séparés et nommés</td></tr>
+          <tr><td>Mini-planche d'usage</td><td>couleurs en hex, taille minimale, zone de protection autour du logo</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Références d'esprit</h2>
+    <p>Pour le niveau de finition recherché : la Dynamic Island d'Apple, Raycast, Linear, Arc. Seule chose à éviter : une copie de l'univers Transformers.</p>
+  </section>
+
+</div>
