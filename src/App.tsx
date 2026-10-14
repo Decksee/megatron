@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { Settings2 } from "lucide-react";
+import { FileUp, Settings2 } from "lucide-react";
 import { useData } from "./useData";
 import { isHeld } from "./hold";
 import { useTheme } from "./theme";
@@ -13,7 +13,8 @@ import { dueReminders, SNOOZE_MINUTES, useReminderWatcher } from "./reminders";
 import { useTelegram } from "./telegram";
 import { useMood, useNotchCursor, useNotchOccupied } from "./mood";
 import { formatTrackTime, mediaAppName, mediaPosition, useMedia } from "./media";
-import { aiConfig, aiStore, useAi, voiceConfig } from "./ai/session";
+import { addFiles, aiConfig, aiStore, useAi, voiceConfig } from "./ai/session";
+import { useFileDrop } from "./fileDrop";
 import { completeReminder, snoozeReminder } from "./db";
 import { addDays, formatClock, formatDuration, isRunning, startOfDay, timerElapsed, totalMs } from "./time";
 import { Bot } from "./components/Bot";
@@ -40,6 +41,7 @@ const CELEBRATION_MS = 7000;
 /** Pastille vocale (« Hey Mégatron ») : juste ses yeux et les ondes, sans texte ni ouvrir l'encoche. */
 const VOICE_PILL = { width: 230, height: 50 };
 const VOICE_TAIL_MS = 2600;
+const VOICE_DROP = { width: 300, height: 78 };
 /** Hauteur gagnée sur l'onglet Contrôles quand aucune musique ne joue. */
 const CONTROLS_NO_MEDIA_SHRINK = 66;
 /** En focus, pendant une pause ou une distraction : place pour le temps de repos restant. */
@@ -140,6 +142,18 @@ export function App() {
   const wasConversing = useRef(false);
   const [voiceTail, setVoiceTail] = useState(false);
   const showVoice = ai.conversing || voiceTail;
+  /** Pendant la conversation vocale : la pastille devient une zone de dépôt (fichier demandé ou en cours de glisser). */
+  const voiceDrop = showVoice && (ai.awaitingFile || ai.dragging);
+
+  // Fichier glissé sur l'encoche : en conversation vocale il part tout de suite,
+  // sinon l'encoche s'ouvre sur la discussion avec le fichier prêt à partir.
+  useFileDrop((paths) => {
+    if (!aiStore.get().conversing) {
+      setTab("assistant");
+      setExpanded(true);
+    }
+    void addFiles(paths);
+  });
   useEffect(() => {
     if (ai.conversing) {
       wasConversing.current = true;
@@ -185,7 +199,7 @@ export function App() {
   const isBusy = () => {
     const el = document.activeElement;
     const state = aiStore.get();
-    if (state.recording || state.busy || state.transcribing || state.conversing || isSpeaking()) return true;
+    if (state.recording || state.busy || state.transcribing || state.conversing || state.dragging || isSpeaking()) return true;
     // Un champ ne retient l'encoche que si la fenêtre a vraiment le focus : l'onglet IA place le curseur
     // dans son champ dès l'ouverture, même quand on n'a fait que survoler (on ne pouvait plus la fermer).
     const typing =
@@ -250,7 +264,9 @@ export function App() {
     ? current
     : alert
       ? ALERT
-      : showVoice
+      : voiceDrop
+        ? VOICE_DROP
+        : showVoice
         ? VOICE_PILL
         : celebration
         ? CELEBRATE
@@ -401,8 +417,15 @@ export function App() {
                 exit={{ opacity: 0, filter: "blur(4px)" }}
                 transition={{ duration: 0.2 }}
               >
-                <Bot bare mood={ai.recording ? "listen" : ai.busy || ai.transcribing ? "think" : "happy"} size={20} cursor={cursor} />
-                <VoiceWave phase={ai.recording ? "listen" : ai.busy || ai.transcribing ? "think" : "idle"} />
+                <Bot bare mood={voiceDrop ? "alert" : ai.recording ? "listen" : ai.busy || ai.transcribing ? "think" : "happy"} size={20} cursor={cursor} />
+                {voiceDrop ? (
+                  <span className={ai.dragging ? "voice-drop over" : "voice-drop"}>
+                    <FileUp size={16} />
+                    {ai.dragging ? "Lâche, je l'attrape !" : "Dépose ton fichier ici"}
+                  </span>
+                ) : (
+                  <VoiceWave phase={ai.recording ? "listen" : ai.busy || ai.transcribing ? "think" : "idle"} />
+                )}
               </motion.button>
             ) : mini ? (
               <motion.div

@@ -25,3 +25,4 @@ tauri-plugin-global-shortcut = "2.4.1"
 windows = { version = "0.62", features = ["Media_Control", "Foundation", "Storage_Streams", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Media", "Media_SpeechRecognition", "Foundation_Collections", "Globalization"] }
 tauri-plugin-autostart = "2.7.0"
 windows-collections = "0.3"
+zip = { version = "2", default-features = false, features = ["deflate"] }

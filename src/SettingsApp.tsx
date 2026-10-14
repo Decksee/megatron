@@ -6,7 +6,8 @@ import { Bot as Bot2, Database, Smartphone, FolderKanban, Info, ListChecks, Minu
 import { useData } from "./useData";
 import { useTheme } from "./theme";
 import { setSetting, type FocusMode } from "./db";
-import { aiConfig } from "./ai/session";
+import { addFiles, aiConfig } from "./ai/session";
+import { useFileDrop } from "./fileDrop";
 import { PROVIDERS } from "./ai/providers";
 import { FOCUS_BUDGETS, FOCUS_DURATIONS } from "./focus";
 import { Bot } from "./components/Bot";
@@ -64,6 +65,12 @@ export function SettingsApp() {
   const initial = resolve(new URLSearchParams(location.search).get("section"));
   const [page, setPage] = useState<PageId>(initial?.page ?? "tasks");
   const [sub, setSub] = useState<SettingsId>(initial?.sub ?? "general");
+
+  // Fichier glissé sur la fenêtre : direction la discussion, prêt à partir avec le prochain message.
+  useFileDrop((paths) => {
+    setPage("assistant");
+    void addFiles(paths);
+  });
 
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return;

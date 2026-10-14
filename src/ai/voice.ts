@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+
 /**
  * Enregistrement du micro en WAV 16 kHz mono : format accepté par Gemini comme par OpenAI
  * (le WebM produit par MediaRecorder n'est pas lu partout).
@@ -28,7 +30,19 @@ export const micLevel = () => (current ? level : 0);
 export interface RecordingOptions {
   /** Arrêt automatique quand la personne a fini de parler (« Hey Mégatron »). */
   stopOnSilence?: boolean;
+  /**
+   * Tant que c'est vrai (Mégatron parle), on attend : le délai « rien dit » ne court pas, et il faut
+   * parler plus fort que sa voix dans les haut-parleurs pour être pris en compte.
+   */
+  holdWhile?: () => boolean;
+  /** Appelé dès que la personne se met à parler (pour couper la parole à Mégatron). */
+  onSpeechStart?: () => void;
 }
+
+/** Pendant que Mégatron parle, seuil de voix plus haut : sa propre voix ne doit pas compter. */
+const BARGE_IN_RMS = 0.09;
+/** Morceaux gardés avant le début de la parole quand on lui coupe la parole (~0,5 s). */
+const LEAD_CHUNKS = 2;
 
 /** Pourquoi l'enregistrement s'est arrêté tout seul. */
 export type StopReason = "done" | "no-speech" | "max";
@@ -42,7 +56,7 @@ export async function startRecording(onAutoStop?: (reason: StopReason) => void, 
   const source = ctx.createMediaStreamSource(stream);
   const node = ctx.createScriptProcessor(4096, 1, 1);
   const chunks: Float32Array[] = [];
-  const startedAt = performance.now();
+  let startedAt = performance.now();
   let spoke = false;
   let silenceSince: number | null = null;
   let stopped = false;
@@ -55,7 +69,14 @@ export async function startRecording(onAutoStop?: (reason: StopReason) => void, 
     level = rms;
     if (!options.stopOnSilence || stopped) return;
     const t = performance.now();
-    if (rms > SPEECH_RMS) {
+    const holding = !spoke && !!options.holdWhile?.();
+    if (holding) startedAt = t; // le délai « rien dit » démarre quand il a fini de parler
+    if (rms > (holding ? BARGE_IN_RMS : SPEECH_RMS)) {
+      if (!spoke) {
+        // On ne garde que ce qui précède juste la parole : pas le reste de sa réponse captée par le micro.
+        if (holding) chunks.splice(0, Math.max(0, chunks.length - LEAD_CHUNKS));
+        options.onSpeechStart?.();
+      }
       spoke = true;
       silenceSince = null;
     } else if (rms < SILENCE_RMS) {
@@ -75,11 +96,25 @@ export async function startRecording(onAutoStop?: (reason: StopReason) => void, 
 
 export const isRecording = () => current != null;
 
+/**
+ * Après que Mégatron a utilisé le micro, l'écoute de « Hey Mégatron » par Windows peut s'être figée :
+ * on la relance une fois le micro libéré (et pas entre deux phrases d'une même conversation).
+ */
+let refreshTimer: number | undefined;
+function refreshWakeWordSoon() {
+  if (!("__TAURI_INTERNALS__" in window)) return;
+  window.clearTimeout(refreshTimer);
+  refreshTimer = window.setTimeout(() => {
+    if (!current) void invoke("wake_word_refresh").catch(() => {});
+  }, 4000);
+}
+
 /** Arrête et renvoie le WAV en base64, ou null si l'enregistrement est trop court. */
 export async function stopRecording(): Promise<string | null> {
   const rec = current;
   if (!rec) return null;
   current = null;
+  refreshWakeWordSoon();
   window.clearTimeout(rec.timeout);
   rec.node.disconnect();
   rec.stream.getTracks().forEach((t) => t.stop());

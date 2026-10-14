@@ -31,7 +31,8 @@ Mégatron se loge en haut de chaque écran, à la manière de l'encoche d'un té
 **Assistant**
 - **IA** au choix (Gemini gratuit, Claude, OpenAI ou compatible), avec sa propre clé ; le modèle le moins cher est choisi par défaut.
 - Il **agit** : tâches, projets, extras, paiements, minuteurs, focus, rappels, applications, sites, dossiers, musique.
-- **« Hey Mégatron »** : une conversation continue à la voix, dans une pastille animée façon Siri.
+- **« Salut Mégatron »** : une conversation continue à la voix, dans une pastille animée façon Siri ; on peut lui couper la parole.
+- **Fichiers** : glisser une image, un PDF, un document Word ou Excel dans la discussion (ou l'envoyer sur Telegram) pour qu'il s'en serve.
 - **Voix** de Windows, Azure (gratuit), Gemini ou OpenAI.
 - **Apprentissage** (activable) : il retient ce qu'on lui apprend sur soi.
 - **Conversation gardée** et synchronisée entre tous les écrans, la fenêtre Mégatron et Telegram.
@@ -46,7 +47,7 @@ Mégatron se loge en haut de chaque écran, à la manière de l'encoche d'un té
 
 - Toutes les données restent sur le PC, dans une base SQLite locale.
 - Les clés API sont rangées dans le **Gestionnaire d'identification Windows**, jamais dans les fichiers ni dans les sauvegardes.
-- « Hey Mégatron » est reconnu **localement** par Windows. Seules les demandes faites à l'IA, aux voix en ligne et au bot Telegram quittent l'ordinateur, vers les services choisis.
+- « Salut Mégatron » est reconnu **localement** par Windows. Seules les demandes faites à l'IA, aux voix en ligne et au bot Telegram quittent l'ordinateur, vers les services choisis.
 
 ## Démarrer
 
@@ -75,7 +76,7 @@ L'installateur est généré dans `src-tauri/target/release/bundle/`.
 |---|---|---|
 | L'assistant IA | Onglet **IA** | Une clé [Google AI Studio](https://aistudio.google.com/apikey) (gratuite), Claude ou OpenAI |
 | Une voix plus humaine | Réglages → IA → **Sa voix** | Une ressource Azure Speech en offre gratuite *Free F0* |
-| « Hey Mégatron » | Réglages → IA | Rien : reconnaissance vocale de Windows |
+| « Salut Mégatron » | Réglages → IA | Rien : reconnaissance vocale de Windows (sensibilité et mode test inclus) |
 | Le téléphone | Réglages → **Téléphone** | Un bot créé avec [@BotFather](https://t.me/BotFather) |
 | Études ou perso | Réglages → Général → **Tes projets** | Choisir Études ou Perso |
 
@@ -91,7 +92,7 @@ L'installateur est généré dans `src-tauri/target/release/bundle/`.
 
 - [Cahier des charges](docs/CAHIER-DES-CHARGES.md) : le projet, ses objectifs et toutes ses fonctionnalités.
 - [Guide technique](docs/GUIDE-TECHNIQUE.md) : l'architecture et le code, pour reprendre le projet.
-- [Brief du logo](docs/brief-logo.html) et [déclinaisons](docs/logo/).
+- [Logo](docs/LOGO.md) : idée, construction, couleurs, mascotte animée et règles d'utilisation.
 
 ## Structure
 
@@ -111,6 +112,7 @@ src-tauri/src/       Côté Rust
   telegram.rs        API Bot Telegram
   actions.rs         Actions sur le PC
   media.rs           Musique et volume
-  wake.rs            « Hey Mégatron »
+  wake.rs            « Salut Mégatron »
+  files.rs           Lecture des fichiers joints
 docs/                Cahier des charges, guide technique, logo
 ```

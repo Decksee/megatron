@@ -4,8 +4,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { setSetting } from "../db";
 import { Select } from "../components/Select";
 import { EmptyState } from "../components/EmptyState";
+import { Bot } from "../components/Bot";
 import { ErrorNote } from "../components/ErrorNote";
 import {
+  Smartphone,
+  FileCode,
+  FileText,
+  FileUp,
+  Image as ImageIcon,
+  Paperclip,
+  X,
   AudioLines,
   AppWindow,
   Bell,
@@ -29,7 +37,9 @@ import {
   ask,
   cancelRequest,
   cancelTalking,
+  addFiles,
   endConversation,
+  removePendingFile,
   MAIN_SLOT,
   startConversation,
   resetConversation,
@@ -41,6 +51,8 @@ import {
   type UiMessage,
 } from "../ai/session";
 import type { Data } from "../useData";
+import { formatSize, pickPaths, type Attachment } from "../ai/attachments";
+import { holdOpen } from "../hold";
 
 const PROVIDER_ICON = { gemini: Sparkles, anthropic: MessageSquareText, openai: Zap, compatible: Server } as const;
 const PROVIDER_TAGLINE: Record<ProviderId, string> = {
@@ -326,9 +338,17 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
   }, [ai.messages, ai.busy, ai.recording, ai.transcribing]);
 
   const send = (value = text) => {
-    if (!value.trim()) return;
+    if (!value.trim() && !ai.pendingFiles.length) return;
     setText("");
-    ask(value, config);
+    ask(value.trim() || "Regarde ce fichier.", config);
+  };
+
+  const attach = async () => {
+    try {
+      await addFiles(await holdOpen(pickPaths));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const toggleMic = () => {
@@ -343,6 +363,15 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
 
   return (
     <div className="view chat">
+      <AnimatePresence>
+        {ai.dragging && (
+          <motion.div className="chat-drop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <FileUp size={26} />
+            <b>Dépose tes fichiers ici</b>
+            <span className="muted small">Images, PDF, Word, Excel, texte ou code · 20 Mo max</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="view-head">
         <div className="row">
           <span className="muted small">{PROVIDERS[config.provider].label}</span>
@@ -383,9 +412,19 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
           </li>
         )}
         <AnimatePresence initial={false}>
-          {ai.messages.map((m) => (
-            <Bubble key={m.id} message={m} />
-          ))}
+          {ai.messages.map((m, i) => {
+            const prev = ai.messages[i - 1];
+            const stamp = timeSeparator(m, prev);
+            const groupStart = !prev || prev.role === "user" || !!stamp;
+            return [
+              stamp && (
+                <li key={`t-${m.id}`} className="msg-time">
+                  {stamp}
+                </li>
+              ),
+              <Bubble key={m.id} message={m} avatar={m.role !== "user" && groupStart} />,
+            ];
+          })}
           {ai.recording && (
             <motion.li key="listening" className="msg user listening" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <motion.span className="listening-dot" animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 1, repeat: Infinity }} />
@@ -426,6 +465,21 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
         )}
       </AnimatePresence>
 
+      {ai.pendingFiles.length > 0 && (
+        <div className="pending-files">
+          {ai.pendingFiles.map((f, i) => (
+            <span key={`${f.name}-${i}`} className="file-chip">
+              <FileIcon kind={f.kind} />
+              <span className="file-chip-name">{f.name}</span>
+              <span className="muted">{formatSize(f.size)}</span>
+              <button type="button" onClick={() => removePendingFile(i)} aria-label={`Retirer ${f.name}`}>
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       <form
         className="tile chat-input"
         onSubmit={(e) => {
@@ -437,9 +491,18 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
           ref={inputRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={ai.recording ? "Je t'écoute… (clique sur le micro pour envoyer)" : "Demande-moi quelque chose…"}
+          placeholder={
+            ai.recording
+              ? "Je t'écoute… (clique sur le micro pour envoyer)"
+              : ai.pendingFiles.length
+                ? "Que dois-je faire de ce fichier ?"
+                : "Demande-moi quelque chose…"
+          }
           disabled={ai.recording}
         />
+        <button type="button" className="mic" onClick={attach} title="Joindre un fichier (ou glisse-le ici)" aria-label="Joindre un fichier">
+          <Paperclip size={15} />
+        </button>
         <button
           type="button"
           className={ai.recording ? "mic recording" : "mic"}
@@ -478,7 +541,7 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
             <Square size={11} fill="currentColor" /> Arrêter
           </button>
         ) : (
-          <button type="submit" className="btn primary" disabled={!text.trim()}>
+          <button type="submit" className="btn primary" disabled={!text.trim() && !ai.pendingFiles.length}>
             Envoyer
           </button>
         )}
@@ -487,18 +550,70 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
   );
 }
 
-function Bubble({ message: m }: { message: UiMessage }) {
+function FileIcon({ kind }: { kind: Attachment["kind"] }) {
+  const Icon = kind === "image" ? ImageIcon : kind === "pdf" ? FileText : FileCode;
+  return <Icon size={13} className="file-chip-icon" />;
+}
+
+/** Heure d'un message, déduite de son identifiant (horodaté) ; null pour les anciens messages. */
+const messageTime = (m: UiMessage) => (m.id > 1e15 ? new Date(Math.floor(m.id / 1000)) : null);
+
+/** Séparateur « Aujourd'hui 14:05 » au début de la conversation et après une pause de plus de 20 min. */
+function timeSeparator(m: UiMessage, prev?: UiMessage) {
+  const t = messageTime(m);
+  if (!t) return null;
+  const p = prev && messageTime(prev);
+  if (p && t.getTime() - p.getTime() < 20 * 60_000) return null;
+  const time = t.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const day = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  if (diff === 0) return `Aujourd'hui · ${time}`;
+  if (diff === 1) return `Hier · ${time}`;
+  return `${t.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} · ${time}`;
+}
+
+const PHONE_BADGE = "📱 ";
+
+function Bubble({ message: m, avatar = false }: { message: UiMessage; avatar?: boolean }) {
+  // Message envoyé depuis Telegram : petite étiquette plutôt que l'émoji dans le texte.
+  const fromPhone = m.role === "user" && m.text.startsWith(PHONE_BADGE);
+  const text = fromPhone ? m.text.slice(PHONE_BADGE.length) : m.text;
   return (
     <motion.li
       layout
-      className={`msg ${m.role}`}
+      className={`msg ${m.role}${avatar ? " with-avatar" : ""}`}
       initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 420, damping: 32 }}
     >
+      {avatar && (
+        <span className="msg-avatar" aria-hidden="true">
+          <Bot bare mood={m.role === "error" ? "suspicious" : "happy"} size={12} />
+        </span>
+      )}
+      {fromPhone && (
+        <span className="msg-origin">
+          <Smartphone size={11} /> Telegram
+        </span>
+      )}
       {m.role === "action" && <span className="msg-icon">✓</span>}
       {m.role === "error" && <span className="msg-icon">!</span>}
-      {m.text}
+      {m.files?.length ? (
+        <span className="msg-with-files">
+          <span className="msg-files">
+            {m.files.map((name) => (
+              <span key={name} className="msg-file">
+                <Paperclip size={11} /> {name}
+              </span>
+            ))}
+          </span>
+          {text}
+        </span>
+      ) : (
+        text
+      )}
     </motion.li>
   );
 }

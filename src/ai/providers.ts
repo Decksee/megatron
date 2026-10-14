@@ -4,6 +4,8 @@
  * par l'API — réflexion, signatures… — doivent lui être renvoyés tels quels).
  */
 
+import { textBlocks, type Attachment } from "./attachments";
+
 export type ProviderId = "gemini" | "anthropic" | "openai" | "compatible";
 
 export interface ProviderInfo {
@@ -135,8 +137,49 @@ export interface ToolResult {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export function userMessage(p: ProviderId, text: string): unknown {
-  return p === "gemini" ? { role: "user", parts: [{ text }] } : { role: "user", content: text };
+/**
+ * Message de l'utilisateur, avec ses fichiers éventuels : images et PDF dans le format du fournisseur,
+ * texte (code, Word, Excel déjà convertis) ajouté au message.
+ */
+export function userMessage(p: ProviderId, text: string, files: Attachment[] = []): unknown {
+  const extra = textBlocks(files);
+  const full = extra ? `${text}
+
+${extra}` : text;
+  const binary = files.filter((f) => (f.kind === "image" || f.kind === "pdf") && f.data);
+  if (!binary.length) return p === "gemini" ? { role: "user", parts: [{ text: full }] } : { role: "user", content: full };
+
+  if (p === "gemini") {
+    return {
+      role: "user",
+      parts: [...binary.map((f) => ({ inline_data: { mime_type: f.mime, data: f.data } })), { text: full }],
+    };
+  }
+  if (p === "anthropic") {
+    return {
+      role: "user",
+      content: [
+        ...binary.map((f) =>
+          f.kind === "pdf"
+            ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: f.data }, title: f.name }
+            : { type: "image", source: { type: "base64", media_type: f.mime, data: f.data } },
+        ),
+        { type: "text", text: full },
+      ],
+    };
+  }
+  // OpenAI et compatibles
+  return {
+    role: "user",
+    content: [
+      { type: "text", text: full },
+      ...binary.map((f) =>
+        f.kind === "pdf"
+          ? { type: "file", file: { filename: f.name, file_data: `data:application/pdf;base64,${f.data}` } }
+          : { type: "image_url", image_url: { url: `data:${f.mime};base64,${f.data}` } },
+      ),
+    ],
+  };
 }
 
 export function buildBody(p: ProviderId, system: string, history: unknown[], tools: ToolDef[]): object {

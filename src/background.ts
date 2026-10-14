@@ -5,6 +5,7 @@ import { pauseAll, setSetting } from "./db";
 import { isLeader } from "./leader";
 import { notify } from "./notify";
 import { telegramNotify } from "./telegram";
+import { wakeThreshold } from "./wakeword";
 import { DEFAULT_IDLE_MINUTES } from "./time";
 import { aiConfig, requestInputFocus, startConversation, startTalking, stopTalking, voiceConfig } from "./ai/session";
 import type { Data } from "./useData";
@@ -110,6 +111,12 @@ export function useAssistantShortcut(data: Data, open: () => void) {
 export function useWakeWord(data: Data, onWake: () => void) {
   const ref = useLatest({ data, onWake });
   const enabled = data.settings.wake_word === "1";
+  const threshold = wakeThreshold(data.settings);
+
+  // Sensibilité : appliquée dès qu'elle change (réglage global côté Rust).
+  useEffect(() => {
+    if (isTauri) void invoke("wake_word_sensitivity", { minConfidence: threshold }).catch(() => {});
+  }, [threshold]);
 
   useEffect(() => {
     if (!isTauri) return;

@@ -61,6 +61,7 @@ src/
   reminders.ts          Rappels arrivés à échéance → notifications
   background.ts         Pause automatique, compte à rebours, raccourci global, mot d'éveil
   telegram.ts           Bot Telegram : appairage, notifications, discussion, résumés
+  fileDrop.ts           Fichiers glissés sur une fenêtre (événement de Tauri, pas le « drop » HTML)
   errors.ts             Erreurs de connexion (clés IA, voix, Azure, Telegram) traduites en langage clair
   mood.ts               Humeur de la mascotte, position du curseur, fenêtre derrière l'encoche
   media.ts, theme.ts, notify.ts, leader.ts, hold.ts, options.ts
@@ -70,6 +71,7 @@ src/
     tools.ts            Outils que l'IA peut appeler (tâches, projets, minuteurs, apps…)
     voice.ts            Enregistrement du micro en WAV 16 kHz, détection de fin de phrase
     speech.ts           Voix de l'assistant (Windows, Azure, Gemini, OpenAI), quotas, cache
+    attachments.ts      Fichiers joints : lecture, choix (trombone), texte ajouté au message
   views/                Un fichier par onglet ou page (Today, Controls, Tasks, Projects, Time,
                         Focus, Reminders, Assistant, Settings, TelegramSettings, ProjectMoney…)
   components/           Composants réutilisables (Bot, Select, DatePicker, FocusDial, VoiceWave…)
@@ -80,12 +82,13 @@ src-tauri/src/
   lib.rs                Fenêtres, surveillance du curseur, zone cliquable, zone de notification,
                         raccourci global, migrations, liste des commandes
   ai.rs                 Clés (Gestionnaire d'identification), appels IA, transcription, voix en ligne
-  telegram.rs           Appels à l'API Bot (liste blanche de méthodes), téléchargement des vocaux
+  telegram.rs           Appels à l'API Bot (liste blanche de méthodes), téléchargement des vocaux et fichiers
+  files.rs              Lecture des fichiers joints : images et PDF en base64, Word / Excel / texte en texte
   actions.rs            Ouvrir une app, un lien, un dossier ; touches média ; verrouillage ; capture
   media.rs              Musique en cours (GSMTC), contrôle, volume, niveau sonore
-  wake.rs               « Hey Mégatron » (reconnaissance vocale Windows, liste de phrases fermée)
+  wake.rs               « Salut Mégatron » (reconnaissance vocale Windows, liste de phrases fermée, surveillance)
 
-docs/                   Cahier des charges, ce guide, brief et déclinaisons du logo
+docs/                   Cahier des charges, ce guide, doc du logo (LOGO.md) et ses déclinaisons
 ```
 
 ## 4. Le côté Rust
@@ -112,9 +115,10 @@ Elles sont toutes listées dans `tauri::generate_handler!` en bas de `lib.rs`.
 | Système | `idle_seconds`, `foreground_window`, `minimize_window`, `write_text_file`, `read_text_file` |
 | IA (`ai.rs`) | `ai_set_key`, `ai_has_key`, `ai_delete_key`, `ai_chat`, `ai_list_models`, `ai_transcribe`, `ai_speak`, `azure_voices` |
 | Telegram | `telegram_call` (méthodes autorisées seulement), `telegram_file` |
+| Fichiers joints (`files.rs`) | `read_attachment` (chemin), `parse_attachment` (contenu reçu sur Telegram) |
 | Actions | `open_app`, `open_url` (http/https seulement), `open_folder`, `media_key`, `lock_screen`, `screen_snip` |
 | Média | `media_state`, `media_control`, `volume_get`, `volume_set`, `audio_peak` |
-| Voix | `wake_word_set` |
+| Mot d'éveil (`wake.rs`) | `wake_word_set`, `wake_word_refresh`, `wake_word_sensitivity`, `wake_word_test` |
 
 ### 4.3 Clés API
 
@@ -181,15 +185,25 @@ Fenêtre classique (étiquette `settings`, ouverte par `open_settings`) avec un 
 - **Synchronisation** : à chaque modification, l'état partagé est diffusé à toutes les fenêtres (événement `chat-sync`) et sauvegardé en base (table `conversation`). Le compteur `epoch` permet d'abandonner partout une demande en cours quand on réinitialise.
 - `ask()` envoie le message, exécute les outils demandés par le modèle (jusqu'à 8 étapes) et renvoie la réponse et la liste des actions (utilisé par Telegram).
 - Le **prompt système** est construit à chaque demande : règles générales, profil d'usage, notes de l'apprentissage, consignes du mode conversation.
-- **Mode conversation** (`startConversation`) : boucle écoute → transcription → réponse lue → écoute, terminée par une formule de fin (`isEnding`) ou un silence.
+- **Mode conversation** (`startConversation`) : boucle écoute → transcription → réponse lue → écoute. L'écoute reprend pendant que l'assistant parle (`holdWhile` dans `voice.ts`) : si l'utilisateur parle plus fort que la voix des haut-parleurs, la lecture s'arrête (`onSpeechStart`) et sa phrase devient la demande suivante. La conversation se termine par une formule de fin reconnue directement (`isEnding`), par l'outil `terminer_conversation` que l'IA appelle quand elle comprend un au revoir, ou par un silence.
 
 **`providers.ts`** traduit les messages et les outils vers les formats Gemini, Claude (API Messages) et OpenAI, et trie les modèles par coût (`sortByCost`) ; `pickDefault` choisit le moins cher.
 
 **`tools.ts`** déclare les outils (`TOOLS`) et les exécute (`executeTool`). Pour **ajouter un outil** : ajouter sa définition (nom, description, paramètres JSON Schema) dans `TOOLS`, puis un `case` dans `executeTool` qui renvoie `{ result, label }` (`result` est lu par le modèle, `label` est affiché à l'utilisateur).
 
+**Fichiers joints.** Un fichier glissé (`useFileDrop`) ou choisi au trombone est lu par `read_attachment` et placé dans `pendingFiles` ; il part avec le message suivant. `userMessage` (`providers.ts`) l'intègre au format de chaque fournisseur (images et PDF en natif, le reste en texte). Une fois l'échange terminé, l'historique ne garde que le nom des fichiers. En conversation vocale, un fichier déposé sur la pastille déclenche aussitôt une réponse ; l'outil `demander_fichier` transforme la pastille en zone de dépôt.
+
 **`voice.ts`** enregistre le micro en WAV 16 kHz et détecte la fin de phrase ; **`speech.ts`** lit les réponses (voix Windows par `speechSynthesis`, voix en ligne par `ai_speak`), mémorise les quotas épuisés et met en cache les extraits du bouton « Écouter ».
 
-**`wake.rs`** reconnaît « Mégatron » avec la reconnaissance vocale de Windows, limitée à une liste de phrases (plusieurs graphies du nom et des mots leurres pour éviter les faux déclenchements). L'événement `wake-word` est envoyé à l'encoche de l'écran où se trouve la souris.
+**`wake.rs`** reconnaît « Mégatron » avec la reconnaissance vocale de Windows, limitée à une liste de phrases : plusieurs graphies du nom combinées à des formules d'appel (« Salut », « Hey », « Dis »…), et des mots leurres pour éviter les faux déclenchements (aucun leurre ne doit ressembler au nom, sinon il « vole » les vraies détections). Points importants :
+
+- **Certitude** : Windows connaît mal ce mot inventé ; même bien prononcé, il dépasse rarement 10 à 20 % de certitude. Le seuil est réglable (`wake_word_sensitivity`, réglage « Sensibilité »).
+- **Réaction rapide** : on se déclenche dès qu'une hypothèse intermédiaire contient le nom (`HypothesisGenerated`), sans attendre la fin de la phrase ; `LAST_FIRE` évite un double déclenchement pour la même phrase.
+- **Surveillance** : Windows interrompt parfois l'écoute sans prévenir. Une surveillance vérifie l'état toutes les 20 s, relance si besoin et rafraîchit l'écoute toutes les 10 min ; elle est aussi relancée après chaque utilisation du micro par Mégatron (`wake_word_refresh`).
+- **Une seule mise en route à la fois** (`OP`) : deux écoutes lancées ensemble se disputent le micro et n'entendent plus rien. Après un arrêt, on laisse un court délai à Windows pour libérer le micro.
+- **Mode test** (`wake_word_test`) : chaque phrase entendue est envoyée à la page (`wake-heard`) avec sa certitude, sans lancer de conversation.
+
+L'événement `wake-word` est envoyé à l'encoche de l'écran où se trouve la souris.
 
 ### 5.6 Telegram : `telegram.ts`
 

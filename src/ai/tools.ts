@@ -6,6 +6,8 @@ import {
   listExtras,
   listPayments,
   deleteMemory,
+  deleteProject,
+  deleteTask,
   listMemories,
   createReminder,
   createTask,
@@ -30,6 +32,7 @@ import {
 import { changeStatus, projectMoney, recordPayment, STATUS_LABEL } from "../projects";
 import { formatDuration, isRunning, overlapMs, periodBuckets, totalMs, type Period } from "../time";
 import type { ToolDef } from "./providers";
+import { requestEndConversation, requestFile } from "./session";
 
 /** Ce que l'outil renvoie au modèle, et la petite ligne affichée dans la conversation. */
 export interface ToolOutput {
@@ -49,6 +52,35 @@ const obj = (properties: Record<string, unknown>, required: string[] = []): Tool
 export const MEMORY_TOOLS = ["retenir", "oublier"];
 
 export const TOOLS: ToolDef[] = [
+  {
+    name: "terminer_conversation",
+    description:
+      "Termine la conversation vocale quand l'utilisateur a fini ou dit au revoir (quelle que soit la formule). Réponds d'abord par une courte formule d'au revoir.",
+    parameters: obj({}),
+  },
+  {
+    name: "supprimer_projet",
+    description:
+      "Supprime définitivement un projet, avec ses tâches, ses extras et ses paiements (le temps passé reste comptabilisé, sans projet). Demande TOUJOURS confirmation à l'utilisateur en nommant le projet, puis appelle l'outil avec confirme=true seulement s'il a dit oui.",
+    parameters: obj(
+      {
+        projet: str("Nom du projet à supprimer"),
+        confirme: { type: "boolean", description: "true seulement après que l'utilisateur a confirmé la suppression" },
+      },
+      ["projet", "confirme"],
+    ),
+  },
+  {
+    name: "supprimer_tache",
+    description: "Supprime une tâche (pas seulement la cocher), retrouvée par son intitulé. À utiliser quand l'utilisateur demande explicitement de la supprimer ou de la retirer.",
+    parameters: obj({ titre: str("Intitulé ou mots-clés de la tâche") }, ["titre"]),
+  },
+  {
+    name: "demander_fichier",
+    description:
+      "Quand l'utilisateur veut t'envoyer un fichier (document, image, PDF…) et ne l'a pas encore joint : affiche une zone où il peut le déposer. Dis-lui ensuite de le glisser sur la pastille ou dans la discussion.",
+    parameters: obj({}),
+  },
   {
     name: "retenir",
     description:
@@ -510,6 +542,35 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
     case "verrouiller_pc": {
       await invoke("lock_screen");
       return { result: "Session verrouillée.", label: "PC verrouillé" };
+    }
+    case "terminer_conversation": {
+      requestEndConversation();
+      return { result: "La conversation vocale va se terminer après ta réponse.", label: "Fin de la conversation" };
+    }
+    case "supprimer_projet": {
+      const project = await findProject(a.projet);
+      if (!project) throw new Error("Précise le projet à supprimer.");
+      if (a.confirme !== true) {
+        return {
+          result: `Pas supprimé : demande d'abord à l'utilisateur de confirmer la suppression de « ${project.name} ».`,
+          label: `Confirmation demandée : ${project.name}`,
+        };
+      }
+      await deleteProject(project.id);
+      return { result: `Projet « ${project.name} » supprimé.`, label: `Projet supprimé : ${project.name}` };
+    }
+    case "supprimer_tache": {
+      const task = bestMatch(await listTasks(), String(a.titre ?? ""), (t) => t.title);
+      if (!task) throw new Error(`Aucune tâche ne correspond à « ${a.titre} ».`);
+      await deleteTask(task.id);
+      return { result: `Tâche « ${task.title} » supprimée.`, label: `Tâche supprimée : ${task.title}` };
+    }
+    case "demander_fichier": {
+      requestFile();
+      return {
+        result: "Zone de dépôt affichée : l'utilisateur peut maintenant glisser son fichier sur la pastille ou dans la discussion.",
+        label: "En attente d'un fichier",
+      };
     }
     case "retenir": {
       const fait = String(a.fait ?? "").trim();

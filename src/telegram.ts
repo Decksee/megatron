@@ -20,6 +20,7 @@ import { addDays, entryMs, formatClock, formatDuration, startOfDay, startOfWeek,
 import { awaitingPayment, formatMoney, moneyTotals, projectMoney, toIsoDay, usageProfile } from "./projects";
 import { formatDue, SNOOZE_MINUTES } from "./reminders";
 import type { Data } from "./useData";
+import type { Attachment } from "./ai/attachments";
 
 /**
  * Le bot Telegram de l'utilisateur : notifications sur le téléphone, et discussion avec Mégatron
@@ -52,6 +53,12 @@ interface TgMessage {
   text?: string;
   voice?: { file_id: string; duration: number };
   audio?: { file_id: string; duration: number };
+  /** Document envoyé (PDF, Word, texte…). */
+  document?: { file_id: string; file_name?: string; mime_type?: string; file_size?: number };
+  /** Photo (plusieurs tailles, la dernière est la plus grande). */
+  photo?: { file_id: string; file_size?: number; width: number; height: number }[];
+  /** Légende d'une photo ou d'un document. */
+  caption?: string;
 }
 interface TgUpdate {
   update_id: number;
@@ -108,7 +115,7 @@ export function newPairCode() {
 // ---------- Commandes rapides ----------
 
 const HELP = `Je suis Mégatron 🤖
-Écris-moi ou envoie un message vocal, comme dans l'encoche : « ajoute relancer le client pour demain », « combien j'ai bossé cette semaine ? »…
+Écris-moi, envoie un vocal, une photo ou un document, comme dans l'encoche : « ajoute relancer le client pour demain », « crée le projet à partir de ce brief »…
 
 Commandes rapides :
 /taches — tes tâches à faire
@@ -178,13 +185,13 @@ function typing(chatId: number) {
   return () => window.clearInterval(id);
 }
 
-async function askFromPhone(chatId: number, text: string, settings: Settings) {
+async function askFromPhone(chatId: number, text: string, settings: Settings, files: Attachment[] = []) {
   const config = aiConfig(settings);
   if (!config) return "L'IA n'est pas encore configurée dans Mégatron (onglet IA).";
   const stop = typing(chatId);
   try {
     if (!(await waitIdle())) return "Je suis occupé sur le PC, réessaie dans un instant.";
-    const res = await ask(text, config, undefined, false, { silent: true, badge: "📱" });
+    const res = await ask(text, config, undefined, false, { silent: true, badge: "📱", files });
     // Les simples lectures (« 3 tâche(s) consultée(s) ») n'apportent rien sur le téléphone.
     const actions = res.actions.filter((a) => !/consulté/i.test(a));
     const lines = [...actions.map((a) => `✓ ${a}`), res.reply || res.error || ""].filter(Boolean);
@@ -196,7 +203,7 @@ async function askFromPhone(chatId: number, text: string, settings: Settings) {
 
 async function handleMessage(msg: TgMessage, settings: Settings) {
   const chatId = msg.chat.id;
-  const text = msg.text?.trim() ?? "";
+  const text = (msg.text ?? msg.caption ?? "").trim();
 
   // Pas encore relié : seul « /start CODE » (le lien affiché dans les réglages) est accepté.
   if (!settings.tg_chat_id) {
@@ -228,6 +235,27 @@ async function handleMessage(msg: TgMessage, settings: Settings) {
   }
 
   let question = text;
+
+  // Photo ou document : récupéré, lu comme dans la discussion, puis envoyé avec la légende.
+  const files: Attachment[] = [];
+  const doc = msg.document;
+  const photo = msg.photo?.[msg.photo.length - 1];
+  if (doc || photo) {
+    const stop = typing(chatId);
+    try {
+      if ((doc?.file_size ?? photo?.file_size ?? 0) > 20 * 1024 * 1024) throw new Error("Le fichier dépasse 20 Mo.");
+      const data = await invoke<string>("telegram_file", { fileId: (doc ?? photo)!.file_id });
+      const name = doc?.file_name || (photo ? "photo.jpg" : "fichier");
+      files.push(await invoke<Attachment>("parse_attachment", { name, dataBase64: data }));
+    } catch (e) {
+      await sendTelegram(`Je n'ai pas pu lire ton fichier : ${String((e as Error)?.message ?? e).slice(0, 160)}`, undefined, settings);
+      return;
+    } finally {
+      stop();
+    }
+    if (!question) question = photo ? "Regarde cette image." : "Regarde ce fichier.";
+  }
+
   const audio = msg.voice ?? msg.audio;
   if (audio) {
     const voice = voiceConfig(settings);
@@ -251,7 +279,7 @@ async function handleMessage(msg: TgMessage, settings: Settings) {
     }
   }
   if (!question) return;
-  await sendTelegram(await askFromPhone(chatId, question, settings), undefined, settings);
+  await sendTelegram(await askFromPhone(chatId, question, settings, files), undefined, settings);
 }
 
 async function handleCallback(cb: NonNullable<TgUpdate["callback_query"]>, settings: Settings) {

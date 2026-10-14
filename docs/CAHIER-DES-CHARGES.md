@@ -117,14 +117,18 @@ Rappels datés, ponctuels ou répétés (chaque jour, jours ouvrés, chaque sema
 L'assistant permet de piloter Mégatron en langage naturel. L'utilisateur fournit sa propre clé d'accès auprès du fournisseur de son choix ; aucun abonnement n'est imposé.
 
 - **Fournisseurs** : Gemini (offre gratuite), Claude, OpenAI, ou tout service compatible OpenAI. Le modèle le moins coûteux est sélectionné par défaut et la liste des modèles est triée du moins cher au plus cher.
-- **Actions** : créer et cocher des tâches, créer un projet, changer son statut, ajouter un extra, enregistrer un paiement, démarrer ou arrêter un minuteur, lancer un focus, créer un rappel, consulter le temps travaillé, ouvrir une application, un site ou un dossier, chercher sur le web, contrôler la musique et le volume.
+- **Actions** : créer, cocher et supprimer des tâches, créer un projet, changer son statut, le supprimer (après confirmation), ajouter un extra, enregistrer un paiement, démarrer ou arrêter un minuteur, lancer un focus, créer un rappel, consulter le temps travaillé, ouvrir une application, un site ou un dossier, chercher sur le web, contrôler la musique et le volume.
+- **Fichiers joints** : l'utilisateur peut glisser un fichier sur la discussion ou le choisir avec un trombone (images, PDF, Word, Excel, texte et code, 20 Mo au maximum, dix à la fois). L'assistant s'en sert pour agir : créer un projet à partir d'un brief, des tâches à partir d'une liste, résumer un document. L'historique ne garde que le nom des fichiers.
 - **Conversation conservée** entre deux lancements tant que l'utilisateur ne la réinitialise pas, et **synchronisée en direct** entre les encoches, la fenêtre Mégatron et Telegram.
 - **Apprentissage** (activable) : l'assistant retient les informations durables que l'utilisateur lui donne (tarifs, clients habituels, préférences) et s'en sert ensuite. Ces notes sont consultables et effaçables. Les informations sensibles (mots de passe, clés, données bancaires) ne sont jamais retenues.
 
 ### 4.11 Voix
 
 - **Dictée** : un appui long sur le raccourci ou un clic sur le micro pour parler à l'assistant.
-- **« Hey Mégatron »** : mot d'éveil reconnu localement par Windows. Il déclenche une **conversation continue** affichée dans une pastille vocale animée, sans texte : l'assistant répond à voix haute puis réécoute, jusqu'à « merci, c'est bon » ou quelques secondes de silence. Un clic sur la pastille ouvre la discussion complète.
+- **« Salut Mégatron »** (ou « Hey », « Hé », « Dis », « OK », « Bonjour »… Mégatron) : mot d'éveil reconnu localement par Windows. Il déclenche une **conversation continue** affichée dans une pastille vocale animée, sans texte : l'assistant répond à voix haute puis réécoute. La conversation se termine quand l'utilisateur prend congé, quelle que soit sa formule (l'assistant le comprend lui-même), ou après quelques secondes de silence. Un clic sur la pastille ouvre la discussion complète.
+- **Couper la parole** : pendant que l'assistant parle, il écoute déjà ; si l'utilisateur parle par-dessus, il se tait et prend en compte la nouvelle demande.
+- **Fichier à la voix** : quand l'utilisateur annonce un fichier, la pastille se transforme en zone de dépôt ; le fichier glissé dessus part aussitôt à l'assistant.
+- **Fiabilité du mot d'éveil** : l'écoute est surveillée et relancée automatiquement si Windows l'interrompt. Une **sensibilité** réglable et un **mode test** (qui affiche ce que Windows entend, sans rien déclencher) permettent de l'ajuster.
 - **Voix de l'assistant** : voix de Windows (gratuites et hors ligne), voix Azure (offre gratuite de 500 000 caractères par mois), ou voix Gemini et OpenAI. Vitesse, hauteur, ton et volume sont réglables. En cas de quota atteint, l'assistant passe automatiquement sur la voix de Windows.
 
 ### 4.12 Téléphone (Telegram)
@@ -133,7 +137,7 @@ Le bot Telegram de l'utilisateur relie Mégatron à son téléphone.
 
 - **Mise en place** : création du bot auprès de @BotFather, saisie de sa clé, puis liaison par un lien ou un code d'appairage. Le bot n'obéit qu'au compte relié.
 - **Notifications** activables une à une : rappels avec boutons « Fait » et « +10 min », fin de focus et dépassement du repos, minuteur oublié depuis plus de quatre heures, projets en attente de paiement chaque lundi.
-- **Discussion** avec l'assistant par écrit ou par message vocal, avec les mêmes outils et la même mémoire.
+- **Discussion** avec l'assistant par écrit, par message vocal ou en lui envoyant une photo ou un document, avec les mêmes outils et la même mémoire.
 - **Résumé du soir** optionnel : temps de travail, tâches faites et en retard, programme du lendemain, montant à encaisser.
 - **Commandes rapides** : /taches, /temps, /focus, /rappels, /aide.
 
@@ -154,7 +158,7 @@ Le matin, l'utilisateur allume son ordinateur ; Mégatron démarre avec Windows 
 
 Il lance ensuite un focus de cinquante minutes avec cinq minutes de repos autorisées. Pendant la session, il s'égare sur YouTube : l'encoche, rangée en fine barre au-dessus de son navigateur, passe à l'orange puis au rouge quand le budget est épuisé. À la fin, Mégatron sourit et fait pleuvoir des confettis.
 
-En fin de matinée, le client demande une page blog en plus. L'utilisateur dit « Hey Mégatron » ; la pastille vocale apparaît et l'assistant lui répond « Oui, qu'est-ce que tu veux ? ». Il demande d'ajouter un extra « Page blog » à 300 € sur le projet, découpé en maquette et intégration, puis conclut par « merci, c'est bon » : la pastille se range. L'après-midi, le client verse un acompte ; l'utilisateur l'enregistre dans l'onglet Paiements et voit immédiatement le reste dû.
+En fin de matinée, le client demande une page blog en plus. L'utilisateur dit « Salut Mégatron » ; la pastille vocale apparaît et l'assistant lui répond « Oui, qu'est-ce que tu veux ? ». Il demande d'ajouter un extra « Page blog » à 300 € sur le projet, découpé en maquette et intégration, puis conclut par « à tout à l'heure » : l'assistant lui dit au revoir et la pastille se range. Un peu plus tard, il glisse le brief envoyé par le client dans la discussion et demande d'en tirer les tâches. L'après-midi, le client verse un acompte ; l'utilisateur l'enregistre dans l'onglet Paiements et voit immédiatement le reste dû.
 
 Le soir, loin de son bureau, il reçoit sur Telegram son résumé de la journée et répond par un message vocal pour ajouter une tâche au lendemain.
 

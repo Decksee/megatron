@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
 import { Switch } from "../components/Switch";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { motion } from "motion/react";
 import { clearMemories, deleteMemory, exportBackup, importBackup, setSetting } from "../db";
@@ -10,6 +11,7 @@ import { THEME_OPTIONS, type ThemePref } from "../theme";
 import type { Data } from "../useData";
 import { Select } from "../components/Select";
 import { holdOpen } from "../hold";
+import { WAKE_SENSITIVITY, wakeSensitivity, wakeThreshold } from "../wakeword";
 import { ErrorNote } from "../components/ErrorNote";
 import { USAGES, usageOf, type Usage } from "../projects";
 import {
@@ -201,21 +203,119 @@ export function DataSettings() {
 }
 
 /** « Hey Mégatron » : l'état (langue utilisée ou erreur) est écrit par l'encoche qui lance l'écoute. */
+interface Heard {
+  id: number;
+  text: string;
+  confidence: "high" | "medium" | "low" | "rejected";
+  raw: number;
+  wake: boolean;
+  accepted: boolean;
+}
+
+const CONFIDENCE_LABEL: Record<Heard["confidence"], string> = {
+  high: "sûr",
+  medium: "assez sûr",
+  low: "pas très sûr",
+  rejected: "rejeté",
+};
+
+/** Mode test : ce que Windows croit entendre, en direct, pour comprendre pourquoi le mot n'est pas détecté. */
+function WakeTest({ threshold }: { threshold: number }) {
+  const [heard, setHeard] = useState<Heard[]>([]);
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    // Pendant le test, une détection ne lance pas la conversation.
+    void invoke("wake_word_test", { enabled: true }).catch(() => {});
+    let n = 0;
+    const unlisten = listen<Omit<Heard, "id">>("wake-heard", (e) =>
+      setHeard((h) => [{ ...e.payload, id: n++ }, ...h].slice(0, 8)),
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+      void invoke("wake_word_test", { enabled: false }).catch(() => {});
+    };
+  }, []);
+
+  const reason = (h: Heard) =>
+    h.accepted
+      ? "✓ reconnu"
+      : !h.wake
+        ? "✗ pris pour une autre phrase"
+        : `✗ ignoré : moins de ${Math.round(threshold * 100)} % de certitude`;
+
+  return (
+    <section className="setting column wake-test">
+      <div className="setting-title">Mode test</div>
+      <span className="muted small">
+        Dis « Salut Mégatron » plusieurs fois, de différentes façons : chaque phrase entendue par Windows s'affiche ici avec
+        son niveau de certitude. Pendant le test, rien ne se lance.
+      </span>
+      {heard.length === 0 ? (
+        <div className="tg-waiting muted small">
+          <span className="listening-dot" /> J'écoute… parle normalement, à ta distance habituelle du micro.
+        </div>
+      ) : (
+        <ul className="wake-heard">
+          {heard.map((h) => (
+            <li key={h.id} className={h.accepted ? "ok" : "ko"}>
+              <span className="wake-heard-text">« {h.text || "…"} »</span>
+              <span className="muted small">
+                {CONFIDENCE_LABEL[h.confidence]} ({Math.round(h.raw * 100)} %)
+              </span>
+              <span className="wake-heard-reason">{reason(h)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function WakeWordSetting({ settings }: Pick<Data, "settings">) {
   const on = settings.wake_word === "1";
   const status = settings.wake_status ?? "";
   const error = status.startsWith("error:") ? status.slice(6) : null;
   const language = status.startsWith("ok:") ? status.slice(3) : null;
+  const french = !language || /fran/i.test(language);
+  const [testing, setTesting] = useState(false);
   return (
     <div className="setting-block">
       <Setting
-        title="« Hey Mégatron »"
-        hint="Dis « Mégatron » pour qu'il t'écoute, sans toucher au clavier. L'écoute se fait sur ton PC, sans rien envoyer tant que le mot n'est pas reconnu."
+        title="« Salut Mégatron »"
+        hint="Dis « Salut Mégatron » (ou « Hé », « Dis », « OK Mégatron »…) pour lui parler sans toucher au clavier. L'écoute se fait sur ton PC, sans rien envoyer tant que le mot n'est pas reconnu."
       >
-        <Switch label="Activer « Hey Mégatron »" checked={on} onChange={(next) => setSetting("wake_word", next ? "1" : "0")} />
+        <Switch label="Activer « Salut Mégatron »" checked={on} onChange={(next) => setSetting("wake_word", next ? "1" : "0")} />
       </Setting>
+      {on && (
+        <Setting
+          title="Sensibilité"
+          hint="Plus elle est haute, plus il réagit facilement, au risque de se déclencher parfois tout seul. Sers-toi du test pour choisir."
+        >
+          <Select
+            value={wakeSensitivity(settings)}
+            options={WAKE_SENSITIVITY.map((o) => ({ value: o.value, label: o.label }))}
+            onChange={(v) => setSetting("wake_sensitivity", v)}
+            ariaLabel="Sensibilité du mot d'éveil"
+            className="select-wide"
+          />
+        </Setting>
+      )}
       {on && error && <div className="status error">{error}</div>}
-      {on && language && <div className="muted small setting-note">À l'écoute · reconnaissance {language}</div>}
+      {on && language && (
+        <div className="row setting-note">
+          <span className="muted small grow">À l'écoute · reconnaissance {language}</span>
+          <button className="btn ghost" onClick={() => setTesting((t) => !t)}>
+            {testing ? "Fermer le test" : "Tester"}
+          </button>
+        </div>
+      )}
+      {on && language && !french && (
+        <div className="status warn">
+          La reconnaissance tourne en {language} : « Mégatron » prononcé en français est mal compris. Ajoute le français dans
+          Paramètres Windows → Heure et langue → Langue et région (avec « Reconnaissance vocale »), puis redémarre Mégatron.
+        </div>
+      )}
+      {on && testing && <WakeTest threshold={wakeThreshold(settings)} />}
     </div>
   );
 }

@@ -16,7 +16,8 @@ import {
 import { setSetting } from "../db";
 import { executeTool, MEMORY_TOOLS, TOOLS } from "./tools";
 import { startRecording, stopRecording, type RecordingOptions, type StopReason } from "./voice";
-import { speakReply, stopSpeaking, waitSpeechEnd } from "./speech";
+import { isSpeaking, speakReply, stopSpeaking } from "./speech";
+import { filesNote, readPaths, type Attachment } from "./attachments";
 
 /** Emplacements des clés dans le Gestionnaire d'identification Windows. */
 export const MAIN_SLOT = "main";
@@ -76,7 +77,8 @@ Règles :
 - Quand on te demande une action, fais-la directement avec l'outil adapté, sans demander de confirmation, sauf si la demande est vraiment ambiguë.
 - Pour répondre sur les données (tâches, projets, temps, rappels), lis-les avec les outils : n'invente rien.
 - Chaque message de l'utilisateur commence par la date et l'heure actuelles entre crochets : sers-t'en pour les dates relatives (« demain à 9 h », « dans 20 minutes »).
-- Si une action est impossible avec tes outils, dis-le simplement.`;
+- Si une action est impossible avec tes outils, dis-le simplement.
+- L'utilisateur peut te joindre des fichiers (images, PDF, Word, Excel, texte, code) : lis-les et sers-t'en (créer un projet à partir d'un brief, des tâches à partir d'une liste, résumer un document…). S'il veut t'envoyer un fichier qu'il n'a pas encore joint, utilise « demander_fichier ».`;
 
 const MEMORY_RULES = `
 Apprentissage :
@@ -86,7 +88,8 @@ Apprentissage :
 - Sers-toi de ce que tu sais pour personnaliser tes réponses, sans le réciter.`;
 
 const CONVERSATION_RULES = `
-Mode conversation : l'utilisateur te parle à voix haute et ta réponse est lue. Réponds de façon naturelle et orale, très court, sans listes ni symboles. Il terminera lui-même la conversation.`;
+Mode conversation : l'utilisateur te parle à voix haute et ta réponse est lue. Réponds de façon naturelle et orale, très court, sans listes ni symboles.
+Dès qu'il indique qu'il a fini ou te dit au revoir, quelle que soit la formule (« à tout à l'heure », « ce sera tout », « je te laisse », « merci c'est bon »…), réponds par une courte formule d'au revoir et appelle l'outil « terminer_conversation ».`;
 
 const USAGE_RULES: Record<Usage, string> = {
   freelance: "",
@@ -111,6 +114,8 @@ export interface UiMessage {
   id: number;
   role: "user" | "assistant" | "action" | "error";
   text: string;
+  /** Noms des fichiers joints (les fichiers eux-mêmes ne sont pas gardés). */
+  files?: string[];
 }
 
 interface AiState {
@@ -132,6 +137,12 @@ interface AiState {
   focusRequest: number;
   /** Texte de la pastille vocale : ce qu'il dit ou ce qu'il a compris (propre à cette fenêtre). */
   voiceCaption: string;
+  /** Fichiers prêts à partir avec le prochain message (propres à cette fenêtre). */
+  pendingFiles: Attachment[];
+  /** L'assistant a demandé un fichier : la pastille vocale devient une zone de dépôt. */
+  awaitingFile: boolean;
+  /** Un fichier est en train d'être glissé au-dessus de la fenêtre. */
+  dragging: boolean;
 }
 
 let state: AiState = {
@@ -145,6 +156,9 @@ let state: AiState = {
   epoch: 0,
   focusRequest: 0,
   voiceCaption: "",
+  pendingFiles: [],
+  awaitingFile: false,
+  dragging: false,
 };
 const listeners = new Set<() => void>();
 
@@ -228,11 +242,49 @@ function startSync() {
   }).catch(console.error);
 }
 
-function push(role: UiMessage["role"], text: string) {
+function push(role: UiMessage["role"], text: string, files?: string[]) {
   const id = newId();
-  set({ messages: [...state.messages, { id, role, text }].slice(-MAX_MESSAGES) });
+  set({ messages: [...state.messages, { id, role, text, ...(files?.length && { files }) }].slice(-MAX_MESSAGES) });
   return id;
 }
+
+// ---------- Fichiers joints ----------
+
+export const setDragging = (dragging: boolean) => state.dragging !== dragging && set({ dragging });
+
+/**
+ * Ajoute des fichiers (glissés ou choisis) au prochain message.
+ * En conversation vocale, ils partent tout de suite : l'assistant les reçoit et répond.
+ */
+export async function addFiles(paths: string[]) {
+  set({ dragging: false });
+  if (!paths.length) return;
+  const { files, errors } = await readPaths(paths);
+  for (const e of errors) push("error", e);
+  if (!files.length) return;
+  set({ pendingFiles: [...state.pendingFiles, ...files].slice(-10), awaitingFile: false });
+  if (state.conversing && endTurn) {
+    const done = endTurn;
+    endTurn = null;
+    if (state.recording) {
+      set({ recording: false });
+      void stopRecording();
+    }
+    done({ wav: null, reason: "file" });
+  }
+}
+
+export const removePendingFile = (index: number) =>
+  set({ pendingFiles: state.pendingFiles.filter((_, i) => i !== index) });
+
+/** Outil « terminer_conversation » : la conversation vocale s'arrête après cette réponse. */
+let endRequested = false;
+export const requestEndConversation = () => {
+  endRequested = true;
+};
+
+/** Outil « demander_fichier » : la pastille vocale invite à déposer un fichier. */
+export const requestFile = () => set({ awaitingFile: true });
 
 export const aiStore = {
   get: () => state,
@@ -333,6 +385,8 @@ export interface AskResult {
 }
 
 export interface AskOptions {
+  /** Fichiers joints (par défaut : ceux en attente dans cette fenêtre). */
+  files?: Attachment[];
   /** Demande venue d'ailleurs (Telegram) : rien n'est lu à voix haute sur le PC. */
   silent?: boolean;
   /** Préfixe de la bulle de l'utilisateur (ex. « 📱 »). */
@@ -370,13 +424,20 @@ export async function ask(
   if (state.provider !== config.provider) set({ history: [], provider: config.provider });
 
   const before = state.history;
+  const files = options.files ?? state.pendingFiles;
+  if (!options.files) set({ pendingFiles: [] });
+  const names = files.map((f) => f.name);
   const shown = options.badge ? `${options.badge} ${content}` : content;
-  if (bubbleId != null) updateMessage(bubbleId, shown);
-  else push("user", shown);
-  let turn: unknown[] = [userMessage(config.provider, `[${stamp()}] ${content}`)];
+  if (bubbleId != null) {
+    set({ messages: state.messages.map((m) => (m.id === bubbleId ? { ...m, text: shown, ...(names.length && { files: names }) } : m)) });
+  } else push("user", shown, names);
+  const question = `[${stamp()}] ${content}`;
+  let turn: unknown[] = [userMessage(config.provider, question, files)];
   const context = before.slice(-MAX_TURNS).flat();
   set({ busy: true });
-  const tools = config.memory ? TOOLS : TOOLS.filter((t) => !MEMORY_TOOLS.includes(t.name));
+  const tools = TOOLS.filter(
+    (t) => (config.memory || !MEMORY_TOOLS.includes(t.name)) && (state.conversing || t.name !== "terminer_conversation"),
+  );
 
   try {
     const system = await systemPrompt(config);
@@ -411,7 +472,9 @@ ${answer.text}` : answer.text;
       turn = [...turn, ...toolResultMessages(config.provider, results)];
     }
     if (run !== runId) return { ...result, error: "Demande annulée." };
-    // L'échange est complet (il se termine par une réponse du modèle) : on le garde.
+    // L'échange est complet (il se termine par une réponse du modèle) : on le garde,
+    // sans le contenu des fichiers (trop lourd) : juste leurs noms.
+    if (files.length) turn = [userMessage(config.provider, question + filesNote(files)), ...turn.slice(1)];
     set({ history: [...before, turn].slice(-MAX_TURNS * 4) });
     if (reply && !options.silent) speakReply(reply, byVoice || state.conversing);
     return { ...result, reply };
@@ -509,10 +572,11 @@ export async function cancelTalking() {
 
 /** Mots qui ne comptent pas pour décider si la phrase est juste une formule de fin. */
 const FILLER = new Set(
-  "ok okay bon bah ben alors eh euh oui ouais non super parfait génial top nickel cool bien très trop vraiment beaucoup tout ça ca c est c'est ce pour moi toi le la les un une de du merci mégatron megatron à a plus tard bonne bonnes journée soirée nuit au revoir salut ciao bye stop arrête arrete termine terminé fini c'était ira va aller suffit"
+  "ok okay bon bah ben alors eh euh oui ouais non super parfait génial top nickel cool bien très trop vraiment beaucoup tout ça ca c est c'est ce pour moi toi te le la les un une de du merci mégatron megatron à a plus tard bonne bonnes journée soirée nuit fin au revoir salut ciao tchao bye bisous stop arrête arrete termine terminé fini c'était ira va aller suffit l'heure heure demain bientôt prochaine sera je laisse tomber"
     .split(" "),
 );
-const ENDING = /\b(merci|c'?est bon|ça ira|ça va aller|au revoir|à plus|à tout|bonne (journée|soirée|nuit)|stop|arr[eê]te|termin|c'?est tout|ça suffit|fini)\b/i;
+const ENDING =
+  /\b(merci|c'?est bon|ça ira|ça va aller|au revoir|à plus|à tout|à demain|à bientôt|à la prochaine|bonne (journée|soirée|nuit|fin)|stop|arr[eê]te|termin|c'?est tout|ce sera tout|ça suffit|fini|je te laisse|laisse tomber|bye|ciao|tchao|bisous)\b/i;
 
 /** « Merci, c'est bon », « ok à plus »… : la phrase ne contient qu'une formule de fin. */
 export function isEnding(text: string) {
@@ -525,11 +589,13 @@ const GOODBYES = ["Avec plaisir, à plus !", "Pas de souci, je reste dans le coi
 const GREETINGS = ["Oui, qu'est-ce que tu veux ?", "Oui ? Je t'écoute.", "Je suis là, dis-moi."];
 const pick = (list: string[]) => list[Math.floor(Math.random() * list.length)];
 
+/** Fin d'un tour de parole : la voix (fini, silence, durée max) ou un fichier déposé sur la pastille. */
+type TurnReason = StopReason | "file";
 /** Termine l'enregistrement d'un tour de parole en cours (la boucle de conversation l'attend). */
-let endTurn: ((result: { wav: string | null; reason: StopReason } | null) => void) | null = null;
+let endTurn: ((result: { wav: string | null; reason: TurnReason } | null) => void) | null = null;
 
 /** Écoute une phrase : s'arrête tout seul quand on a fini de parler (ou si on ne dit rien). */
-function listenOnce(): Promise<{ wav: string | null; reason: StopReason } | null> {
+function listenOnce(): Promise<{ wav: string | null; reason: TurnReason } | null> {
   return new Promise((resolve) => {
     endTurn = resolve;
     startRecording(
@@ -539,7 +605,14 @@ function listenOnce(): Promise<{ wav: string | null; reason: StopReason } | null
         endTurn = null;
         resolve({ wav, reason });
       },
-      { stopOnSilence: true },
+      {
+        stopOnSilence: true,
+        // On écoute déjà pendant qu'il parle : si tu lui coupes la parole, il se tait et t'écoute.
+        holdWhile: isSpeaking,
+        onSpeechStart: () => {
+          if (isSpeaking()) stopSpeaking();
+        },
+      },
     )
       .then(() => set({ recording: true }))
       .catch((e) => {
@@ -552,6 +625,7 @@ function listenOnce(): Promise<{ wav: string | null; reason: StopReason } | null
 
 /** Arrête le mode conversation (bouton, « Nouvelle conversation », annulation). */
 export function endConversation() {
+  if (state.awaitingFile) set({ awaitingFile: false });
   if (!state.conversing && !endTurn) return;
   set({ conversing: false });
   if (endTurn) {
@@ -577,13 +651,24 @@ export async function startConversation(config: AiConfig, voice: VoiceConfig, op
   set({ conversing: true, voiceCaption: greeting });
   if (greeting) speakReply(greeting, true);
   const active = () => state.conversing && state.epoch === epoch;
+  /** Silences tolérés pendant qu'on attend un fichier (l'utilisateur va le chercher). */
+  let fileWaits = 0;
   try {
+    endRequested = false;
     while (active()) {
-      await waitSpeechEnd();
+      // Laisse sa phrase démarrer : l'écoute commence pendant qu'il parle (on peut lui couper la parole).
+      await new Promise((r) => setTimeout(r, 250));
       if (!active()) break;
       const heard = await listenOnce();
       if (!heard || !active()) break;
-      // Rien dit pendant quelques secondes : la conversation s'arrête en silence.
+      // Fichier déposé sur la pastille : il part tout de suite, l'assistant répond.
+      if (heard.reason === "file") {
+        const res = await ask("Voici le fichier.", config, undefined, true);
+        set({ voiceCaption: res.reply || res.error || "" });
+        continue;
+      }
+      // Rien dit pendant quelques secondes (et pas de fichier attendu) : la conversation s'arrête en silence.
+      if (heard.reason === "no-speech" && state.awaitingFile && ++fileWaits < 4) continue;
       if (heard.reason === "no-speech" || !heard.wav) break;
 
       set({ transcribing: true });
@@ -617,6 +702,12 @@ export async function startConversation(config: AiConfig, voice: VoiceConfig, op
       }
       const res = await ask(text, config, bubble, true);
       set({ voiceCaption: res.reply || res.error || "" });
+      // L'IA a compris que c'était la fin (« à tout à l'heure »…) : on range la pastille après son au revoir.
+      if (endRequested) {
+        endRequested = false;
+        set({ conversing: false });
+        break;
+      }
     }
   } finally {
     if (state.epoch === epoch) set({ conversing: false });

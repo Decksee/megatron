@@ -1,5 +1,6 @@
 mod actions;
 mod ai;
+mod files;
 mod media;
 mod telegram;
 mod wake;
@@ -654,6 +655,8 @@ pub fn run() {
             ai::ai_transcribe,
             ai::ai_speak,
             ai::azure_voices,
+            files::read_attachment,
+            files::parse_attachment,
             telegram::telegram_call,
             telegram::telegram_file,
             actions::open_app,
@@ -668,7 +671,10 @@ pub fn run() {
             media::volume_set,
             media::audio_peak,
             open_settings,
-            wake::wake_word_set
+            wake::wake_word_set,
+            wake::wake_word_refresh,
+            wake::wake_word_sensitivity,
+            wake::wake_word_test
         ])
         .setup(|app| {
             let handle = app.handle().clone();
