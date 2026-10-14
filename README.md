@@ -13,6 +13,12 @@
 
 Mégatron se loge en haut de chaque écran, à la manière de l'encoche d'un téléphone. Au repos, il affiche l'essentiel (le minuteur qui tourne, la musique, le focus en cours) et se réduit à une fine barre quand une fenêtre se trouve dessous. Au survol, il se déplie en un panneau complet. Il est pensé pour les **freelances**, les **étudiants** et les **projets personnels**.
 
+## Télécharger
+
+**[⬇️ Dernière version pour Windows](https://github.com/Decksee/megatron/releases/latest)** : télécharge `Megatron_x.y.z_x64-setup.exe` et lance-le. L'installation se fait pour ton compte, sans droits administrateur, et Mégatron se met ensuite **à jour tout seul**.
+
+> L'installateur n'est pas signé par un certificat payant : au premier lancement, Windows affiche « Windows a protégé votre ordinateur ». Clique sur **Informations complémentaires**, puis **Exécuter quand même**.
+
 ## Fonctionnalités
 
 **Organisation**

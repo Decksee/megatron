@@ -2,6 +2,8 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   endFocus,
+  pauseFocus,
+  resumeFocus,
   saveFocusProgress,
   setSetting,
   startFocus,
@@ -21,7 +23,7 @@ import type { Data } from "../useData";
 import { Select } from "../components/Select";
 import { Blocklist } from "../components/Blocklist";
 import { FocusDial } from "../components/FocusDial";
-import { Ban, Bell, Check, Minus, Plus, Target } from "lucide-react";
+import { Ban, Bell, Check, Minus, Pause, Play, Plus, Target } from "lucide-react";
 import { projectOptions } from "../options";
 
 const fade = {
@@ -34,7 +36,7 @@ const fade = {
 /** Part du temps passée concentré (hors distractions). */
 const score = (s: FocusSession, distractionMs: number, now: Date) => {
   const end = s.ended_at ? new Date(s.ended_at) : now;
-  const elapsed = Math.max(1, end.getTime() - new Date(s.started_at).getTime());
+  const elapsed = Math.max(1, focusElapsedMs(s, end));
   return Math.max(0, Math.round((1 - distractionMs / elapsed) * 100));
 };
 
@@ -199,13 +201,13 @@ const TIMER_STROKE = 8;
 const TIMER_TICKS = 60;
 
 /** Le grand minuteur du focus : graduations qui s'allument, arc en dégradé, curseur au bout. */
-function FocusTimer({ ratio, alert, children }: { ratio: number; alert: boolean; children: React.ReactNode }) {
+function FocusTimer({ ratio, alert, paused = false, children }: { ratio: number; alert: boolean; paused?: boolean; children: React.ReactNode }) {
   const c = TIMER_SIZE / 2;
   const circumference = 2 * Math.PI * TIMER_R;
   const color = alert ? "var(--danger)" : "var(--accent)";
   const angle = ratio * 2 * Math.PI - Math.PI / 2;
   return (
-    <div className={alert ? "focus-timer alert" : "focus-timer"}>
+    <div className={`focus-timer${alert ? " alert" : ""}${paused ? " paused" : ""}`}>
       <motion.div
         className="focus-timer-glow"
         animate={{ opacity: [0.35, 0.7, 0.35], scale: [0.96, 1.02, 0.96] }}
@@ -274,7 +276,8 @@ function ActiveFocus({ session, projects, now, status }: Data & { session: Focus
   const distractionMs = status?.distractionMs ?? session.distraction_ms;
   const budget = session.budget_minutes * 60_000;
   const over = distractionMs > budget;
-  const distracted = status?.distraction;
+  const paused = !!session.paused_at;
+  const distracted = paused ? null : status?.distraction;
   const resting = distracted === IDLE_KEY;
   const budgetRatio = budget ? Math.min(1, distractionMs / budget) : distractionMs ? 1 : 0;
   const pct = score(session, distractionMs, now);
@@ -292,10 +295,10 @@ function ActiveFocus({ session, projects, now, status }: Data & { session: Focus
   return (
     <div className="focus-live">
       <div className={distracted && !resting ? "tile focus-live-main distracted" : "tile focus-live-main"}>
-        <FocusTimer ratio={elapsed / planned} alert={!!distracted && !resting}>
+        <FocusTimer ratio={elapsed / planned} alert={!!distracted && !resting} paused={paused}>
           <span className="focus-timer-time">{formatClock(remaining)}</span>
           <span className="dial-unit">restantes</span>
-          <span className="dial-end">fin à {end}</span>
+          <span className="dial-end">{paused ? "en pause" : `fin à ${end}`}</span>
         </FocusTimer>
 
         <div className="focus-live-info">
@@ -312,8 +315,8 @@ function ActiveFocus({ session, projects, now, status }: Data & { session: Focus
 
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
-              key={distracted ?? "ok"}
-              className={resting ? "focus-state rest" : distracted ? "focus-state bad" : "focus-state good"}
+              key={paused ? "paused" : (distracted ?? "ok")}
+              className={paused ? "focus-state paused" : resting ? "focus-state rest" : distracted ? "focus-state bad" : "focus-state good"}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
@@ -324,7 +327,13 @@ function ActiveFocus({ session, projects, now, status }: Data & { session: Focus
                 animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
                 transition={{ duration: distracted ? 0.9 : 2, repeat: Infinity }}
               />
-              {resting ? "En pause · temps de repos" : distracted ? `Distrait par ${distracted}` : "Concentré"}
+              {paused
+                ? "En pause · le temps est arrêté"
+                : resting
+                  ? "En pause · temps de repos"
+                  : distracted
+                    ? `Distrait par ${distracted}`
+                    : "Concentré"}
             </motion.div>
           </AnimatePresence>
 
@@ -366,7 +375,16 @@ function ActiveFocus({ session, projects, now, status }: Data & { session: Focus
           </div>
 
           <div className="row focus-live-actions">
-            <button className="btn primary" onClick={() => stop(true)}>
+            {paused ? (
+              <button className="btn primary" onClick={() => resumeFocus(session)}>
+                <Play size={13} fill="currentColor" /> Reprendre
+              </button>
+            ) : (
+              <button className="btn ghost" onClick={() => pauseFocus(session)}>
+                <Pause size={13} fill="currentColor" /> Pause
+              </button>
+            )}
+            <button className={paused ? "btn ghost" : "btn primary"} onClick={() => stop(true)}>
               <Check size={14} strokeWidth={2.5} /> Terminer
             </button>
             {confirmQuit ? (
@@ -411,7 +429,7 @@ function ActiveFocus({ session, projects, now, status }: Data & { session: Focus
 }
 
 function Summary({ session, now }: Data & { session: FocusSession; now: Date }) {
-  const duration = new Date(session.ended_at!).getTime() - new Date(session.started_at).getTime();
+  const duration = focusElapsedMs(session, new Date(session.ended_at!));
   const byKey = Object.entries(JSON.parse(session.distractions || "{}") as Record<string, number>).sort((a, b) => b[1] - a[1]);
   const pct = score(session, session.distraction_ms, now);
 

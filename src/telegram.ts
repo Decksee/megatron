@@ -152,6 +152,10 @@ async function commandTime() {
 async function commandFocus() {
   const session = activeFocus(await listFocusSessions());
   if (!session) return "🎯 Aucune session de focus en cours.";
+  if (session.paused_at) {
+    const left = session.planned_minutes * 60_000 - focusElapsedMs(session, new Date());
+    return `⏸ Focus en pause : ${formatClock(Math.max(0, left))} restantes à la reprise.`;
+  }
   const left = session.planned_minutes * 60_000 - focusElapsedMs(session, new Date());
   const rest = Math.max(0, session.budget_minutes * 60_000 - session.distraction_ms);
   return `🎯 Focus en cours : ${formatClock(Math.max(0, left))} restantes\nRepos disponible : ${formatClock(rest)}`;

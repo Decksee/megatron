@@ -65,6 +65,7 @@ export function useMood(
   if (assistant.thinking) return "think";
   if (due.length) return "alert";
   const focusSession = focus && data.focusSessions.find((s) => s.id === focus.sessionId);
+  if (focusSession?.paused_at) return "paused";
   if (focusSession && focus.distraction) {
     return focus.distractionMs > focusSession.budget_minutes * 60_000 ? "angry" : "suspicious";
   }

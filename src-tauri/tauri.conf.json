@@ -11,17 +11,47 @@
   },
   "app": {
     "windows": [],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "Mégatron",
+    "category": "Productivity",
+    "shortDescription": "Encoche de productivité : tâches, projets, temps, focus et assistant IA",
+    "longDescription": "Mégatron se loge en haut de l'écran et réunit tâches, projets clients, suivi du temps, focus, rappels et un assistant IA pilotable à la voix.",
+    "windows": {
+      "nsis": {
+        "languages": [
+          "French"
+        ],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser",
+        "startMenuFolder": "Mégatron"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJGRTBDMzYwRTY4RjY3MTcKUldRWFo0L21ZTVBndndRUElic3ZwVFRybE1Hd2hhRXFSdzVvWnhKVVpyT05LTi9KalpPV24vZi8K",
+      "endpoints": [
+        "https://github.com/Decksee/megatron/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

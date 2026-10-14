@@ -11,6 +11,7 @@ import { listenAfterWake, useAssistantShortcut, useCountdownWatcher, useIdleAuto
 import { focusElapsedMs, IDLE_KEY, useFocusMonitor } from "./focus";
 import { dueReminders, SNOOZE_MINUTES, useReminderWatcher } from "./reminders";
 import { useTelegram } from "./telegram";
+import { useUpdateCheck } from "./updater";
 import { useMood, useNotchCursor, useNotchOccupied } from "./mood";
 import { formatTrackTime, mediaAppName, mediaPosition, useMedia } from "./media";
 import { addFiles, aiConfig, aiStore, useAi, voiceConfig } from "./ai/session";
@@ -116,6 +117,7 @@ export function App() {
   useCountdownWatcher(data);
   useReminderWatcher(data);
   useTelegram(data);
+  useUpdateCheck(data.settings);
   useAssistantShortcut(data, () => {
     setTab("assistant");
     setExpanded(true);
@@ -468,7 +470,9 @@ export function App() {
                   </>
                 ) : focusSession ? (
                   <>
-                    <span className={focusOver && focus!.distraction ? "pill-tag bad" : "pill-tag"}>Focus</span>
+                    <span className={focusSession.paused_at ? "pill-tag paused" : focusOver && focus!.distraction ? "pill-tag bad" : "pill-tag"}>
+                      {focusSession.paused_at ? "Pause" : "Focus"}
+                    </span>
                     <span className="pill-time">
                       {formatClock(focusSession.planned_minutes * 60_000 - focusElapsedMs(focusSession, now))}
                     </span>

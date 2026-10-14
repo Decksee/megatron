@@ -68,7 +68,11 @@ function matchDistraction(fg: ForegroundWindow, list: string[]) {
   return list.find((k) => k.trim() && haystack.includes(k.trim().toLowerCase())) ?? null;
 }
 
-export const focusElapsedMs = (s: FocusSession, now: Date) => now.getTime() - new Date(s.started_at).getTime();
+/** Temps de focus écoulé, sans les pauses. */
+export const focusElapsedMs = (s: FocusSession, now: Date) => {
+  const end = s.paused_at ? new Date(s.paused_at).getTime() : now.getTime();
+  return Math.max(0, end - new Date(s.started_at).getTime() - (s.paused_ms ?? 0));
+};
 
 /**
  * Surveille la fenêtre au premier plan pendant une session de focus.
@@ -121,6 +125,12 @@ export function useFocusMonitor(data: Data) {
           await endFocus(session, true);
           await notify("Session de focus terminée 🎯", "Bravo ! Prends une petite pause.");
           await telegramNotify("focus", "🎯 Session de focus terminée. Bravo ! Prends une petite pause.");
+          return;
+        }
+
+        // En pause : rien n'est compté, on garde juste l'état à jour.
+        if (session.paused_at) {
+          await emit(STATUS_EVENT, { sessionId: session.id, distraction: null, distractionMs: t.ms, byKey: t.byKey } satisfies FocusStatus);
           return;
         }
 

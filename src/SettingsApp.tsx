@@ -8,6 +8,7 @@ import { useTheme } from "./theme";
 import { setSetting, type FocusMode } from "./db";
 import { addFiles, aiConfig } from "./ai/session";
 import { useFileDrop } from "./fileDrop";
+import { UpdateBanner, UpdateSetting } from "./views/UpdatePanel";
 import { PROVIDERS } from "./ai/providers";
 import { FOCUS_BUDGETS, FOCUS_DURATIONS } from "./focus";
 import { Bot } from "./components/Bot";
@@ -104,6 +105,7 @@ export function SettingsApp() {
         </div>
       </header>
 
+      <UpdateBanner settings={data.settings} />
       <main className={page === "settings" ? "window-content" : "window-content wide"}>
         <AnimatePresence mode="wait">
           {page === "settings" ? (
@@ -146,7 +148,7 @@ export function SettingsApp() {
                   {sub === "focus" && <FocusSection {...data} />}
                   {sub === "phone" && <TelegramSettings settings={data.settings} />}
                   {sub === "data" && <DataSettings />}
-                  {sub === "about" && <About />}
+                  {sub === "about" && <About settings={data.settings} />}
                 </motion.div>
               </AnimatePresence>
             </motion.div>
@@ -259,16 +261,17 @@ function FocusSection({ settings }: Data) {
   );
 }
 
-function About() {
+function About({ settings }: Pick<Data, "settings">) {
   return (
     <div className="settings about">
       <div className="about-hero">
         <Bot mood="focus" size={52} />
         <div>
           <div className="about-name">Mégatron</div>
-          <div className="muted small">Version 0.1 · ton encoche de productivité</div>
+          <div className="muted small">Ton encoche de productivité</div>
         </div>
       </div>
+      <UpdateSetting settings={settings} />
       <section className="setting column">
         <div className="setting-title">Raccourcis</div>
         <div className="shortcut-list">

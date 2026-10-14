@@ -2282,3 +2282,23 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 .page-assistant .msg.user .listening-dot { background: var(--accent); }
 .page-assistant .msg.error { background: rgb(var(--danger-rgb) / 0.1); padding: 4px 10px; font-size: 12px; }
 .select.select-wide { min-width: 130px; }
+
+/* Mises à jour */
+.update-banner {
+  display: flex; align-items: center; gap: 12px; margin: 0 24px 8px; padding: 8px 8px 8px 14px; border-radius: 14px;
+  background: rgb(var(--accent-rgb) / 0.12); border: 1px solid rgb(var(--accent-rgb) / 0.3); font-size: 13px;
+}
+.update-banner > span { flex: 1; min-width: 0; }
+.update-banner b { color: var(--accent); }
+.update-notes { white-space: pre-wrap; margin: 0; }
+.spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Focus en pause */
+.focus-state.paused { background: rgb(var(--fg-rgb) / 0.08); color: var(--muted); }
+.focus-timer.paused .focus-timer-glow { opacity: 0 !important; }
+.focus-timer.paused svg { opacity: 0.45; filter: grayscale(1); transition: opacity 0.3s, filter 0.3s; }
+.focus-timer.paused .focus-timer-time { color: var(--muted); }
+.pill-tag.paused { background: rgb(var(--fg-rgb) / 0.12); color: var(--muted); }
+.focus-live-actions { flex-wrap: wrap; }
+.focus-live-actions .btn { padding-left: 10px; padding-right: 10px; }

@@ -52,7 +52,7 @@ export const SAMPLE_REMINDERS: Reminder[] = [
 ];
 
 export const SAMPLE_FOCUS: FocusSession[] = [
-  { id: 1, project_id: 1, started_at: ago(200), ended_at: ago(150), planned_minutes: 50, budget_minutes: 5, mode: "alert", distraction_ms: 140_000, distractions: '{"youtube":140000}', completed: 1 },
+  { id: 1, project_id: 1, started_at: ago(200), ended_at: ago(150), planned_minutes: 50, budget_minutes: 5, mode: "alert", distraction_ms: 140_000, distractions: '{"youtube":140000}', completed: 1, paused_at: null, paused_ms: 0 },
 ];
 
 export const SAMPLE_EXTRAS: Extra[] = [

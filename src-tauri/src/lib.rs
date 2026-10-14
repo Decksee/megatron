@@ -289,6 +289,13 @@ fn migrations() -> Vec<Migration> {
                 SELECT id, price, COALESCE(substr(paid_at, 1, 10), date('now')), 'Paiement'
                 FROM projects WHERE status = 'paid' AND price > 0;",
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 9,
+        description: "pause des sessions de focus",
+        sql: "ALTER TABLE focus_sessions ADD COLUMN paused_at TEXT;
+              ALTER TABLE focus_sessions ADD COLUMN paused_ms INTEGER NOT NULL DEFAULT 0;",
+        kind: MigrationKind::Up,
     }]
 }
 
@@ -628,6 +635,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Un seul Mégatron à la fois : relancer l'app ouvre simplement sa fenêtre (au lieu de doubler les encoches).
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let _ = show_settings(app, None);
+        }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:megatron.db", migrations())

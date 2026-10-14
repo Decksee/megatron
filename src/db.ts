@@ -72,6 +72,10 @@ export interface FocusSession {
   /** JSON { "YouTube": ms, ... } */
   distractions: string;
   completed: number;
+  /** En pause depuis (ISO), ou null. */
+  paused_at: string | null;
+  /** Temps total déjà passé en pause (pauses terminées). */
+  paused_ms: number;
 }
 
 export type ReminderRepeat = "none" | "daily" | "weekdays" | "weekly" | "monthly";
@@ -347,6 +351,26 @@ export async function saveFocusProgress(id: number, distractionMs: number, distr
   ]);
 }
 
+/** Met le focus en pause : le temps s'arrête, les distractions ne comptent plus, le minuteur du projet aussi. */
+export async function pauseFocus(session: FocusSession) {
+  if (session.paused_at || session.ended_at) return;
+  await (await db()).execute("UPDATE focus_sessions SET paused_at=$1 WHERE id=$2", [new Date().toISOString(), session.id]);
+  if (session.project_id != null) await pauseTimer(session.project_id);
+  await emit(DATA_CHANGED);
+}
+
+/** Reprend le focus là où il en était. */
+export async function resumeFocus(session: FocusSession) {
+  if (!session.paused_at || session.ended_at) return;
+  const pause = Date.now() - new Date(session.paused_at).getTime();
+  await (await db()).execute("UPDATE focus_sessions SET paused_at=NULL, paused_ms=paused_ms+$1 WHERE id=$2", [
+    Math.max(0, Math.round(pause)),
+    session.id,
+  ]);
+  if (session.project_id != null) await startTimer(session.project_id);
+  await emit(DATA_CHANGED);
+}
+
 export async function endFocus(session: FocusSession, completed: boolean) {
   const d = await db();
   await d.execute("UPDATE focus_sessions SET ended_at=$1, completed=$2 WHERE id=$3 AND ended_at IS NULL", [
@@ -578,9 +602,10 @@ export async function importBackup(raw: unknown) {
   }
   for (const f of Array.isArray(b.focus_sessions) ? b.focus_sessions : []) {
     await d.execute(
-      "INSERT INTO focus_sessions (id, project_id, started_at, ended_at, planned_minutes, budget_minutes, mode, distraction_ms, distractions, completed) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+      "INSERT INTO focus_sessions (id, project_id, started_at, ended_at, planned_minutes, budget_minutes, mode, distraction_ms, distractions, completed, paused_at, paused_ms) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
       [f.id, f.project_id ?? null, f.started_at, f.ended_at ?? null, f.planned_minutes, f.budget_minutes,
-        f.mode ?? "alert", f.distraction_ms ?? 0, f.distractions ?? "{}", f.completed ? 1 : 0],
+        f.mode ?? "alert", f.distraction_ms ?? 0, f.distractions ?? "{}", f.completed ? 1 : 0, f.paused_at ?? null,
+        f.paused_ms ?? 0],
     );
   }
   for (const r of Array.isArray(b.reminders) ? b.reminders : []) {

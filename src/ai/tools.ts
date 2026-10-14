@@ -18,8 +18,10 @@ import {
   listReminders,
   listTasks,
   listTimers,
+  pauseFocus,
   pauseTimer,
   PROJECT_COLORS,
+  resumeFocus,
   startFocus,
   startTimer,
   stopTimer,
@@ -52,6 +54,16 @@ const obj = (properties: Record<string, unknown>, required: string[] = []): Tool
 export const MEMORY_TOOLS = ["retenir", "oublier"];
 
 export const TOOLS: ToolDef[] = [
+  {
+    name: "pause_focus",
+    description: "Met en pause la session de focus en cours (le temps et les distractions ne comptent plus).",
+    parameters: obj({}),
+  },
+  {
+    name: "reprendre_focus",
+    description: "Reprend la session de focus mise en pause.",
+    parameters: obj({}),
+  },
   {
     name: "terminer_conversation",
     description:
@@ -542,6 +554,19 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
     case "verrouiller_pc": {
       await invoke("lock_screen");
       return { result: "Session verrouillée.", label: "PC verrouillé" };
+    }
+    case "pause_focus":
+    case "reprendre_focus": {
+      const session = (await listFocusSessions()).find((s) => s.ended_at == null);
+      if (!session) throw new Error("Aucune session de focus en cours.");
+      if (name === "pause_focus") {
+        if (session.paused_at) return { result: "Le focus est déjà en pause.", label: "Focus déjà en pause" };
+        await pauseFocus(session);
+        return { result: "Focus mis en pause.", label: "Focus en pause" };
+      }
+      if (!session.paused_at) return { result: "Le focus n'est pas en pause.", label: "Focus déjà en cours" };
+      await resumeFocus(session);
+      return { result: "Focus repris.", label: "Focus repris" };
     }
     case "terminer_conversation": {
       requestEndConversation();

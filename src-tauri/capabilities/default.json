@@ -2,7 +2,10 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissions des fenêtres d'encoche",
-  "windows": ["notch-*", "settings"],
+  "windows": [
+    "notch-*",
+    "settings"
+  ],
   "permissions": [
     "core:default",
     "sql:default",
@@ -14,6 +17,8 @@
     "core:window:allow-close",
     "core:window:allow-minimize",
     "core:window:allow-start-dragging",
-    "core:window:allow-toggle-maximize"
+    "core:window:allow-toggle-maximize",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

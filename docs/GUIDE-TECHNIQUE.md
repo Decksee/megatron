@@ -219,7 +219,28 @@ La fenêtre première interroge le bot en continu (`getUpdates`, attente de 25 s
 
 **Ajouter une commande Rust.** Écrire la fonction avec `#[tauri::command]`, l'ajouter à `generate_handler!`, l'appeler avec `invoke("nom", { paramètre })` (les paramètres sont en camelCase côté JavaScript, snake_case côté Rust).
 
-## 7. Conventions
+## 7. Installateur et mises à jour
+
+**Installateur.** `npx tauri build` produit un installateur NSIS (`src-tauri/target/release/bundle/nsis/`), en français, installé pour l'utilisateur courant sans droits administrateur. Il n'est pas signé par un certificat de signature de code : Windows affiche donc l'avertissement SmartScreen au premier lancement (« Informations complémentaires » → « Exécuter quand même »).
+
+**Une seule instance.** `tauri-plugin-single-instance` empêche de lancer Mégatron deux fois : un second lancement ouvre simplement la fenêtre Mégatron.
+
+**Mises à jour automatiques.** `tauri-plugin-updater` lit `latest.json` dans les versions (Releases) du dépôt public `Decksee/megatron`. Chaque version est signée avec une clé propre à Tauri :
+
+- la clé privée est dans `~/.tauri/megatron-updater.key`, **jamais dans le dépôt** (`*.key` est ignoré par Git) ; la perdre empêche de publier des mises à jour que les installations existantes accepteront ;
+- la clé publique est dans `tauri.conf.json` (`plugins.updater.pubkey`).
+
+La fenêtre première vérifie 30 s après le démarrage puis toutes les 6 h (`src/updater.ts`), note la version trouvée dans le réglage `update_available` et envoie une notification. La fenêtre Mégatron affiche alors un bandeau « Installer maintenant » ; Réglages → À propos permet aussi de vérifier à la demande.
+
+**Publier une version :**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\publier.ps1 -Version 0.2.0 -Notes "Ce qui change"
+```
+
+Le script met à jour la version, construit et signe l'installateur, génère `latest.json` puis crée la version sur GitHub avec `gh`.
+
+## 8. Conventions
 
 - **Tout est en français** : interface, commentaires, messages de commit.
 - **Commentaires** : ils expliquent le *pourquoi* (une contrainte de Windows, un piège déjà rencontré), pas le *quoi*.
@@ -227,7 +248,7 @@ La fenêtre première interroge le bot en continu (`getUpdates`, attente de 25 s
 - **Animations** : `motion` pour les transitions et les ressorts ; CSS pour les boucles infinies simples (plus fiables) ; `requestAnimationFrame` sans rendu React pour ce qui bouge en continu (ondes de la pastille vocale).
 - **Vérifier avant de livrer** : `npx tsc --noEmit -p .` et `cargo check` doivent passer.
 
-## 8. Pièges connus
+## 9. Pièges connus
 
 - **Clics traversants** : si une zone de l'encoche ne réagit pas aux clics, vérifier que `interactive` est vrai dans `App.tsx` pour cet état et que la zone déclarée à `set_hit_area` la couvre.
 - **Champ qui garde l'encoche ouverte** : un champ ne retient l'encoche que si la fenêtre a réellement le focus (`document.hasFocus()`), sinon l'onglet IA, qui place le curseur dans son champ, empêcherait l'encoche de se fermer.
