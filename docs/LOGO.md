@@ -36,8 +36,8 @@ Les yeux et le voyant sont entourés d'une **lueur** verte : ce sont les seules 
 | Rôle | Couleur | Code |
 |---|---|---|
 | Yeux, voyant, lueur | Vert Mégatron | `#5be36b` |
-| Corps du robot | Noir profond | `#050506` (icône) · `#0b0c0f` (mascotte) |
-| Fond de l'icône | Dégradé anthracite | `#2a2b31` → `#16171b` |
+| Corps du robot | Noir profond, avec un fin contour clair | `#111216` (icône) · `#0b0c0f` (mascotte) |
+| Fond de l'icône | Noir pur | `#000000` |
 | Colère, distraction | Rouge alerte | `#ff4d4d` |
 | Accent de l'interface (thème sombre) | Vert | `#4fe06a` |
 | Accent de l'interface (thème clair) | Vert foncé | `#15803d` |
