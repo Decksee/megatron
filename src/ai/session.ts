@@ -310,13 +310,44 @@ export function cancelRequest() {
   push("error", "Demande annulée.");
 }
 
+export interface AskResult {
+  reply: string;
+  /** Actions faites (« Tâche ajoutée : … »). */
+  actions: string[];
+  error?: string;
+}
+
+export interface AskOptions {
+  /** Demande venue d'ailleurs (Telegram) : rien n'est lu à voix haute sur le PC. */
+  silent?: boolean;
+  /** Préfixe de la bulle de l'utilisateur (ex. « 📱 »). */
+  badge?: string;
+}
+
+/** Attend que l'assistant soit libre (une autre demande est peut-être en cours). */
+export async function waitIdle(timeoutMs = 90_000) {
+  const start = Date.now();
+  while ((state.busy || state.transcribing) && Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  return !state.busy && !state.transcribing;
+}
+
 /**
  * Envoie un message à l'assistant et exécute les outils qu'il demande, jusqu'à sa réponse finale.
  * `bubbleId` : bulle déjà affichée (dictée vocale) à remplir au lieu d'en créer une.
  */
-export async function ask(text: string, config: AiConfig, bubbleId?: number, byVoice = false) {
+export async function ask(
+  text: string,
+  config: AiConfig,
+  bubbleId?: number,
+  byVoice = false,
+  options: AskOptions = {},
+): Promise<AskResult> {
   const content = text.trim();
-  if (!content || state.busy) return;
+  const result: AskResult = { reply: "", actions: [] };
+  if (!content) return result;
+  if (state.busy) return { ...result, error: "Je suis déjà en train de répondre, réessaie dans un instant." };
   const run = ++runId;
   stopSpeaking();
   let reply = "";
@@ -324,8 +355,9 @@ export async function ask(text: string, config: AiConfig, bubbleId?: number, byV
   if (state.provider !== config.provider) set({ history: [], provider: config.provider });
 
   const before = state.history;
-  if (bubbleId != null) updateMessage(bubbleId, content);
-  else push("user", content);
+  const shown = options.badge ? `${options.badge} ${content}` : content;
+  if (bubbleId != null) updateMessage(bubbleId, shown);
+  else push("user", shown);
   let turn: unknown[] = [userMessage(config.provider, `[${stamp()}] ${content}`)];
   const context = before.slice(-MAX_TURNS).flat();
   set({ busy: true });
@@ -335,12 +367,13 @@ export async function ask(text: string, config: AiConfig, bubbleId?: number, byV
     const system = await systemPrompt(config);
     for (let step = 0; step < MAX_STEPS; step++) {
       const res = await chat(config, buildBody(config.provider, system, [...context, ...turn], tools));
-      if (run !== runId) return; // annulée entre-temps
+      if (run !== runId) return { ...result, error: "Demande annulée." }; // annulée entre-temps
       const answer = parseResponse(config.provider, res);
       turn = [...turn, answer.native];
       if (answer.text) {
         push("assistant", answer.text);
-        reply = answer.text;
+        reply = reply ? `${reply}
+${answer.text}` : answer.text;
       }
       if (answer.refused) {
         push("error", "Le modèle a refusé de répondre à cette demande.");
@@ -353,6 +386,7 @@ export async function ask(text: string, config: AiConfig, bubbleId?: number, byV
         try {
           const out = await executeTool(call.name, call.args);
           push("action", out.label);
+          result.actions.push(out.label);
           results.push({ call, result: out.result });
         } catch (e) {
           push("error", errorText(e));
@@ -361,14 +395,17 @@ export async function ask(text: string, config: AiConfig, bubbleId?: number, byV
       }
       turn = [...turn, ...toolResultMessages(config.provider, results)];
     }
-    if (run !== runId) return;
+    if (run !== runId) return { ...result, error: "Demande annulée." };
     // L'échange est complet (il se termine par une réponse du modèle) : on le garde.
     set({ history: [...before, turn].slice(-MAX_TURNS * 4) });
-    if (reply) speakReply(reply, byVoice || state.conversing);
+    if (reply && !options.silent) speakReply(reply, byVoice || state.conversing);
+    return { ...result, reply };
   } catch (e) {
-    if (run !== runId) return;
+    if (run !== runId) return { ...result, error: "Demande annulée." };
     // La requête n'a pas abouti : l'historique reste celui d'avant, toujours valide.
-    push("error", friendlyError(errorText(e)));
+    const message = friendlyError(errorText(e));
+    push("error", message);
+    return { ...result, error: message };
   } finally {
     if (run === runId) set({ busy: false });
   }
@@ -397,9 +434,16 @@ async function geminiTranscribeModels(slot: string, preferred: string) {
   return [...new Set([...lite, ...transcribeModels, preferred])];
 }
 
-async function transcribe(voice: VoiceConfig, wav: string) {
+export async function transcribe(voice: VoiceConfig, wav: string, mime = "audio/wav") {
   const call = (model: string) =>
-    invoke<string>("ai_transcribe", { provider: voice.provider, slot: voice.slot, model, baseUrl: voice.baseUrl, wavBase64: wav });
+    invoke<string>("ai_transcribe", {
+      provider: voice.provider,
+      slot: voice.slot,
+      model,
+      baseUrl: voice.baseUrl,
+      wavBase64: wav,
+      mime,
+    });
   if (voice.provider !== "gemini") return call(voice.model);
   let lastError: unknown;
   for (const model of await geminiTranscribeModels(voice.slot, voice.model)) {

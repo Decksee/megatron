@@ -22,6 +22,34 @@ export interface ProviderInfo {
 const newestFirst = (a: string, b: string) => b.localeCompare(a, "en", { numeric: true });
 const stable = (id: string) => !/(preview|exp|latest)/.test(id);
 
+/** Gamme de prix d'un modèle : 0 = le moins cher. Les modèles inconnus passent après. */
+function costRank(provider: ProviderId, id: string) {
+  const m = id.toLowerCase();
+  switch (provider) {
+    case "anthropic":
+      return m.includes("haiku") ? 0 : m.includes("sonnet") ? 1 : m.includes("opus") ? 2 : 3;
+    case "openai":
+      if (m.includes("nano")) return 0;
+      if (m.includes("mini")) return 1;
+      if (/^o\d/.test(m)) return m.includes("pro") ? 5 : 3;
+      return m.includes("pro") ? 4 : 2;
+    case "gemini":
+      return m.includes("flash-lite") ? 0 : m.includes("flash") ? 1 : m.includes("pro") ? 2 : 3;
+    default:
+      return 0;
+  }
+}
+
+/** Du moins cher au plus cher ; dans une même gamme, versions stables et récentes d'abord. */
+export function sortByCost(provider: ProviderId, models: string[]) {
+  return [...models].sort(
+    (a, b) =>
+      costRank(provider, a) - costRank(provider, b) ||
+      Number(stable(b)) - Number(stable(a)) ||
+      newestFirst(a, b),
+  );
+}
+
 /**
  * Modèles Gemini qui ont le plus de chances d'avoir un quota gratuit, du meilleur au moins bon :
  * les « gemini-X.Y-flash » classiques d'abord, puis « flash-lite », puis les alias « latest ».
@@ -44,7 +72,8 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     keyPlaceholder: "AIza…",
     voice: true,
     filter: (id) => id.startsWith("gemini") && !/(embedding|tts|image|live|aqa|audio|robotics)/.test(id),
-    pickDefault: (models) => geminiFreeCandidates(models)[0] ?? models[0],
+    // Gratuit : le moins cher parmi les modèles qui ont un quota gratuit (flash-lite, puis flash).
+    pickDefault: (models) => sortByCost("gemini", geminiFreeCandidates(models))[0] ?? models[0],
   },
   anthropic: {
     label: "Claude",
@@ -53,7 +82,8 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     keyPlaceholder: "sk-ant-…",
     voice: false,
     filter: (id) => id.startsWith("claude"),
-    pickDefault: (models) => (models.includes("claude-opus-5-5") ? "claude-opus-5-5" : models[0]),
+    // Toujours le moins cher par défaut (Haiku) : on peut monter en gamme ensuite.
+    pickDefault: (models) => sortByCost("anthropic", models)[0],
   },
   openai: {
     label: "OpenAI",
@@ -63,10 +93,7 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     voice: true,
     filter: (id) =>
       /^(gpt|o\d|chatgpt)/.test(id) && !/(audio|realtime|transcribe|tts|image|search|embedding|instruct)/.test(id),
-    pickDefault: (models) => {
-      const mini = models.filter((m) => m.endsWith("-mini") && m.startsWith("gpt")).sort(newestFirst);
-      return mini[0] ?? models.sort(newestFirst)[0];
-    },
+    pickDefault: (models) => sortByCost("openai", models.filter((m) => m.startsWith("gpt")))[0] ?? sortByCost("openai", models)[0],
   },
   compatible: {
     label: "Compatible OpenAI",

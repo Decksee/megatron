@@ -161,12 +161,9 @@ function MediaTile({ media, now }: { media: MediaState | null; now: Date }) {
 export function Equalizer() {
   return (
     <span className="eq" aria-hidden="true">
+      {/* Animation CSS : une boucle JS s'arrêtait après le premier affichage. */}
       {[0, 1, 2].map((i) => (
-        <motion.i
-          key={i}
-          animate={{ scaleY: [0.3, 1, 0.5, 0.8, 0.3] }}
-          transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
-        />
+        <i key={i} style={{ animationDelay: `${i * 0.18}s` }} />
       ))}
     </span>
   );

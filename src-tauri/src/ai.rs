@@ -17,7 +17,7 @@ fn target(slot: &str) -> Vec<u16> {
 }
 
 #[cfg(windows)]
-fn read_key(slot: &str) -> Option<String> {
+pub(crate) fn read_key(slot: &str) -> Option<String> {
     use windows_sys::Win32::Security::Credentials::{CredFree, CredReadW, CREDENTIALW, CRED_TYPE_GENERIC};
     unsafe {
         let mut cred: *mut CREDENTIALW = std::ptr::null_mut();
@@ -104,7 +104,7 @@ fn supports_fallbacks(model: &str) -> bool {
     matches!(model, "claude-opus-5-5" | "claude-opus-5" | "claude-fable-5-1" | "claude-sonnet-5-5")
 }
 
-fn error_message(text: &str) -> String {
+pub(crate) fn error_message(text: &str) -> String {
     let parsed: Option<Value> = serde_json::from_str(text).ok();
     let msg = parsed.as_ref().and_then(|v| {
         v["error"]["message"]
@@ -117,7 +117,7 @@ fn error_message(text: &str) -> String {
 }
 
 /// Client HTTP avec délais : sans eux, un fournisseur qui ne répond pas bloquerait l'assistant indéfiniment.
-fn client() -> reqwest::Client {
+pub(crate) fn client() -> reqwest::Client {
     reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(60))
@@ -245,15 +245,22 @@ pub async fn ai_transcribe(
     model: String,
     base_url: Option<String>,
     wav_base64: String,
+    mime: Option<String>,
 ) -> Result<String, String> {
     let client = client();
+    // WAV du micro, ou OGG des messages vocaux Telegram.
+    let mime = match mime.as_deref() {
+        Some("audio/ogg") => "audio/ogg",
+        _ => "audio/wav",
+    };
+    let file_name = if mime == "audio/ogg" { "voix.ogg" } else { "voix.wav" };
     match provider.as_str() {
         "gemini" => {
             let body = json!({
                 "contents": [{
                     "role": "user",
                     "parts": [
-                        { "inline_data": { "mime_type": "audio/wav", "data": wav_base64 } },
+                        { "inline_data": { "mime_type": mime, "data": wav_base64 } },
                         { "text": "Transcris mot pour mot ce que dit la personne (en français le plus souvent). Réponds uniquement par la transcription, sans guillemets ni commentaire. Si on n'entend rien, réponds par une chaîne vide." }
                     ]
                 }]
@@ -275,8 +282,8 @@ pub async fn ai_transcribe(
                 .decode(wav_base64)
                 .map_err(|e| e.to_string())?;
             let part = reqwest::multipart::Part::bytes(audio)
-                .file_name("voix.wav")
-                .mime_str("audio/wav")
+                .file_name(file_name)
+                .mime_str(mime)
                 .map_err(|e| e.to_string())?;
             let form = reqwest::multipart::Form::new()
                 .part("file", part)

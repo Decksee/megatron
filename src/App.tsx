@@ -10,12 +10,14 @@ import { isSpeaking, useSpeechPrefs } from "./ai/speech";
 import { listenAfterWake, useAssistantShortcut, useCountdownWatcher, useIdleAutoPause, useWakeWord } from "./background";
 import { focusElapsedMs, IDLE_KEY, useFocusMonitor } from "./focus";
 import { dueReminders, SNOOZE_MINUTES, useReminderWatcher } from "./reminders";
+import { useTelegram } from "./telegram";
 import { useMood, useNotchCursor, useNotchOccupied } from "./mood";
 import { formatTrackTime, mediaAppName, mediaPosition, useMedia } from "./media";
 import { aiStore, useAi } from "./ai/session";
 import { completeReminder, snoozeReminder } from "./db";
 import { addDays, formatClock, formatDuration, isRunning, startOfDay, timerElapsed, totalMs } from "./time";
 import { Bot } from "./components/Bot";
+import { Confetti } from "./components/Confetti";
 import { SoundCurves } from "./components/SoundCurves";
 import { Today } from "./views/Today";
 import { Controls } from "./views/Controls";
@@ -31,6 +33,11 @@ const isTauri = "__TAURI_INTERNALS__" in window;
 const COLLAPSED = { width: 230, height: 36 };
 /** Pilule un peu plus large quand une musique joue (titre + avancement). */
 const COLLAPSED_MEDIA = { width: 340, height: 40 };
+/** Fin de focus réussie : la pastille s'élargit pour féliciter. */
+const CELEBRATE = { width: 300, height: 40 };
+const CELEBRATION_MS = 7000;
+/** Hauteur gagnée sur l'onglet Contrôles quand aucune musique ne joue. */
+const CONTROLS_NO_MEDIA_SHRINK = 66;
 /** En focus, pendant une pause ou une distraction : place pour le temps de repos restant. */
 const COLLAPSED_FOCUS = { width: 290, height: 36 };
 /** En focus, concentré : juste l'étiquette et le temps restant. */
@@ -102,6 +109,7 @@ export function App() {
   useIdleAutoPause(data);
   useCountdownWatcher(data);
   useReminderWatcher(data);
+  useTelegram(data);
   useAssistantShortcut(data, () => {
     setTab("assistant");
     setExpanded(true);
@@ -135,7 +143,23 @@ export function App() {
     }, 2500);
     return () => window.clearTimeout(t);
   }, [ai.conversing]);
-  const mood = useMood(data, focus, due, { listening: ai.recording, thinking: ai.busy || ai.transcribing });
+  // Focus mené à son terme : Mégatron fête ça quelques secondes (sourire, sautillement, confettis).
+  const [celebration, setCelebration] = useState<{ minutes: number } | null>(null);
+  const lastFocusId = useRef<number | null>(null);
+  const celebrationTimer = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const id = focusSession?.id ?? null;
+    const prev = lastFocusId.current;
+    lastFocusId.current = id;
+    if (prev == null || id != null) return;
+    const ended = data.focusSessions.find((s) => s.id === prev);
+    if (!ended?.completed || !ended.ended_at) return;
+    setCelebration({ minutes: Math.max(1, Math.round((new Date(ended.ended_at).getTime() - new Date(ended.started_at).getTime()) / 60_000)) });
+    window.clearTimeout(celebrationTimer.current);
+    celebrationTimer.current = window.setTimeout(() => setCelebration(null), CELEBRATION_MS);
+  }, [focusSession?.id, data.focusSessions]);
+  const computedMood = useMood(data, focus, due, { listening: ai.recording, thinking: ai.busy || ai.transcribing });
+  const mood = celebration ? "happy" : computedMood;
   const cursor = useNotchCursor();
   const media = useMedia(expanded && (tab === "controls" || tab === "today"));
   const occupied = useNotchOccupied();
@@ -150,7 +174,11 @@ export function App() {
     const el = document.activeElement;
     const state = aiStore.get();
     if (state.recording || state.busy || state.transcribing || state.conversing || isSpeaking()) return true;
-    return isHeld() || (el instanceof HTMLElement && el.matches('input, textarea, select, [aria-expanded="true"]'));
+    // Un champ ne retient l'encoche que si la fenêtre a vraiment le focus : l'onglet IA place le curseur
+    // dans son champ dès l'ouverture, même quand on n'a fait que survoler (on ne pouvait plus la fermer).
+    const typing =
+      document.hasFocus() && el instanceof HTMLElement && el.matches('input, textarea, select, [aria-expanded="true"]');
+    return isHeld() || typing;
   };
 
   const setHovered = (hovered: boolean) => {
@@ -187,24 +215,31 @@ export function App() {
     };
   }, []);
 
-  const current = TABS.find((t) => t.id === tab)!;
+  const tabSize = TABS.find((t) => t.id === tab)!;
+  // Contrôles sans musique : le lecteur est plus petit, l'encoche aussi (les raccourcis gardent leurs proportions).
+  const current = tab === "controls" && !media ? { ...tabSize, height: tabSize.height - CONTROLS_NO_MEDIA_SHRINK } : tabSize;
   const busyPill =
     ai.recording || ai.busy || ai.transcribing || !!focusSession || data.timers.length > 0;
   const mediaPill = !busyPill && !!media?.playing;
   // Fine barre : « auto » = quand une fenêtre est derrière (sauf alerte importante),
   // « always » = dès que rien n'est en cours, « never » = jamais.
   const miniMode = data.settings.notch_mini === "0" ? "never" : data.settings.notch_mini === "1" ? "always" : (data.settings.notch_mini ?? "auto");
-  const important = ai.recording || ai.busy || ai.transcribing || !!focus?.distraction;
+  // Une distraction ne fait pas ressortir la barre fine (elle passe juste au rouge) :
+  // grandir au-dessus d'une fenêtre empêchait ensuite de détecter qu'elle est derrière.
+  const important = ai.recording || ai.busy || ai.transcribing;
   const activity = busyPill || mediaPill;
   const mini =
     !expanded &&
     !alert &&
+    !celebration &&
     (miniMode === "always" ? !activity : miniMode === "auto" ? occupied && !important : false);
   const size = expanded
     ? current
     : alert
       ? ALERT
-      : mini
+      : celebration
+        ? CELEBRATE
+        : mini
         ? hovering
           ? MINI_HOVERED
           : MINI
@@ -229,12 +264,14 @@ export function App() {
   const runningTimers = data.timers.filter((t) => isRunning(data.entries, t.project_id));
   const first = runningTimers[0];
   const today = totalMs(data.entries, startOfDay(now), addDays(startOfDay(now), 1), now);
-  const glow = focus?.distraction ? (focusOver ? "bad" : "warn") : undefined;
+  const glow = celebration ? "good" : focus?.distraction ? (focusOver ? "bad" : "warn") : undefined;
 
   const openSettings = () => invoke("open_settings", { section: null }).catch(console.error);
 
   return (
     <div className="stage">
+      {/* Sous l'encoche, en dehors : les clics traversent toujours. */}
+      {celebration && <Confetti key={celebration.minutes + String(lastFocusId.current)} />}
       <motion.div
         className="notch"
         data-glow={glow}
@@ -351,8 +388,24 @@ export function App() {
                 exit={{ opacity: 0, filter: "blur(4px)" }}
                 transition={{ duration: 0.15 }}
               >
-                <Bot bare mood={mood} size={20} cursor={cursor} />
-                {ai.recording || ai.busy || ai.transcribing ? (
+                {celebration ? (
+                  <motion.span
+                    className="pill-bot"
+                    animate={{ y: [0, -4, 0, -2, 0], rotate: [0, -6, 6, -3, 0] }}
+                    transition={{ duration: 0.9, repeat: Infinity, repeatDelay: 0.4 }}
+                  >
+                    <Bot bare mood="happy" size={20} cursor={cursor} />
+                  </motion.span>
+                ) : (
+                  <Bot bare mood={mood} size={20} cursor={cursor} />
+                )}
+                {celebration ? (
+                  <>
+                    <span className="pill-tag">Bravo !</span>
+                    <span className="pill-time">{celebration.minutes} min de focus</span>
+                    <span className="pill-work">🎉</span>
+                  </>
+                ) : ai.recording || ai.busy || ai.transcribing ? (
                   <>
                     <span className="pill-time">{ai.recording ? "Je t'écoute…" : "Je réfléchis…"}</span>
                     <span className="pill-work">IA</span>

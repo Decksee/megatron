@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Bot as Bot2, Database, FolderKanban, Info, ListChecks, Minus, Settings2, Sparkles, Target, X } from "lucide-react";
+import { Bot as Bot2, Database, Smartphone, FolderKanban, Info, ListChecks, Minus, Settings2, Sparkles, Target, X } from "lucide-react";
 import { useData } from "./useData";
 import { useTheme } from "./theme";
 import { setSetting, type FocusMode } from "./db";
@@ -15,6 +15,7 @@ import { Select } from "./components/Select";
 import { AiSetup, Assistant } from "./views/Assistant";
 import { Tasks } from "./views/Tasks";
 import { Projects } from "./views/Projects";
+import { TelegramSettings } from "./views/TelegramSettings";
 import { useSpeechPrefs } from "./ai/speech";
 import { DataSettings, GeneralSettings, MemorySetting, SpeechSetting, WakeWordSetting } from "./views/Settings";
 import type { Data } from "./useData";
@@ -24,6 +25,7 @@ const SETTINGS = [
   { id: "general", label: "Général", icon: Settings2, hint: "Apparence, démarrage et comportement de l'encoche." },
   { id: "ia", label: "IA", icon: Sparkles, hint: "Ton assistant, ta clé, sa voix et la commande vocale." },
   { id: "focus", label: "Focus", icon: Target, hint: "Tes réglages de concentration par défaut et ce qui te distrait." },
+  { id: "phone", label: "Téléphone", icon: Smartphone, hint: "Notifications et discussion avec Mégatron depuis Telegram." },
   { id: "data", label: "Données", icon: Database, hint: "Sauvegarde et restauration de tout ce que contient Mégatron." },
   { id: "about", label: "À propos", icon: Info, hint: "Raccourcis et confidentialité." },
 ] as const;
@@ -135,6 +137,7 @@ export function SettingsApp() {
                   {sub === "general" && <GeneralSettings settings={data.settings} />}
                   {sub === "ia" && <AiSection settings={data.settings} memories={data.memories} />}
                   {sub === "focus" && <FocusSection {...data} />}
+                  {sub === "phone" && <TelegramSettings settings={data.settings} />}
                   {sub === "data" && <DataSettings />}
                   {sub === "about" && <About />}
                 </motion.div>

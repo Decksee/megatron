@@ -228,9 +228,12 @@ function ProjectList({
             );
           })}
         </div>
-        <button className="btn ghost clients-btn" onClick={onClients}>
-          <Users size={13} /> Clients{clientCount ? ` · ${clientCount}` : ""}
-        </button>
+        {/* Pas de client renseigné (projets perso, cours…) : pas d'espace clients. */}
+        {clientCount > 0 && (
+          <button className="btn ghost clients-btn" onClick={onClients}>
+            <Users size={13} /> Clients · {clientCount}
+          </button>
+        )}
       </div>
       <div className="project-grid">
         {visible.map((p) => (

@@ -4,6 +4,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { endFocus, saveFocusProgress, type FocusSession } from "./db";
 import { isLeader } from "./leader";
 import { notify } from "./notify";
+import { telegramNotify } from "./telegram";
 import type { Data } from "./useData";
 
 /** Mots-clés cherchés dans le nom du programme ou le titre de la fenêtre (onglet du navigateur). */
@@ -119,6 +120,7 @@ export function useFocusMonitor(data: Data) {
           await saveFocusProgress(session.id, t.ms, t.byKey);
           await endFocus(session, true);
           await notify("Session de focus terminée 🎯", "Bravo ! Prends une petite pause.");
+          await telegramNotify("focus", "🎯 Session de focus terminée. Bravo ! Prends une petite pause.");
           return;
         }
 
@@ -141,6 +143,10 @@ export function useFocusMonitor(data: Data) {
                 : session.mode === "block"
                   ? `${distraction} est bloqué jusqu'à la fin de la session.`
                   : `Retour au boulot ! (${distraction})`,
+            );
+            await telegramNotify(
+              "focus",
+              distraction === IDLE_KEY ? "☕ Ton temps de repos est écoulé : on s'y remet !" : `⚠️ Budget de distraction dépassé (${distraction}).`,
             );
           }
         }

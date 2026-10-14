@@ -1,6 +1,7 @@
 mod actions;
 mod ai;
 mod media;
+mod telegram;
 mod wake;
 
 use std::{collections::HashMap, sync::Mutex, thread, time::Duration};
@@ -626,6 +627,8 @@ pub fn run() {
             ai::ai_transcribe,
             ai::ai_speak,
             ai::azure_voices,
+            telegram::telegram_call,
+            telegram::telegram_file,
             actions::open_app,
             actions::open_url,
             actions::open_folder,

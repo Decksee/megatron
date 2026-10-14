@@ -22,7 +22,7 @@ import {
   Square,
   Zap,
 } from "lucide-react";
-import { geminiFreeCandidates, PROVIDERS, type ProviderId } from "../ai/providers";
+import { geminiFreeCandidates, PROVIDERS, sortByCost, type ProviderId } from "../ai/providers";
 import {
   aiConfig,
   ask,
@@ -72,7 +72,8 @@ const errorText = (e: unknown) => String((e as Error)?.message ?? e);
 
 async function fetchModels(provider: ProviderId, slot: string, baseUrl: string | null) {
   const all = await invoke<string[]>("ai_list_models", { provider, slot, baseUrl });
-  return all.filter(PROVIDERS[provider].filter);
+  // Du moins cher au plus cher : le premier de la liste est aussi celui choisi par défaut.
+  return sortByCost(provider, all.filter(PROVIDERS[provider].filter));
 }
 
 export function Assistant({ settings }: Data) {

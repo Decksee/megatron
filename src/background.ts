@@ -4,6 +4,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { pauseAll, setSetting } from "./db";
 import { isLeader } from "./leader";
 import { notify } from "./notify";
+import { telegramNotify } from "./telegram";
 import { DEFAULT_IDLE_MINUTES } from "./time";
 import { aiConfig, requestInputFocus, startConversation, startTalking, stopTalking, voiceConfig } from "./ai/session";
 import type { Data } from "./useData";
@@ -55,6 +56,7 @@ export function useCountdownWatcher(data: Data) {
       if (!end || new Date(end).getTime() > Date.now() || !(await isLeader())) return;
       await setSetting("countdown_end", "");
       await notify("⏱ Minuteur terminé", "Le temps est écoulé.");
+      await telegramNotify("reminders", "⏱ Minuteur terminé : le temps est écoulé.");
     }, 1000);
     return () => clearInterval(id);
   }, []);
