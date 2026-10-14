@@ -13,11 +13,12 @@ import { dueReminders, SNOOZE_MINUTES, useReminderWatcher } from "./reminders";
 import { useTelegram } from "./telegram";
 import { useMood, useNotchCursor, useNotchOccupied } from "./mood";
 import { formatTrackTime, mediaAppName, mediaPosition, useMedia } from "./media";
-import { aiStore, useAi } from "./ai/session";
+import { aiConfig, aiStore, useAi, voiceConfig } from "./ai/session";
 import { completeReminder, snoozeReminder } from "./db";
 import { addDays, formatClock, formatDuration, isRunning, startOfDay, timerElapsed, totalMs } from "./time";
 import { Bot } from "./components/Bot";
 import { Confetti } from "./components/Confetti";
+import { VoiceWave } from "./components/VoiceWave";
 import { SoundCurves } from "./components/SoundCurves";
 import { Today } from "./views/Today";
 import { Controls } from "./views/Controls";
@@ -36,6 +37,9 @@ const COLLAPSED_MEDIA = { width: 340, height: 40 };
 /** Fin de focus réussie : la pastille s'élargit pour féliciter. */
 const CELEBRATE = { width: 300, height: 40 };
 const CELEBRATION_MS = 7000;
+/** Pastille vocale (« Hey Mégatron ») : juste ses yeux et les ondes, sans texte ni ouvrir l'encoche. */
+const VOICE_PILL = { width: 230, height: 50 };
+const VOICE_TAIL_MS = 2600;
 /** Hauteur gagnée sur l'onglet Contrôles quand aucune musique ne joue. */
 const CONTROLS_NO_MEDIA_SHRINK = 66;
 /** En focus, pendant une pause ou une distraction : place pour le temps de repos restant. */
@@ -119,8 +123,11 @@ export function App() {
     // C'est sa propre voix qu'il entend, ou une conversation est déjà en cours.
     const ai = aiStore.get();
     if (isSpeaking() || ai.conversing || ai.recording || ai.busy) return;
-    setTab("assistant");
-    setExpanded(true);
+    // Façon Siri : la pastille vocale suffit. Sans IA ou sans voix configurée, on ouvre l'onglet IA.
+    if (!aiConfig(data.settings) || !voiceConfig(data.settings)) {
+      setTab("assistant");
+      setExpanded(true);
+    }
     listenAfterWake(data);
   });
   const focus = useFocusMonitor(data);
@@ -131,6 +138,8 @@ export function App() {
   const ai = useAi();
   // Conversation vocale terminée : l'encoche se range peu après, sauf si la souris est dessus.
   const wasConversing = useRef(false);
+  const [voiceTail, setVoiceTail] = useState(false);
+  const showVoice = ai.conversing || voiceTail;
   useEffect(() => {
     if (ai.conversing) {
       wasConversing.current = true;
@@ -138,6 +147,9 @@ export function App() {
     }
     if (!wasConversing.current) return;
     wasConversing.current = false;
+    // La pastille vocale reste le temps qu'il dise au revoir.
+    setVoiceTail(true);
+    window.setTimeout(() => setVoiceTail(false), VOICE_TAIL_MS);
     const t = window.setTimeout(() => {
       if (!hoveredRef.current && !isBusy()) setExpanded(false);
     }, 2500);
@@ -226,18 +238,21 @@ export function App() {
   const miniMode = data.settings.notch_mini === "0" ? "never" : data.settings.notch_mini === "1" ? "always" : (data.settings.notch_mini ?? "auto");
   // Une distraction ne fait pas ressortir la barre fine (elle passe juste au rouge) :
   // grandir au-dessus d'une fenêtre empêchait ensuite de détecter qu'elle est derrière.
-  const important = ai.recording || ai.busy || ai.transcribing;
+  const important = ai.recording || ai.busy || ai.transcribing || showVoice;
   const activity = busyPill || mediaPill;
   const mini =
     !expanded &&
     !alert &&
     !celebration &&
+    !showVoice &&
     (miniMode === "always" ? !activity : miniMode === "auto" ? occupied && !important : false);
   const size = expanded
     ? current
     : alert
       ? ALERT
-      : celebration
+      : showVoice
+        ? VOICE_PILL
+        : celebration
         ? CELEBRATE
         : mini
         ? hovering
@@ -251,7 +266,8 @@ export function App() {
               : COLLAPSED_FOCUS_CALM
             : COLLAPSED;
   // Ouverte ou rappel affiché : cliquable. Fermée : survol seulement, les clics traversent.
-  const interactive = expanded || !!alert;
+  // La pastille vocale est cliquable : un clic ouvre la discussion complète.
+  const interactive = expanded || !!alert || showVoice;
   // Pour entrer, il faut toucher le bord (zone étroite) ; une fois dessus, la zone suit la barre épaissie.
   const hoverZone = mini ? (hovering ? MINI_HOVERED : MINI_HOVER) : size;
   miniRef.current = mini;
@@ -371,6 +387,23 @@ export function App() {
                   Fait
                 </button>
               </motion.div>
+            ) : showVoice ? (
+              <motion.button
+                key="voice"
+                className="voice-pill"
+                onClick={() => {
+                  setTab("assistant");
+                  setExpanded(true);
+                }}
+                title="Ouvrir la discussion"
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, filter: "blur(4px)" }}
+                transition={{ duration: 0.2 }}
+              >
+                <Bot bare mood={ai.recording ? "listen" : ai.busy || ai.transcribing ? "think" : "happy"} size={20} cursor={cursor} />
+                <VoiceWave phase={ai.recording ? "listen" : ai.busy || ai.transcribing ? "think" : "idle"} />
+              </motion.button>
             ) : mini ? (
               <motion.div
                 key="mini"

@@ -17,7 +17,17 @@ const normalize = (s: string) =>
  * Champ « client » : on tape un nom, Mégatron propose les clients déjà connus ;
  * un nom qui n'existe pas encore crée simplement un nouveau client.
  */
-export function ClientInput({ value, onChange, clients }: { value: string; onChange: (v: string) => void; clients: string[] }) {
+export function ClientInput({
+  value,
+  onChange,
+  clients,
+  placeholder = "Nom du client",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  clients: string[];
+  placeholder?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +58,7 @@ export function ClientInput({ value, onChange, clients }: { value: string; onCha
       <input
         ref={inputRef}
         value={value}
-        placeholder="Nom du client"
+        placeholder={placeholder}
         role="combobox"
         aria-expanded={show}
         aria-autocomplete="list"
@@ -101,7 +111,7 @@ export function ClientInput({ value, onChange, clients }: { value: string; onCha
               {isNew && (
                 <li className="select-option new-client" onPointerDown={(e) => e.preventDefault()} onClick={() => setOpen(false)}>
                   <UserPlus size={13} />
-                  <span className="select-option-label">Nouveau client : « {value.trim()} »</span>
+                  <span className="select-option-label">Nouveau : « {value.trim()} »</span>
                 </li>
               )}
             </motion.ul>

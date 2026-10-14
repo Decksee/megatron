@@ -3,7 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   completeReminder,
   listEntries,
+  listExtras,
   listFocusSessions,
+  listPayments,
   listProjects,
   listReminders,
   listTasks,
@@ -15,7 +17,7 @@ import { isLeader } from "./leader";
 import { aiConfig, ask, transcribe, voiceConfig, waitIdle } from "./ai/session";
 import { activeFocus, focusElapsedMs } from "./focus";
 import { addDays, entryMs, formatClock, formatDuration, startOfDay, startOfWeek, totalMs } from "./time";
-import { formatMoney, toIsoDay } from "./projects";
+import { awaitingPayment, formatMoney, moneyTotals, projectMoney, toIsoDay, usageProfile } from "./projects";
 import { formatDue, SNOOZE_MINUTES } from "./reminders";
 import type { Data } from "./useData";
 
@@ -65,7 +67,10 @@ export const tg = <T = unknown>(method: string, params: object = {}) =>
 let current: Settings = {};
 
 export const telegramLinked = (s: Settings) => !!s.tg_bot && !!s.tg_chat_id;
-export const tgKindOn = (s: Settings, kind: TgKind) => s[`tg_n_${kind}`] !== "0";
+export const tgKindOn = (s: Settings, kind: TgKind) =>
+  s[`tg_n_${kind}`] !== "0" && (kind !== "payments" || usageProfile(s).money);
+/** Notifications proposées pour ce type d'usage (pas de paiements sans argent en jeu). */
+export const tgKindsFor = (s: Settings) => TG_KINDS.filter((k) => k.kind !== "payments" || usageProfile(s).money);
 export const tgChatOn = (s: Settings) => s.tg_chat !== "0";
 
 /** Envoie un message sur le téléphone, avec des boutons éventuels. */
@@ -276,7 +281,7 @@ async function handleCallback(cb: NonNullable<TgUpdate["callback_query"]>, setti
 
 // ---------- Résumés et vérifications de fond ----------
 
-async function dailySummary() {
+async function dailySummary(settings: Settings) {
   const [entries, tasks, reminders, projects] = await Promise.all([listEntries(), listTasks(), listReminders(), listProjects()]);
   const now = new Date();
   const today = startOfDay(now);
@@ -305,7 +310,7 @@ async function dailySummary() {
     const d = new Date(r.due_at);
     return !r.done && d >= tomorrow && d < addDays(tomorrow, 1);
   });
-  const unpaid = projects.filter((p) => p.status === "unpaid");
+  const pending = moneyTotals(projects, await ledger()).pending;
 
   const lines = [
     "🌙 Ta journée",
@@ -318,19 +323,29 @@ async function dailySummary() {
     for (const t of dueTomorrow.slice(0, 8)) lines.push(`• ${t.title}`);
     for (const r of remindersTomorrow.slice(0, 5)) lines.push(`• 🔔 ${r.title} · ${formatDue(r.due_at, now).replace("Demain ", "")}`);
   }
-  if (unpaid.length) {
-    const sum = unpaid.reduce((m, p) => ({ ...m, [p.currency]: (m[p.currency] ?? 0) + p.price }), {} as Record<string, number>);
-    lines.push("", `💶 En attente de paiement : ${Object.entries(sum).map(([c, v]) => formatMoney(v, c)).join(" + ")}`);
+  if (Object.keys(pending).length && usageProfile(settings).money) {
+    lines.push("", `💶 À encaisser : ${Object.entries(pending).map(([c, v]) => formatMoney(v, c)).join(" + ")}`);
   }
   return lines.join("\n");
 }
 
+async function ledger() {
+  const [extras, payments] = await Promise.all([listExtras(), listPayments()]);
+  return { extras, payments };
+}
+
 async function paymentsDigest() {
-  const unpaid = (await listProjects()).filter((p) => p.status === "unpaid");
+  const l = await ledger();
+  const unpaid = awaitingPayment(await listProjects(), l);
   if (!unpaid.length) return null;
   return `💶 ${unpaid.length} projet${unpaid.length > 1 ? "s" : ""} en attente de paiement\n${unpaid
-    .map((p) => `• ${p.name}${p.client ? ` (${p.client})` : ""} · ${formatMoney(p.price, p.currency)}`)
-    .join("\n")}\n\nPense à relancer ! Passe-les en « Payé » une fois l'argent reçu.`;
+    .map((p) => {
+      const m = projectMoney(p, l);
+      return `• ${p.name}${p.client ? ` (${p.client})` : ""} · reste ${formatMoney(m.remaining, p.currency)}${
+        m.paid > 0 ? ` sur ${formatMoney(m.total, p.currency)}` : ""
+      }`;
+    })
+    .join("\n")}\n\nPense à relancer ! Note chaque paiement reçu dans Mégatron (ou dis-le-moi ici).`;
 }
 
 /** Semaine ISO « 2026-W42 » (une relance de paiements par semaine). */
@@ -344,7 +359,7 @@ async function backgroundChecks(settings: Settings) {
   // Résumé du soir, une fois par jour à l'heure choisie (ou dès que possible si le PC était éteint).
   if (settings.tg_summary === "1" && settings.tg_summary_day !== todayIso && hhmm >= (settings.tg_summary_time || "19:00")) {
     await setSetting("tg_summary_day", todayIso);
-    await sendTelegram(await dailySummary(), undefined, settings);
+    await sendTelegram(await dailySummary(settings), undefined, settings);
   }
 
   // Paiements en attente : le lundi à partir de 10 h, une fois par semaine.

@@ -11,7 +11,7 @@ import {
   SUMMARY_TIMES,
   telegramLinked,
   tg,
-  TG_KINDS,
+  tgKindsFor,
   TG_SLOT,
   tgChatOn,
   tgKindOn,
@@ -183,7 +183,7 @@ export function TelegramSettings({ settings }: Pick<Data, "settings">) {
           </div>
 
           <div className="setting-block">
-            {TG_KINDS.map((k) => (
+            {tgKindsFor(settings).map((k) => (
               <Row key={k.kind} title={k.label} hint={k.hint}>
                 <Switch
                   label={k.label}
@@ -195,7 +195,7 @@ export function TelegramSettings({ settings }: Pick<Data, "settings">) {
           </div>
 
           <div className="setting-block">
-            <Row title="Résumé du soir" hint="Ton temps de travail, tes tâches faites, ce qui t'attend demain et l'argent à encaisser.">
+            <Row title="Résumé du soir" hint="Ton temps de travail, tes tâches faites et ce qui t'attend demain.">
               <div className="row">
                 {settings.tg_summary === "1" && (
                   <Select

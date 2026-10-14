@@ -1,8 +1,11 @@
 import Database from "@tauri-apps/plugin-sql";
 import { emit } from "@tauri-apps/api/event";
 
-/** À démarrer → En cours (ou en pause) → En attente de paiement → Payé. */
-export type ProjectStatus = "todo" | "active" | "paused" | "unpaid" | "paid";
+/**
+ * À démarrer → En cours (ou en pause) → En attente de paiement → Payé (freelance),
+ * ou → Terminé / Rendu (études, perso : pas d'argent en jeu).
+ */
+export type ProjectStatus = "todo" | "active" | "paused" | "unpaid" | "paid" | "done";
 
 export interface Project {
   id: number;
@@ -28,6 +31,8 @@ export interface Task {
   done: number;
   /** Échéance au format AAAA-MM-JJ. */
   due_date: string | null;
+  /** Extra du projet auquel la tâche appartient (null : tâche du projet de base). */
+  extra_id: number | null;
   created_at: string;
   completed_at: string | null;
 }
@@ -85,6 +90,28 @@ export interface Reminder {
 }
 
 export type ProjectInput = Omit<Project, "id" | "created_at" | "paid_at">;
+
+/** Un extra (feature, module, avenant) ajouté à un projet, avec son propre prix. */
+export interface Extra {
+  id: number;
+  project_id: number;
+  title: string;
+  price: number;
+  done: number;
+  created_at: string;
+  completed_at: string | null;
+}
+
+/** Un paiement reçu pour un projet (acompte, solde…). */
+export interface Payment {
+  id: number;
+  project_id: number;
+  amount: number;
+  /** Jour du paiement, AAAA-MM-JJ. */
+  paid_on: string;
+  note: string;
+  created_at: string;
+}
 
 /** Ce que l'assistant a appris sur l'utilisateur (apprentissage). */
 export interface Memory {
@@ -149,6 +176,8 @@ export function setProjectStatus(id: number, status: ProjectStatus) {
 export async function deleteProject(id: number) {
   const d = await db();
   await d.execute("DELETE FROM tasks WHERE project_id=$1", [id]);
+  await d.execute("DELETE FROM extras WHERE project_id=$1", [id]);
+  await d.execute("DELETE FROM payments WHERE project_id=$1", [id]);
   // Le temps passé reste comptabilisé, juste détaché du projet.
   await d.execute("UPDATE time_entries SET ended_at=$1 WHERE ended_at IS NULL AND project_id=$2", [
     new Date().toISOString(),
@@ -160,8 +189,13 @@ export async function deleteProject(id: number) {
   return write("DELETE FROM projects WHERE id=$1", [id]);
 }
 
-export function createTask(title: string, projectId: number | null, dueDate: string | null = null) {
-  return write("INSERT INTO tasks (title, project_id, due_date) VALUES ($1,$2,$3)", [title, projectId, dueDate]);
+export function createTask(title: string, projectId: number | null, dueDate: string | null = null, extraId: number | null = null) {
+  return write("INSERT INTO tasks (title, project_id, due_date, extra_id) VALUES ($1,$2,$3,$4)", [
+    title,
+    projectId,
+    dueDate,
+    extraId,
+  ]);
 }
 
 export function setTaskDue(id: number, dueDate: string | null) {
@@ -176,6 +210,45 @@ export function toggleTask(task: Task) {
 
 export function deleteTask(id: number) {
   return write("DELETE FROM tasks WHERE id=$1", [id]);
+}
+
+// ---- Extras et paiements ----
+
+export async function listExtras() {
+  return (await db()).select<Extra[]>("SELECT * FROM extras ORDER BY created_at ASC, id ASC");
+}
+
+export async function createExtra(projectId: number, title: string, price: number) {
+  const res = await write("INSERT INTO extras (project_id, title, price) VALUES ($1,$2,$3)", [projectId, title, price]);
+  return res.lastInsertId as number;
+}
+
+export function updateExtra(id: number, title: string, price: number) {
+  return write("UPDATE extras SET title=$1, price=$2 WHERE id=$3", [title, price, id]);
+}
+
+export function toggleExtra(extra: Extra) {
+  return extra.done
+    ? write("UPDATE extras SET done=0, completed_at=NULL WHERE id=$1", [extra.id])
+    : write("UPDATE extras SET done=1, completed_at=datetime('now') WHERE id=$1", [extra.id]);
+}
+
+/** Supprime l'extra et ses tâches. */
+export async function deleteExtra(id: number) {
+  await (await db()).execute("DELETE FROM tasks WHERE extra_id=$1", [id]);
+  return write("DELETE FROM extras WHERE id=$1", [id]);
+}
+
+export async function listPayments() {
+  return (await db()).select<Payment[]>("SELECT * FROM payments ORDER BY paid_on ASC, id ASC");
+}
+
+export function addPayment(projectId: number, amount: number, paidOn: string, note = "") {
+  return write("INSERT INTO payments (project_id, amount, paid_on, note) VALUES ($1,$2,$3,$4)", [projectId, amount, paidOn, note]);
+}
+
+export function deletePayment(id: number) {
+  return write("DELETE FROM payments WHERE id=$1", [id]);
 }
 
 // ---- Suivi du temps ----
@@ -399,7 +472,7 @@ const nowSql = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 
 export interface Backup {
   app: "megatron";
-  version: 7;
+  version: 8;
   exported_at: string;
   projects: Project[];
   tasks: Task[];
@@ -408,11 +481,13 @@ export interface Backup {
   focus_sessions: FocusSession[];
   reminders: Reminder[];
   memories?: Memory[];
+  extras?: Extra[];
+  payments?: Payment[];
   settings: Settings;
 }
 
 export async function exportBackup(): Promise<Backup> {
-  const [projects, tasks, time_entries, timers, focus_sessions, reminders, settings, memories] = await Promise.all([
+  const [projects, tasks, time_entries, timers, focus_sessions, reminders, settings, memories, extras, payments] = await Promise.all([
     listProjects(),
     listTasks(),
     listEntries(),
@@ -421,10 +496,12 @@ export async function exportBackup(): Promise<Backup> {
     listReminders(),
     listSettings(),
     listMemories(),
+    listExtras(),
+    listPayments(),
   ]);
   return {
     app: "megatron",
-    version: 7,
+    version: 8,
     exported_at: new Date().toISOString(),
     projects,
     tasks,
@@ -433,6 +510,8 @@ export async function exportBackup(): Promise<Backup> {
     focus_sessions,
     reminders,
     memories,
+    extras,
+    payments,
     settings,
   };
 }
@@ -445,6 +524,9 @@ export async function importBackup(raw: unknown) {
   }
   const d = await db();
   await d.execute("DELETE FROM memories");
+  await d.execute("DELETE FROM payments");
+  await d.execute("DELETE FROM tasks");
+  await d.execute("DELETE FROM extras");
   await d.execute("DELETE FROM reminders");
   await d.execute("DELETE FROM focus_sessions");
   await d.execute("DELETE FROM timers");
@@ -460,10 +542,23 @@ export async function importBackup(raw: unknown) {
         p.deadline ?? null, p.paid_at ?? null, p.notes ?? "", p.color ?? PROJECT_COLORS[0], p.created_at ?? nowSql()],
     );
   }
+  for (const x of Array.isArray(b.extras) ? b.extras : []) {
+    await d.execute(
+      "INSERT INTO extras (id, project_id, title, price, done, created_at, completed_at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+      [x.id, x.project_id, x.title, x.price ?? 0, x.done ? 1 : 0, x.created_at ?? nowSql(), x.completed_at ?? null],
+    );
+  }
+  for (const pay of Array.isArray(b.payments) ? b.payments : []) {
+    await d.execute(
+      "INSERT INTO payments (id, project_id, amount, paid_on, note, created_at) VALUES ($1,$2,$3,$4,$5,$6)",
+      [pay.id, pay.project_id, pay.amount, pay.paid_on, pay.note ?? "", pay.created_at ?? nowSql()],
+    );
+  }
   for (const t of b.tasks) {
     await d.execute(
-      "INSERT INTO tasks (id, project_id, title, done, due_date, created_at, completed_at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-      [t.id, t.project_id ?? null, t.title, t.done ? 1 : 0, t.due_date ?? null, t.created_at ?? nowSql(), t.completed_at ?? null],
+      "INSERT INTO tasks (id, project_id, title, done, due_date, extra_id, created_at, completed_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+      [t.id, t.project_id ?? null, t.title, t.done ? 1 : 0, t.due_date ?? null, t.extra_id ?? null, t.created_at ?? nowSql(),
+        t.completed_at ?? null],
     );
   }
   // Les sauvegardes v1 n'ont ni temps ni réglages.

@@ -14,6 +14,10 @@ interface Props {
   /** Affiche l'étiquette du projet sur chaque tâche. */
   showProject?: boolean;
   placeholder?: string;
+  /** Extra auquel rattacher les nouvelles tâches. */
+  extraId?: number | null;
+  /** Version compacte (tâches d'un extra) : pas de titres « À faire / Terminées » ni d'écran vide. */
+  compact?: boolean;
 }
 
 function DueChip({ task }: { task: Task }) {
@@ -33,7 +37,7 @@ function DueChip({ task }: { task: Task }) {
   );
 }
 
-export function TaskList({ tasks, projects, projectId, showProject, placeholder }: Props) {
+export function TaskList({ tasks, projects, projectId, showProject, placeholder, extraId = null, compact = false }: Props) {
   const [title, setTitle] = useState("");
   const [due, setDue] = useState<Date | null>(null);
   const byId = new Map(projects.map((p) => [p.id, p]));
@@ -45,7 +49,7 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder 
     if (!t) return;
     setTitle("");
     setDue(null);
-    await createTask(t, projectId, due ? toIsoDay(due) : null);
+    await createTask(t, projectId, due ? toIsoDay(due) : null, extraId);
   };
 
   const row = (task: Task) => {
@@ -107,7 +111,11 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder 
         </button>
       </form>
 
-      {tasks.length === 0 ? (
+      {compact ? (
+        <ul className="tasks compact">
+          <AnimatePresence initial={false}>{[...pending, ...done].map(row)}</AnimatePresence>
+        </ul>
+      ) : tasks.length === 0 ? (
         <EmptyState mood="happy" title="Rien à faire" hint="Ajoute ta première tâche ci-dessus, ou demande-la à l'IA." />
       ) : (
         <ul className="tasks">

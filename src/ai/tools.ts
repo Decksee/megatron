@@ -1,7 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   addMemory,
+  createExtra,
   createProject,
+  listExtras,
+  listPayments,
   deleteMemory,
   listMemories,
   createReminder,
@@ -15,7 +18,6 @@ import {
   listTimers,
   pauseTimer,
   PROJECT_COLORS,
-  setProjectStatus,
   startFocus,
   startTimer,
   stopTimer,
@@ -25,7 +27,7 @@ import {
   type ProjectStatus,
   type ReminderRepeat,
 } from "../db";
-import { STATUS_LABEL } from "../projects";
+import { changeStatus, projectMoney, recordPayment, STATUS_LABEL } from "../projects";
 import { formatDuration, isRunning, overlapMs, periodBuckets, totalMs, type Period } from "../time";
 import type { ToolDef } from "./providers";
 
@@ -89,13 +91,41 @@ export const TOOLS: ToolDef[] = [
     parameters: obj({}),
   },
   {
-    name: "changer_statut_projet",
+    name: "ajouter_extra",
     description:
-      "Change le statut d'un projet : a_demarrer, en_cours, en_pause, attente_paiement (travail livré, pas encore payé) ou paye.",
+      "Ajoute un extra à un projet (feature, module ou avenant demandé en plus), avec son prix, éventuellement découpé en tâches. Son prix s'ajoute au total du projet.",
     parameters: obj(
       {
         projet: str("Nom du projet"),
-        statut: str("Nouveau statut", { enum: ["a_demarrer", "en_cours", "en_pause", "attente_paiement", "paye"] }),
+        titre: str("Nom de l'extra, ex. « Page blog »"),
+        prix: num("Prix de l'extra"),
+        taches: { type: "array", items: { type: "string" }, description: "Tâches qui découpent l'extra (optionnel)" },
+      },
+      ["projet", "titre"],
+    ),
+  },
+  {
+    name: "enregistrer_paiement",
+    description:
+      "Enregistre un paiement reçu pour un projet (acompte, solde…). Sans montant, c'est tout le reste dû. Le projet passe en « Payé » s'il est soldé.",
+    parameters: obj(
+      {
+        projet: str("Nom du projet"),
+        montant: num("Montant reçu (optionnel : par défaut, tout le reste dû)"),
+        date: str("Date du paiement au format AAAA-MM-JJ (optionnel : aujourd'hui)"),
+        note: str("Note, ex. « Acompte » (optionnel)"),
+      },
+      ["projet"],
+    ),
+  },
+  {
+    name: "changer_statut_projet",
+    description:
+      "Change le statut d'un projet : a_demarrer, en_cours, en_pause, termine (fini ou rendu, sans argent en jeu), attente_paiement (travail livré, pas encore payé) ou paye.",
+    parameters: obj(
+      {
+        projet: str("Nom du projet"),
+        statut: str("Nouveau statut", { enum: ["a_demarrer", "en_cours", "en_pause", "termine", "attente_paiement", "paye"] }),
       },
       ["projet", "statut"],
     ),
@@ -235,6 +265,7 @@ const STATUS_ARG: Record<string, ProjectStatus> = {
   en_pause: "paused",
   attente_paiement: "unpaid",
   paye: "paid",
+  termine: "done",
 };
 
 const isoDay = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
@@ -301,10 +332,16 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       return { result: `Tâche « ${task.title} » terminée.`, label: `Tâche terminée : ${task.title}` };
     }
     case "lister_projets": {
-      const [projects, tasks] = await Promise.all([listProjects(), listTasks()]);
+      const [projects, tasks, extras, payments] = await Promise.all([listProjects(), listTasks(), listExtras(), listPayments()]);
+      const ledger = { extras, payments };
       const lines = projects.map((p) => {
         const own = tasks.filter((t) => t.project_id === p.id);
-        return `- ${p.name} | client : ${p.client || "—"} | ${p.price} ${p.currency} | ${STATUS_LABEL[p.status] ?? p.status} | début : ${p.start_date ?? "—"} | deadline : ${p.deadline ?? "—"}${p.paid_at ? ` | payé le ${p.paid_at.slice(0, 10)}` : ""} | tâches : ${own.filter((t) => t.done).length}/${own.length}`;
+        const m = projectMoney(p, ledger);
+        const extraList = extras
+          .filter((x) => x.project_id === p.id)
+          .map((x) => `${x.title} ${x.price} ${p.currency}${x.done ? " (livré)" : ""}`)
+          .join(", ");
+        return `- ${p.name} | client : ${p.client || "—"} | prix de base ${p.price} ${p.currency}${extraList ? ` | extras : ${extraList}` : ""} | total ${m.total} | payé ${m.paid} | reste ${m.remaining} | ${STATUS_LABEL[p.status] ?? p.status} | début : ${p.start_date ?? "—"} | deadline : ${p.deadline ?? "—"} | tâches : ${own.filter((t) => t.done).length}/${own.length}`;
       });
       return { result: lines.join("\n") || "Aucun projet.", label: `${projects.length} projet(s) consulté(s)` };
     }
@@ -331,8 +368,38 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       if (!project) throw new Error("Précise le projet.");
       const status = STATUS_ARG[String(a.statut)];
       if (!status) throw new Error(`Statut inconnu : ${a.statut}.`);
-      await setProjectStatus(project.id, status);
+      const [extras, payments] = await Promise.all([listExtras(), listPayments()]);
+      await changeStatus(project, status, { extras, payments });
       return { result: "Statut changé.", label: `${project.name} : ${STATUS_LABEL[status]}` };
+    }
+    case "ajouter_extra": {
+      const project = await findProject(a.projet);
+      if (!project) throw new Error("Précise le projet.");
+      const titre = String(a.titre ?? "").trim();
+      if (!titre) throw new Error("Nom de l'extra vide.");
+      const prix = Number(a.prix) || 0;
+      const extraId = await createExtra(project.id, titre, prix);
+      const sousTaches = Array.isArray(a.taches) ? a.taches.map(String).filter((t) => t.trim()) : [];
+      for (const t of sousTaches) await createTask(t.trim(), project.id, null, extraId);
+      return {
+        result: `Extra ajouté (${prix} ${project.currency}${sousTaches.length ? `, ${sousTaches.length} tâche(s)` : ""}).`,
+        label: `Extra ajouté : ${titre} · ${prix} ${project.currency} (${project.name})`,
+      };
+    }
+    case "enregistrer_paiement": {
+      const project = await findProject(a.projet);
+      if (!project) throw new Error("Précise le projet.");
+      const [extras, payments] = await Promise.all([listExtras(), listPayments()]);
+      const ledger = { extras, payments };
+      const reste = projectMoney(project, ledger).remaining;
+      const montant = Number(a.montant) || reste;
+      if (montant <= 0) throw new Error("Rien à encaisser sur ce projet.");
+      const jour = isoDay(a.date) ?? new Date().toISOString().slice(0, 10);
+      await recordPayment(project, montant, jour, ledger, String(a.note ?? "").trim());
+      return {
+        result: `Paiement de ${montant} ${project.currency} enregistré. Reste : ${Math.max(0, reste - montant)} ${project.currency}.`,
+        label: `Paiement reçu : ${montant} ${project.currency} (${project.name})`,
+      };
     }
     case "demarrer_minuteur": {
       const project = await findProject(a.projet);

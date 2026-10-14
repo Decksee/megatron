@@ -261,6 +261,33 @@ fn migrations() -> Vec<Migration> {
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
               );",
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 8,
+        description: "extras des projets (avec leur prix) et paiements reçus",
+        // Les projets déjà marqués « Payé » reçoivent un paiement du montant de leur prix.
+        sql: "CREATE TABLE extras (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                title TEXT NOT NULL,
+                price REAL NOT NULL DEFAULT 0,
+                done INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                completed_at TEXT
+              );
+              CREATE TABLE payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                amount REAL NOT NULL,
+                paid_on TEXT NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+              );
+              ALTER TABLE tasks ADD COLUMN extra_id INTEGER REFERENCES extras(id);
+              INSERT INTO payments (project_id, amount, paid_on, note)
+                SELECT id, price, COALESCE(substr(paid_at, 1, 10), date('now')), 'Paiement'
+                FROM projects WHERE status = 'paid' AND price > 0;",
+        kind: MigrationKind::Up,
     }]
 }
 

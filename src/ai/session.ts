@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { listMemories, loadConversation, saveConversation, type Settings } from "../db";
+import { usageOf, type Usage } from "../projects";
 import {
   buildBody,
   geminiFreeCandidates,
@@ -32,6 +33,8 @@ export interface AiConfig {
   baseUrl: string | null;
   /** Apprentissage : il retient ce qu'il apprend sur l'utilisateur. */
   memory: boolean;
+  /** Pour qui sont les projets (freelance, études, perso). */
+  usage: Usage;
 }
 
 export interface VoiceConfig {
@@ -49,6 +52,7 @@ export function aiConfig(settings: Settings): AiConfig | null {
     model: settings.ai_model,
     baseUrl: settings.ai_base_url || null,
     memory: settings.ai_memory !== "0",
+    usage: usageOf(settings),
   };
 }
 
@@ -84,8 +88,16 @@ Apprentissage :
 const CONVERSATION_RULES = `
 Mode conversation : l'utilisateur te parle à voix haute et ta réponse est lue. Réponds de façon naturelle et orale, très court, sans listes ni symboles. Il terminera lui-même la conversation.`;
 
+const USAGE_RULES: Record<Usage, string> = {
+  freelance: "",
+  studies: `
+Profil : l'utilisateur est étudiant. Ses projets sont des projets de cours ; le champ « client » d'un projet est la matière ou le cours, et la deadline est la date de rendu. Il n'y a ni prix ni paiement : un projet fini passe au statut « termine » (rendu).`,
+  personal: `
+Profil : projets personnels, sans client ni prix. Un projet fini passe au statut « termine ».`,
+};
+
 async function systemPrompt(config: AiConfig) {
-  let prompt = SYSTEM;
+  let prompt = SYSTEM + USAGE_RULES[config.usage];
   if (config.memory) {
     const memories = await listMemories().catch(() => []);
     prompt += MEMORY_RULES;
@@ -118,6 +130,8 @@ interface AiState {
   epoch: number;
   /** Incrémenté pour demander à la vue de placer le curseur dans le champ. */
   focusRequest: number;
+  /** Texte de la pastille vocale : ce qu'il dit ou ce qu'il a compris (propre à cette fenêtre). */
+  voiceCaption: string;
 }
 
 let state: AiState = {
@@ -130,6 +144,7 @@ let state: AiState = {
   conversing: false,
   epoch: 0,
   focusRequest: 0,
+  voiceCaption: "",
 };
 const listeners = new Set<() => void>();
 
@@ -507,6 +522,8 @@ export function isEnding(text: string) {
 }
 
 const GOODBYES = ["Avec plaisir, à plus !", "Pas de souci, je reste dans le coin.", "Avec plaisir !"];
+const GREETINGS = ["Oui, qu'est-ce que tu veux ?", "Oui ? Je t'écoute.", "Je suis là, dis-moi."];
+const pick = (list: string[]) => list[Math.floor(Math.random() * list.length)];
 
 /** Termine l'enregistrement d'un tour de parole en cours (la boucle de conversation l'attend). */
 let endTurn: ((result: { wav: string | null; reason: StopReason } | null) => void) | null = null;
@@ -552,11 +569,13 @@ export function endConversation() {
  * Conversation continue : il écoute, répond (à voix haute), puis réécoute,
  * jusqu'à « merci, c'est bon » ou quelques secondes de silence.
  */
-export async function startConversation(config: AiConfig, voice: VoiceConfig) {
+export async function startConversation(config: AiConfig, voice: VoiceConfig, options: { greet?: boolean } = {}) {
   if (state.conversing || state.recording || state.busy || state.transcribing) return;
   const epoch = state.epoch;
-  set({ conversing: true });
   stopSpeaking();
+  const greeting = options.greet ? pick(GREETINGS) : "";
+  set({ conversing: true, voiceCaption: greeting });
+  if (greeting) speakReply(greeting, true);
   const active = () => state.conversing && state.epoch === epoch;
   try {
     while (active()) {
@@ -572,6 +591,7 @@ export async function startConversation(config: AiConfig, voice: VoiceConfig) {
       let text = "";
       try {
         text = (await transcribe(voice, heard.wav)).trim();
+        set({ voiceCaption: text });
       } catch (e) {
         removeMessage(bubble);
         push("error", friendlyError(errorText(e)));
@@ -589,13 +609,14 @@ export async function startConversation(config: AiConfig, voice: VoiceConfig) {
       }
       if (isEnding(text)) {
         updateMessage(bubble, text);
-        const bye = GOODBYES[Math.floor(Math.random() * GOODBYES.length)];
+        const bye = pick(GOODBYES);
         push("assistant", bye);
-        set({ conversing: false });
+        set({ conversing: false, voiceCaption: bye });
         speakReply(bye, true);
         break;
       }
-      await ask(text, config, bubble, true);
+      const res = await ask(text, config, bubble, true);
+      set({ voiceCaption: res.reply || res.error || "" });
     }
   } finally {
     if (state.epoch === epoch) set({ conversing: false });

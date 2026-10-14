@@ -146,5 +146,5 @@ export function listenAfterWake(data: Data) {
     return;
   }
   // Conversation continue : il réécoute après chaque réponse, jusqu'à « merci, c'est bon ».
-  void startConversation(config, voice);
+  void startConversation(config, voice, { greet: true });
 }

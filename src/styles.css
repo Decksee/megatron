@@ -2092,3 +2092,85 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 .notch[data-mini][data-glow="bad"] { box-shadow: 0 2px 14px rgb(var(--danger-rgb) / 0.7); }
 .notch[data-mini][data-glow="warn"] .mini-notch { background: var(--warning); height: 3px; animation-duration: 1s; }
 .notch[data-mini][data-glow="bad"] .mini-notch { background: var(--danger); height: 3px; animation-duration: 0.7s; }
+
+/* Choix du type d'usage (premier projet) */
+.usage-chooser { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.usage-options { display: grid; grid-template-columns: repeat(3, minmax(0, 190px)); gap: 10px; }
+.usage-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left;
+  padding: 12px 14px; border-radius: 14px; cursor: pointer; font: inherit; color: var(--text);
+  background: rgb(var(--fg-rgb) / 0.05); border: 1px solid rgb(var(--fg-rgb) / 0.08);
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.usage-option svg { color: var(--accent); margin-bottom: 2px; }
+.usage-option:hover { background: rgb(var(--accent-rgb) / 0.1); border-color: rgb(var(--accent-rgb) / 0.35); transform: translateY(-1px); }
+
+/* ---------- Pastille vocale (Hey Megatron) ---------- */
+.voice-pill {
+  position: absolute; inset: 0; display: flex; align-items: center; gap: 12px;
+  padding: 0 18px 0 16px; border: 0; background: none; color: var(--text);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.voice-wave { position: relative; display: flex; align-items: center; gap: 3px; height: 26px; flex-shrink: 0; }
+.voice-wave i {
+  display: block; width: 4px; height: 100%; border-radius: 999px; transform-origin: center;
+  transform: scaleY(0.2);
+  background: linear-gradient(180deg, #64d2ff, var(--accent) 50%, #bf5af2);
+  background-size: 100% 300%;
+  animation: voice-hue 3s linear infinite;
+  box-shadow: 0 0 8px rgb(var(--accent-rgb) / 0.35);
+}
+.voice-wave.think i { opacity: 0.75; }
+@keyframes voice-hue { from { background-position: 0 0; } to { background-position: 0 300%; } }
+.voice-caption {
+  flex: 1; min-width: 0; font-size: 13px; font-weight: 600; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.voice-caption.heard { color: var(--muted); font-style: italic; font-weight: 500; }
+.notch:has(.voice-pill) { box-shadow: 0 8px 30px rgb(var(--accent-rgb) / 0.28); }
+/* Sans texte : les yeux à gauche, les ondes au centre. */
+.voice-pill { justify-content: center; gap: 16px; padding: 0 20px; }
+.voice-pill .voice-wave { height: 30px; gap: 4px; }
+
+/* ---------- Extras et paiements ---------- */
+.detail-tabs { align-self: flex-start; margin-bottom: 8px; flex-shrink: 0; }
+.detail-tasks { gap: 0; }
+.money-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.money-empty { padding: 14px 4px; line-height: 1.5; }
+.money-sum { text-align: right; }
+.amount-input { width: 84px; flex: 0 0 auto !important; text-align: right; font-variant-numeric: tabular-nums; }
+.extra-add input:first-of-type { flex: 1; }
+
+.extras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.extra { border-radius: 12px; background: rgb(var(--fg-rgb) / 0.045); }
+.extra-head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 10px; }
+.extra-head .icon-btn { opacity: 0; }
+.extra:hover .extra-head .icon-btn { opacity: 1; }
+.extra-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0; }
+.extra-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.extra.done .extra-name { color: var(--muted); text-decoration: line-through; }
+.extra.done .check { background: var(--accent); border-color: var(--accent); }
+.extra-chevron { color: var(--muted); transition: transform 0.18s; flex-shrink: 0; }
+.extra-chevron.open { transform: rotate(180deg); }
+.extra-price { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.extra-tasks { overflow: hidden; padding: 0 8px 8px 30px; }
+.tasks.compact { gap: 2px; }
+
+.paid-bar { display: flex; flex-direction: column; gap: 6px; }
+.paid-track { height: 8px; border-radius: 999px; background: rgb(var(--fg-rgb) / 0.08); overflow: hidden; }
+.paid-track i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.paid-legend { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.paid-legend b { color: var(--text); }
+.paid-legend .unpaid b { color: #ff6482; }
+.paid-ok { color: var(--accent); display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+
+.payment-add { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.payment-add input:not(.amount-input) { flex: 1; min-width: 100px; }
+.payment-add .date-trigger { font-size: 12px; }
+.payments { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.payment { display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 10px; border-radius: 10px; background: rgb(var(--fg-rgb) / 0.045); font-size: 13px; }
+.payment-date { color: var(--muted); width: 56px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.payment-note { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.payment-amount { font-variant-numeric: tabular-nums; color: var(--accent); }
+.payment .icon-btn { opacity: 0; }
+.payment:hover .icon-btn { opacity: 1; }

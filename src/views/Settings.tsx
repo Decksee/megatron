@@ -10,6 +10,7 @@ import { THEME_OPTIONS, type ThemePref } from "../theme";
 import type { Data } from "../useData";
 import { Select } from "../components/Select";
 import { holdOpen } from "../hold";
+import { USAGES, usageOf, type Usage } from "../projects";
 import {
   AZURE_DEFAULT_VOICE,
   AZURE_REGIONS,
@@ -85,6 +86,16 @@ export function GeneralSettings({ settings }: Pick<Data, "settings">) {
   const theme = (settings.theme as ThemePref) || "system";
   return (
     <div className="settings">
+      <Setting title="Tes projets" hint={`${USAGES[usageOf(settings)].hint} Changer ne supprime rien : seul l'affichage s'adapte.`}>
+        <div className="segmented">
+          {(Object.keys(USAGES) as Usage[]).map((u) => (
+            <button key={u} className={u === usageOf(settings) ? "seg active" : "seg"} onClick={() => setSetting("usage", u)}>
+              {u === usageOf(settings) && <motion.span layoutId="usage-pill" className="seg-pill" />}
+              <span className="tab-label">{USAGES[u].label}</span>
+            </button>
+          ))}
+        </div>
+      </Setting>
       <AutostartSetting />
       <Setting
         title="Ranger l'encoche en fine barre"

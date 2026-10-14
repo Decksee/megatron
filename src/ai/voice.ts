@@ -21,6 +21,9 @@ interface Recording {
 }
 
 let current: Recording | null = null;
+/** Volume du micro en ce moment (0 à ~0,3), pour animer la pastille vocale. */
+let level = 0;
+export const micLevel = () => (current ? level : 0);
 
 export interface RecordingOptions {
   /** Arrêt automatique quand la personne a fini de parler (« Hey Mégatron »). */
@@ -46,10 +49,11 @@ export async function startRecording(onAutoStop?: (reason: StopReason) => void, 
   node.onaudioprocess = (e) => {
     const data = new Float32Array(e.inputBuffer.getChannelData(0));
     chunks.push(data);
-    if (!options.stopOnSilence || stopped) return;
     let sum = 0;
     for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
     const rms = Math.sqrt(sum / data.length);
+    level = rms;
+    if (!options.stopOnSilence || stopped) return;
     const t = performance.now();
     if (rms > SPEECH_RMS) {
       spoke = true;

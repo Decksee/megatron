@@ -2,7 +2,7 @@
  * Données d'exemple pour prévisualiser l'interface dans un navigateur (hors Tauri, en dev uniquement).
  * Jamais utilisées dans l'app : la vraie base est SQLite.
  */
-import type { FocusSession, Project, Reminder, Settings, Task, TimeEntry, Timer } from "../db";
+import type { Extra, FocusSession, Payment, Project, Reminder, Settings, Task, TimeEntry, Timer } from "../db";
 
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 const inMin = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
@@ -22,12 +22,12 @@ export const SAMPLE_PROJECTS: Project[] = [
 ];
 
 export const SAMPLE_TASKS: Task[] = [
-  { id: 1, project_id: 1, title: "Intégrer la page d'accueil", done: 0, due_date: null, created_at: sqlAgo(300), completed_at: null },
-  { id: 2, project_id: 1, title: "Formulaire de contact", done: 0, due_date: null, created_at: sqlAgo(280), completed_at: null },
-  { id: 3, project_id: 2, title: "Envoyer 3 pistes de logo", done: 1, due_date: null, created_at: sqlAgo(900), completed_at: sqlAgo(60) },
-  { id: 4, project_id: null, title: "Relancer la facture de mars", done: 0, due_date: null, created_at: sqlAgo(120), completed_at: null },
-  { id: 5, project_id: 2, title: "Choisir la typographie", done: 0, due_date: null, created_at: sqlAgo(100), completed_at: null },
-  { id: 6, project_id: 1, title: "Optimiser les images", done: 1, due_date: null, created_at: sqlAgo(2000), completed_at: sqlAgo(1500) },
+  { id: 1, project_id: 1, title: "Intégrer la page d'accueil", done: 0, due_date: null, extra_id: null, created_at: sqlAgo(300), completed_at: null },
+  { id: 2, project_id: 1, title: "Formulaire de contact", done: 0, due_date: null, extra_id: null, created_at: sqlAgo(280), completed_at: null },
+  { id: 3, project_id: 2, title: "Envoyer 3 pistes de logo", done: 1, due_date: null, extra_id: null, created_at: sqlAgo(900), completed_at: sqlAgo(60) },
+  { id: 4, project_id: null, title: "Relancer la facture de mars", done: 0, due_date: null, extra_id: null, created_at: sqlAgo(120), completed_at: null },
+  { id: 5, project_id: 2, title: "Choisir la typographie", done: 0, due_date: null, extra_id: null, created_at: sqlAgo(100), completed_at: null },
+  { id: 6, project_id: 1, title: "Optimiser les images", done: 1, due_date: null, extra_id: null, created_at: sqlAgo(2000), completed_at: sqlAgo(1500) },
 ];
 
 export const SAMPLE_ENTRIES: TimeEntry[] = [
@@ -53,6 +53,16 @@ export const SAMPLE_REMINDERS: Reminder[] = [
 
 export const SAMPLE_FOCUS: FocusSession[] = [
   { id: 1, project_id: 1, started_at: ago(200), ended_at: ago(150), planned_minutes: 50, budget_minutes: 5, mode: "alert", distraction_ms: 140_000, distractions: '{"youtube":140000}', completed: 1 },
+];
+
+export const SAMPLE_EXTRAS: Extra[] = [
+  { id: 1, project_id: 1, title: "Page blog", price: 300, done: 0, created_at: sqlAgo(3000), completed_at: null },
+  { id: 2, project_id: 1, title: "Formulaire de devis", price: 150, done: 1, created_at: sqlAgo(4000), completed_at: sqlAgo(1000) },
+];
+
+export const SAMPLE_PAYMENTS: Payment[] = [
+  { id: 1, project_id: 1, amount: 800, paid_on: "2026-09-20", note: "Acompte", created_at: sqlAgo(30000) },
+  { id: 2, project_id: 4, amount: 800, paid_on: "2026-09-23", note: "Paiement", created_at: sqlAgo(30000) },
 ];
 
 export const SAMPLE_SETTINGS: Settings = { focus_summary_seen: "1" };

@@ -3,6 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import {
   DATA_CHANGED,
   listEntries,
+  listExtras,
+  listPayments,
   listFocusSessions,
   listMemories,
   listProjects,
@@ -10,7 +12,9 @@ import {
   listSettings,
   listTasks,
   listTimers,
+  type Extra,
   type FocusSession,
+  type Payment,
   type Memory,
   type Project,
   type Reminder,
@@ -30,9 +34,11 @@ export function useData() {
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [memories, setMemories] = useState<Memory[]>([]);
+  const [extras, setExtras] = useState<Extra[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
 
   const reload = useCallback(async () => {
-    const [p, t, e, s, tm, f, r, m] = await Promise.all([
+    const [p, t, e, s, tm, f, r, m, x, pay] = await Promise.all([
       listProjects(),
       listTasks(),
       listEntries(),
@@ -41,6 +47,8 @@ export function useData() {
       listFocusSessions(),
       listReminders(),
       listMemories(),
+      listExtras(),
+      listPayments(),
     ]);
     setProjects(p);
     setTasks(t);
@@ -50,6 +58,8 @@ export function useData() {
     setFocusSessions(f);
     setReminders(r);
     setMemories(m);
+    setExtras(x);
+    setPayments(pay);
   }, []);
 
   useEffect(() => {
@@ -63,6 +73,8 @@ export function useData() {
         setTimers(d.SAMPLE_TIMERS);
         setFocusSessions(d.SAMPLE_FOCUS);
         setReminders(d.SAMPLE_REMINDERS);
+        setExtras(d.SAMPLE_EXTRAS);
+        setPayments(d.SAMPLE_PAYMENTS);
       });
       return;
     }
@@ -73,7 +85,7 @@ export function useData() {
     };
   }, [reload]);
 
-  return { projects, tasks, entries, settings, timers, focusSessions, reminders, memories };
+  return { projects, tasks, entries, settings, timers, focusSessions, reminders, memories, extras, payments };
 }
 
 export type Data = ReturnType<typeof useData>;
