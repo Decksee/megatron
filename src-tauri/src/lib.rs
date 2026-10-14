@@ -245,6 +245,21 @@ fn migrations() -> Vec<Migration> {
               ALTER TABLE projects ADD COLUMN paid_at TEXT;
               UPDATE projects SET status = 'unpaid' WHERE status = 'done';",
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 7,
+        description: "conversation gardée et mémoire de l'assistant",
+        sql: "CREATE TABLE conversation (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                data TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+              );
+              CREATE TABLE memories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                text TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+              );",
+        kind: MigrationKind::Up,
     }]
 }
 

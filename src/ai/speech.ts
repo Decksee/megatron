@@ -470,6 +470,13 @@ export async function speak(text: string, override?: Partial<SpeechPrefs>, cache
   return null;
 }
 
+/** Attend qu'il ait fini de parler (pour réécouter juste après en mode conversation). */
+export async function waitSpeechEnd() {
+  // Laisse le temps à la voix de démarrer, puis attend la fin.
+  await new Promise((r) => setTimeout(r, 150));
+  while (isSpeaking()) await new Promise((r) => setTimeout(r, 150));
+}
+
 export function stopSpeaking() {
   token++;
   speaking = false;

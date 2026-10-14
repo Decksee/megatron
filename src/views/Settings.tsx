@@ -4,7 +4,7 @@ import { Switch } from "../components/Switch";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { motion } from "motion/react";
-import { exportBackup, importBackup, setSetting } from "../db";
+import { clearMemories, deleteMemory, exportBackup, importBackup, setSetting } from "../db";
 import { DEFAULT_IDLE_MINUTES } from "../time";
 import { THEME_OPTIONS, type ThemePref } from "../theme";
 import type { Data } from "../useData";
@@ -427,6 +427,62 @@ export function SpeechSetting({ settings }: Pick<Data, "settings">) {
             />
           </Setting>
         </>
+      )}
+    </div>
+  );
+}
+
+/** Apprentissage : ce que Mégatron a retenu sur toi, consultable et effaçable. */
+export function MemorySetting({ settings, memories }: Pick<Data, "settings" | "memories">) {
+  const on = settings.ai_memory !== "0";
+  const [confirmClear, setConfirmClear] = useState(false);
+  return (
+    <div className="setting-block">
+      <Setting
+        title="Apprentissage"
+        hint="Mégatron retient ce que tu lui apprends sur toi (préférences, clients, façon de travailler) pour mieux t'aider. Tout reste sur ton PC ; seules ces notes accompagnent tes demandes à l'IA."
+      >
+        <Switch label="Activer l'apprentissage" checked={on} onChange={(next) => setSetting("ai_memory", next ? "1" : "0")} />
+      </Setting>
+      {on && (
+        <section className="setting column memory-list">
+          <div className="memory-head">
+            <span className="setting-title">Ce qu'il sait de toi</span>
+            {memories.length > 0 &&
+              (confirmClear ? (
+                <button
+                  className="btn danger"
+                  onClick={() => {
+                    clearMemories();
+                    setConfirmClear(false);
+                  }}
+                >
+                  Tout oublier ?
+                </button>
+              ) : (
+                <button className="btn ghost" onClick={() => setConfirmClear(true)}>
+                  Tout oublier
+                </button>
+              ))}
+          </div>
+          {memories.length === 0 ? (
+            <span className="muted small">
+              Rien pour l'instant. Parle-lui de toi (« je facture 450 € la journée », « je préfère les réponses courtes »…) ou dis-lui
+              « retiens que… ».
+            </span>
+          ) : (
+            <ul className="memories">
+              {memories.map((m) => (
+                <li key={m.id} className="memory">
+                  <span>{m.text}</span>
+                  <button className="icon-btn" onClick={() => deleteMemory(m.id)} aria-label="Oublier">
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
     </div>
   );

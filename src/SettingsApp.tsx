@@ -16,7 +16,7 @@ import { AiSetup, Assistant } from "./views/Assistant";
 import { Tasks } from "./views/Tasks";
 import { Projects } from "./views/Projects";
 import { useSpeechPrefs } from "./ai/speech";
-import { DataSettings, GeneralSettings, SpeechSetting, WakeWordSetting } from "./views/Settings";
+import { DataSettings, GeneralSettings, MemorySetting, SpeechSetting, WakeWordSetting } from "./views/Settings";
 import type { Data } from "./useData";
 
 /** Sous-parties de « Réglages ». */
@@ -133,7 +133,7 @@ export function SettingsApp() {
                     </div>
                   </header>
                   {sub === "general" && <GeneralSettings settings={data.settings} />}
-                  {sub === "ia" && <AiSection settings={data.settings} />}
+                  {sub === "ia" && <AiSection settings={data.settings} memories={data.memories} />}
                   {sub === "focus" && <FocusSection {...data} />}
                   {sub === "data" && <DataSettings />}
                   {sub === "about" && <About />}
@@ -180,7 +180,7 @@ export function SettingsApp() {
   );
 }
 
-function AiSection({ settings }: Pick<Data, "settings">) {
+function AiSection({ settings, memories }: Pick<Data, "settings" | "memories">) {
   const config = aiConfig(settings);
   const [editing, setEditing] = useState(false);
   if (!config || editing) return <AiSetup settings={settings} onDone={() => setEditing(false)} canCancel={!!config} />;
@@ -188,6 +188,7 @@ function AiSection({ settings }: Pick<Data, "settings">) {
     <div className="settings">
       <WakeWordSetting settings={settings} />
       <SpeechSetting settings={settings} />
+      <MemorySetting settings={settings} memories={memories} />
       <section className="setting">
         <div>
           <div className="setting-title">Connecté à {PROVIDERS[config.provider].label}</div>

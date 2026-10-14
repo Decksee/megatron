@@ -86,6 +86,13 @@ export interface Reminder {
 
 export type ProjectInput = Omit<Project, "id" | "created_at" | "paid_at">;
 
+/** Ce que l'assistant a appris sur l'utilisateur (apprentissage). */
+export interface Memory {
+  id: number;
+  text: string;
+  created_at: string;
+}
+
 /** Toutes les fenêtres (une par écran) écoutent cet événement pour se resynchroniser. */
 export const DATA_CHANGED = "data-changed";
 
@@ -338,6 +345,40 @@ export function deleteReminder(id: number) {
   return write("DELETE FROM reminders WHERE id=$1", [id]);
 }
 
+// ---- Mémoire de l'assistant ----
+
+export async function listMemories() {
+  return (await db()).select<Memory[]>("SELECT * FROM memories ORDER BY created_at ASC, id ASC");
+}
+
+export function addMemory(text: string) {
+  return write("INSERT INTO memories (text) VALUES ($1)", [text]);
+}
+
+export function deleteMemory(id: number) {
+  return write("DELETE FROM memories WHERE id=$1", [id]);
+}
+
+export function clearMemories() {
+  return write("DELETE FROM memories");
+}
+
+// ---- Conversation avec l'assistant (gardée d'une session à l'autre) ----
+
+/** JSON de la conversation, ou null s'il n'y en a pas. */
+export async function loadConversation(): Promise<string | null> {
+  const rows = await (await db()).select<{ data: string }[]>("SELECT data FROM conversation WHERE id = 1");
+  return rows[0]?.data ?? null;
+}
+
+/** Sans événement DATA_CHANGED : les fenêtres se synchronisent déjà en direct. */
+export async function saveConversation(data: string) {
+  await (await db()).execute(
+    "INSERT INTO conversation (id, data, updated_at) VALUES (1, $1, datetime('now')) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at",
+    [data],
+  );
+}
+
 // ---- Réglages ----
 
 export async function listSettings(): Promise<Settings> {
@@ -358,7 +399,7 @@ const nowSql = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 
 export interface Backup {
   app: "megatron";
-  version: 6;
+  version: 7;
   exported_at: string;
   projects: Project[];
   tasks: Task[];
@@ -366,11 +407,12 @@ export interface Backup {
   timers: Timer[];
   focus_sessions: FocusSession[];
   reminders: Reminder[];
+  memories?: Memory[];
   settings: Settings;
 }
 
 export async function exportBackup(): Promise<Backup> {
-  const [projects, tasks, time_entries, timers, focus_sessions, reminders, settings] = await Promise.all([
+  const [projects, tasks, time_entries, timers, focus_sessions, reminders, settings, memories] = await Promise.all([
     listProjects(),
     listTasks(),
     listEntries(),
@@ -378,10 +420,11 @@ export async function exportBackup(): Promise<Backup> {
     (await db()).select<FocusSession[]>("SELECT * FROM focus_sessions ORDER BY started_at"),
     listReminders(),
     listSettings(),
+    listMemories(),
   ]);
   return {
     app: "megatron",
-    version: 6,
+    version: 7,
     exported_at: new Date().toISOString(),
     projects,
     tasks,
@@ -389,6 +432,7 @@ export async function exportBackup(): Promise<Backup> {
     timers,
     focus_sessions,
     reminders,
+    memories,
     settings,
   };
 }
@@ -400,6 +444,7 @@ export async function importBackup(raw: unknown) {
     throw new Error("Ce fichier n'est pas une sauvegarde Mégatron.");
   }
   const d = await db();
+  await d.execute("DELETE FROM memories");
   await d.execute("DELETE FROM reminders");
   await d.execute("DELETE FROM focus_sessions");
   await d.execute("DELETE FROM timers");
@@ -449,6 +494,9 @@ export async function importBackup(raw: unknown) {
       [r.id, r.title, r.due_at, r.repeat ?? "none", r.project_id ?? null, r.done ? 1 : 0, r.notified_at ?? null,
         r.created_at ?? nowSql()],
     );
+  }
+  for (const m of Array.isArray(b.memories) ? b.memories : []) {
+    await d.execute("INSERT INTO memories (id, text, created_at) VALUES ($1,$2,$3)", [m.id, m.text, m.created_at ?? nowSql()]);
   }
   for (const [key, value] of Object.entries(b.settings ?? {})) {
     await d.execute("INSERT INTO settings (key, value) VALUES ($1,$2)", [key, String(value)]);

@@ -4,12 +4,14 @@ import {
   DATA_CHANGED,
   listEntries,
   listFocusSessions,
+  listMemories,
   listProjects,
   listReminders,
   listSettings,
   listTasks,
   listTimers,
   type FocusSession,
+  type Memory,
   type Project,
   type Reminder,
   type Settings,
@@ -27,9 +29,10 @@ export function useData() {
   const [timers, setTimers] = useState<Timer[]>([]);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [memories, setMemories] = useState<Memory[]>([]);
 
   const reload = useCallback(async () => {
-    const [p, t, e, s, tm, f, r] = await Promise.all([
+    const [p, t, e, s, tm, f, r, m] = await Promise.all([
       listProjects(),
       listTasks(),
       listEntries(),
@@ -37,6 +40,7 @@ export function useData() {
       listTimers(),
       listFocusSessions(),
       listReminders(),
+      listMemories(),
     ]);
     setProjects(p);
     setTasks(t);
@@ -45,6 +49,7 @@ export function useData() {
     setTimers(tm);
     setFocusSessions(f);
     setReminders(r);
+    setMemories(m);
   }, []);
 
   useEffect(() => {
@@ -68,7 +73,7 @@ export function useData() {
     };
   }, [reload]);
 
-  return { projects, tasks, entries, settings, timers, focusSessions, reminders };
+  return { projects, tasks, entries, settings, timers, focusSessions, reminders, memories };
 }
 
 export type Data = ReturnType<typeof useData>;

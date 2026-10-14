@@ -8,7 +8,7 @@ import { isHeld } from "./hold";
 import { useTheme } from "./theme";
 import { isSpeaking, useSpeechPrefs } from "./ai/speech";
 import { listenAfterWake, useAssistantShortcut, useCountdownWatcher, useIdleAutoPause, useWakeWord } from "./background";
-import { focusElapsedMs, useFocusMonitor } from "./focus";
+import { focusElapsedMs, IDLE_KEY, useFocusMonitor } from "./focus";
 import { dueReminders, SNOOZE_MINUTES, useReminderWatcher } from "./reminders";
 import { useMood, useNotchCursor, useNotchOccupied } from "./mood";
 import { formatTrackTime, mediaAppName, mediaPosition, useMedia } from "./media";
@@ -31,6 +31,10 @@ const isTauri = "__TAURI_INTERNALS__" in window;
 const COLLAPSED = { width: 230, height: 36 };
 /** Pilule un peu plus large quand une musique joue (titre + avancement). */
 const COLLAPSED_MEDIA = { width: 340, height: 40 };
+/** En focus, pendant une pause ou une distraction : place pour le temps de repos restant. */
+const COLLAPSED_FOCUS = { width: 290, height: 36 };
+/** En focus, concentré : juste l'étiquette et le temps restant. */
+const COLLAPSED_FOCUS_CALM = { width: 182, height: 36 };
 /** Encoche entrouverte quand un rappel arrive. */
 const ALERT = { width: 420, height: 64 };
 /** Au repos (rien en cours), l'encoche se réduit à une fine barre qui ne cache presque rien. */
@@ -104,7 +108,9 @@ export function App() {
   });
   useSpeechPrefs(data.settings);
   useWakeWord(data, () => {
-    if (isSpeaking()) return; // c'est sa propre voix qu'il entend
+    // C'est sa propre voix qu'il entend, ou une conversation est déjà en cours.
+    const ai = aiStore.get();
+    if (isSpeaking() || ai.conversing || ai.recording || ai.busy) return;
     setTab("assistant");
     setExpanded(true);
     listenAfterWake(data);
@@ -115,6 +121,20 @@ export function App() {
   const due = dueReminders(data.reminders, now);
   const alert = !expanded ? due[0] : undefined;
   const ai = useAi();
+  // Conversation vocale terminée : l'encoche se range peu après, sauf si la souris est dessus.
+  const wasConversing = useRef(false);
+  useEffect(() => {
+    if (ai.conversing) {
+      wasConversing.current = true;
+      return;
+    }
+    if (!wasConversing.current) return;
+    wasConversing.current = false;
+    const t = window.setTimeout(() => {
+      if (!hoveredRef.current && !isBusy()) setExpanded(false);
+    }, 2500);
+    return () => window.clearTimeout(t);
+  }, [ai.conversing]);
   const mood = useMood(data, focus, due, { listening: ai.recording, thinking: ai.busy || ai.transcribing });
   const cursor = useNotchCursor();
   const media = useMedia(expanded && (tab === "controls" || tab === "today"));
@@ -129,7 +149,7 @@ export function App() {
   const isBusy = () => {
     const el = document.activeElement;
     const state = aiStore.get();
-    if (state.recording || state.busy || state.transcribing) return true;
+    if (state.recording || state.busy || state.transcribing || state.conversing || isSpeaking()) return true;
     return isHeld() || (el instanceof HTMLElement && el.matches('input, textarea, select, [aria-expanded="true"]'));
   };
 
@@ -190,7 +210,11 @@ export function App() {
           : MINI
         : mediaPill
           ? COLLAPSED_MEDIA
-          : COLLAPSED;
+          : focusSession && !(ai.recording || ai.busy || ai.transcribing)
+            ? focus?.distraction
+              ? COLLAPSED_FOCUS
+              : COLLAPSED_FOCUS_CALM
+            : COLLAPSED;
   // Ouverte ou rappel affiché : cliquable. Fermée : survol seulement, les clics traversent.
   const interactive = expanded || !!alert;
   // Pour entrer, il faut toucher le bord (zone étroite) ; une fois dessus, la zone suit la barre épaissie.
@@ -335,15 +359,22 @@ export function App() {
                   </>
                 ) : focusSession ? (
                   <>
-                    <span className={focus!.distraction ? "pill-time bad" : "pill-time"}>
-                      {focus!.distraction ??
-                        formatClock(focusSession.planned_minutes * 60_000 - focusElapsedMs(focusSession, now))}
+                    <span className={focusOver && focus!.distraction ? "pill-tag bad" : "pill-tag"}>Focus</span>
+                    <span className="pill-time">
+                      {formatClock(focusSession.planned_minutes * 60_000 - focusElapsedMs(focusSession, now))}
                     </span>
-                    <span className={focusOver ? "pill-work bad" : "pill-work"}>
-                      {focusOver
-                        ? "budget dépassé"
-                        : `${formatClock(Math.max(0, focusSession.budget_minutes * 60_000 - focus!.distractionMs))} dispo`}
-                    </span>
+                    {/* Le temps de repos ne s'affiche que pendant qu'on le consomme (pause ou distraction). */}
+                    {focus!.distraction && (
+                      <span className={focusOver ? "pill-work bad" : "pill-work rest"}>
+                        {focusOver
+                          ? focus!.distraction === IDLE_KEY
+                            ? "repos dépassé"
+                            : `${focus!.distraction} · dépassé`
+                          : `${focus!.distraction === IDLE_KEY ? "repos" : focus!.distraction} ${formatClock(
+                              Math.max(0, focusSession.budget_minutes * 60_000 - focus!.distractionMs),
+                            )}`}
+                      </span>
+                    )}
                   </>
                 ) : first ? (
                   <>

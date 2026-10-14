@@ -27,6 +27,10 @@ export const FOCUS_DURATIONS = [25, 50, 90];
 export const FOCUS_BUDGETS = [0, 2, 5, 10, 15];
 
 const TICK_MS = 1000;
+/** Clé du temps passé sans toucher au PC : il compte comme du repos dans le budget. */
+export const IDLE_KEY = "repos";
+/** Sans clavier ni souris pendant ce temps, on considère que tu fais une pause. */
+const IDLE_AFTER_S = 60;
 const SAVE_EVERY_TICKS = 5;
 const STATUS_EVENT = "focus-status";
 
@@ -119,19 +123,24 @@ export function useFocusMonitor(data: Data) {
         }
 
         const fg = await invoke<ForegroundWindow | null>("foreground_window");
-        const distraction = fg ? matchDistraction(fg, blocklist(ref.current.settings)) : null;
+        const idle = (await invoke<number>("idle_seconds").catch(() => 0)) >= IDLE_AFTER_S;
+        const distraction = idle ? IDLE_KEY : fg ? matchDistraction(fg, blocklist(ref.current.settings)) : null;
         if (distraction) {
           t.ms += TICK_MS;
           t.byKey[distraction] = (t.byKey[distraction] ?? 0) + TICK_MS;
           const over = t.ms > session.budget_minutes * 60_000;
-          if (over && session.mode === "block" && fg) {
+          if (over && session.mode === "block" && fg && distraction !== IDLE_KEY) {
             await invoke("minimize_window", { hwnd: fg.hwnd });
           }
           if (over && !t.warned) {
             t.warned = true;
             await notify(
-              "Budget de distraction dépassé",
-              session.mode === "block" ? `${distraction} est bloqué jusqu'à la fin de la session.` : `Retour au boulot ! (${distraction})`,
+              distraction === IDLE_KEY ? "Temps de repos écoulé" : "Budget de distraction dépassé",
+              distraction === IDLE_KEY
+                ? "Ta pause est finie : on s'y remet !"
+                : session.mode === "block"
+                  ? `${distraction} est bloqué jusqu'à la fin de la session.`
+                  : `Retour au boulot ! (${distraction})`,
             );
           }
         }

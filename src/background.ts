@@ -5,7 +5,7 @@ import { pauseAll, setSetting } from "./db";
 import { isLeader } from "./leader";
 import { notify } from "./notify";
 import { DEFAULT_IDLE_MINUTES } from "./time";
-import { aiConfig, requestInputFocus, startTalking, stopTalking, voiceConfig } from "./ai/session";
+import { aiConfig, requestInputFocus, startConversation, startTalking, stopTalking, voiceConfig } from "./ai/session";
 import type { Data } from "./useData";
 
 const isTauri = "__TAURI_INTERNALS__" in window;
@@ -135,7 +135,7 @@ export function useWakeWord(data: Data, onWake: () => void) {
   }, []);
 }
 
-/** Ce que fait l'encoche quand elle entend « Mégatron » : elle s'ouvre sur l'IA et écoute la demande. */
+/** Ce que fait l'encoche quand elle entend « Mégatron » : elle s'ouvre sur l'IA et lance la conversation. */
 export function listenAfterWake(data: Data) {
   const config = aiConfig(data.settings);
   const voice = voiceConfig(data.settings);
@@ -143,5 +143,6 @@ export function listenAfterWake(data: Data) {
     requestInputFocus();
     return;
   }
-  startTalking(() => stopTalking(config, voice), { stopOnSilence: true });
+  // Conversation continue : il réécoute après chaque réponse, jusqu'à « merci, c'est bon ».
+  void startConversation(config, voice);
 }

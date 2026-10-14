@@ -27,7 +27,10 @@ export interface RecordingOptions {
   stopOnSilence?: boolean;
 }
 
-export async function startRecording(onAutoStop?: () => void, options: RecordingOptions = {}) {
+/** Pourquoi l'enregistrement s'est arrêté tout seul. */
+export type StopReason = "done" | "no-speech" | "max";
+
+export async function startRecording(onAutoStop?: (reason: StopReason) => void, options: RecordingOptions = {}) {
   if (current) return;
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
@@ -58,12 +61,12 @@ export async function startRecording(onAutoStop?: () => void, options: Recording
     const neverTalked = !spoke && t - startedAt > NO_SPEECH_TIMEOUT_MS;
     if (doneTalking || neverTalked) {
       stopped = true;
-      onAutoStop?.();
+      onAutoStop?.(doneTalking ? "done" : "no-speech");
     }
   };
   source.connect(node);
   node.connect(ctx.destination);
-  current = { stream, ctx, node, chunks, timeout: window.setTimeout(() => onAutoStop?.(), MAX_SECONDS * 1000) };
+  current = { stream, ctx, node, chunks, timeout: window.setTimeout(() => onAutoStop?.("max"), MAX_SECONDS * 1000) };
 }
 
 export const isRecording = () => current != null;

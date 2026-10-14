@@ -5,6 +5,7 @@ import { setSetting } from "../db";
 import { Select } from "../components/Select";
 import { EmptyState } from "../components/EmptyState";
 import {
+  AudioLines,
   AppWindow,
   Bell,
   ChevronLeft,
@@ -28,7 +29,9 @@ import {
   cancelRequest,
   friendlyError,
   cancelTalking,
+  endConversation,
   MAIN_SLOT,
+  startConversation,
   resetConversation,
   startTalking,
   stopTalking,
@@ -327,6 +330,10 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
 
   const toggleMic = () => {
     if (!voice) return;
+    if (ai.conversing) {
+      endConversation();
+      return;
+    }
     if (ai.recording) stopTalking(config, voice);
     else startTalking(() => stopTalking(config, voice));
   };
@@ -397,6 +404,25 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
         </AnimatePresence>
       </ul>
 
+      <AnimatePresence>
+        {ai.conversing && (
+          <motion.div
+            className="conversing-bar"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+          >
+            <motion.span className="listening-dot" animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 1, repeat: Infinity }} />
+            <span>
+              <b>En conversation</b> · dis « merci, c'est bon » pour terminer
+            </span>
+            <button type="button" className="btn ghost" onClick={endConversation}>
+              Terminer
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <form
         className="tile chat-input"
         onSubmit={(e) => {
@@ -427,6 +453,22 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
             <rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5" fill="currentColor" />
             <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
           </svg>
+        </button>
+        <button
+          type="button"
+          className={ai.conversing ? "mic recording" : "mic"}
+          onClick={() => (ai.conversing ? endConversation() : voice && startConversation(config, voice))}
+          disabled={!voice || (!ai.conversing && (ai.busy || ai.transcribing || ai.recording))}
+          title={
+            voice
+              ? ai.conversing
+                ? "Terminer la conversation"
+                : "Discuter à voix haute (il réécoute après chaque réponse)"
+              : "Ajoute une clé pour la voix dans les réglages de l'IA"
+          }
+          aria-label="Conversation à voix haute"
+        >
+          <AudioLines size={15} />
         </button>
         {ai.busy || ai.transcribing ? (
           <button type="button" className="btn ghost" onClick={cancelRequest}>

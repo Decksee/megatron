@@ -13,6 +13,7 @@ import {
   FOCUS_BUDGETS,
   FOCUS_DURATIONS,
   focusElapsedMs,
+  IDLE_KEY,
   type FocusStatus,
 } from "../focus";
 import { formatClock, formatDuration, NO_PROJECT_COLOR, startOfDay } from "../time";
@@ -192,15 +193,96 @@ function Ring({ ratio, color, children }: { ratio: number; color: string; childr
   );
 }
 
+const TIMER_SIZE = 196;
+const TIMER_R = 80;
+const TIMER_STROKE = 8;
+const TIMER_TICKS = 60;
+
+/** Le grand minuteur du focus : graduations qui s'allument, arc en dégradé, curseur au bout. */
+function FocusTimer({ ratio, alert, children }: { ratio: number; alert: boolean; children: React.ReactNode }) {
+  const c = TIMER_SIZE / 2;
+  const circumference = 2 * Math.PI * TIMER_R;
+  const color = alert ? "var(--danger)" : "var(--accent)";
+  const angle = ratio * 2 * Math.PI - Math.PI / 2;
+  return (
+    <div className={alert ? "focus-timer alert" : "focus-timer"}>
+      <motion.div
+        className="focus-timer-glow"
+        animate={{ opacity: [0.35, 0.7, 0.35], scale: [0.96, 1.02, 0.96] }}
+        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <svg width={TIMER_SIZE} height={TIMER_SIZE} viewBox={`0 0 ${TIMER_SIZE} ${TIMER_SIZE}`} aria-hidden="true">
+        <defs>
+          <linearGradient id="focus-timer-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={color} stopOpacity="0.5" />
+            <stop offset="1" stopColor={color} />
+          </linearGradient>
+        </defs>
+        {Array.from({ length: TIMER_TICKS }, (_, i) => {
+          const a = (i / TIMER_TICKS) * 2 * Math.PI - Math.PI / 2;
+          const major = i % 5 === 0;
+          const r1 = TIMER_R + TIMER_STROKE / 2 + 6;
+          const r2 = r1 + (major ? 6 : 3);
+          return (
+            <line
+              key={i}
+              x1={c + r1 * Math.cos(a)}
+              y1={c + r1 * Math.sin(a)}
+              x2={c + r2 * Math.cos(a)}
+              y2={c + r2 * Math.sin(a)}
+              className={i / TIMER_TICKS <= ratio ? "dial-tick lit" : "dial-tick"}
+              style={alert && i / TIMER_TICKS <= ratio ? { stroke: "rgb(var(--danger-rgb) / 0.75)" } : undefined}
+              strokeWidth={major ? 1.6 : 1}
+              strokeLinecap="round"
+            />
+          );
+        })}
+        <circle cx={c} cy={c} r={TIMER_R} fill="none" className="ring-track" strokeWidth={TIMER_STROKE} />
+        <motion.circle
+          cx={c}
+          cy={c}
+          r={TIMER_R}
+          fill="none"
+          stroke="url(#focus-timer-grad)"
+          strokeWidth={TIMER_STROKE}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          initial={false}
+          animate={{ strokeDashoffset: circumference * (1 - ratio) }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          transform={`rotate(-90 ${c} ${c})`}
+        />
+        <motion.circle
+          r={6}
+          className="dial-knob"
+          initial={false}
+          animate={{ cx: c + TIMER_R * Math.cos(angle), cy: c + TIMER_R * Math.sin(angle) }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+        />
+      </svg>
+      <div className="focus-timer-center">{children}</div>
+    </div>
+  );
+}
+
 function ActiveFocus({ session, projects, now, status }: Data & { session: FocusSession; now: Date; status: FocusStatus | null }) {
   const [confirmQuit, setConfirmQuit] = useState(false);
   const planned = session.planned_minutes * 60_000;
   const elapsed = Math.min(planned, focusElapsedMs(session, now));
+  const remaining = planned - elapsed;
   const project = projects.find((p) => p.id === session.project_id);
   const distractionMs = status?.distractionMs ?? session.distraction_ms;
   const budget = session.budget_minutes * 60_000;
   const over = distractionMs > budget;
   const distracted = status?.distraction;
+  const resting = distracted === IDLE_KEY;
+  const budgetRatio = budget ? Math.min(1, distractionMs / budget) : distractionMs ? 1 : 0;
+  const pct = score(session, distractionMs, now);
+  const end = new Date(now.getTime() + remaining).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const byKey = Object.entries(status?.byKey ?? (JSON.parse(session.distractions || "{}") as Record<string, number>))
+    .filter(([, ms]) => ms >= 1000)
+    .sort((a, b) => b[1] - a[1]);
+  const maxKey = Math.max(1, ...byKey.map(([, ms]) => ms));
 
   const stop = async (completed: boolean) => {
     if (status) await saveFocusProgress(session.id, status.distractionMs, status.byKey);
@@ -208,68 +290,122 @@ function ActiveFocus({ session, projects, now, status }: Data & { session: Focus
   };
 
   return (
-    <div className="tile focus-active">
-      <Ring ratio={elapsed / planned} color={distracted ? "var(--danger)" : "var(--accent)"}>
-        <span className="ring-time">{formatClock(planned - elapsed)}</span>
-        <span className="muted small">sur {session.planned_minutes} min</span>
-      </Ring>
+    <div className="focus-live">
+      <div className={distracted && !resting ? "tile focus-live-main distracted" : "tile focus-live-main"}>
+        <FocusTimer ratio={elapsed / planned} alert={!!distracted && !resting}>
+          <span className="focus-timer-time">{formatClock(remaining)}</span>
+          <span className="dial-unit">restantes</span>
+          <span className="dial-end">fin à {end}</span>
+        </FocusTimer>
 
-      <div className="focus-info">
-        <div className="focus-project">
-          <span className="chip-dot" style={{ background: project?.color ?? NO_PROJECT_COLOR }} />
-          {project?.name ?? "Focus libre"}
-        </div>
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={distracted ?? "ok"}
-            className={distracted ? "focus-state bad" : "focus-state good"}
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 6 }}
-          >
-            {distracted ? `Distraction : ${distracted}` : "Concentré"}
-          </motion.div>
-        </AnimatePresence>
-
-        <div className="field">
-          <div className="budget-head">
-            <span className="field-label">Distraction</span>
-            <span className={over ? "budget-value over" : "budget-value"}>
-              {formatClock(distractionMs)} / {session.budget_minutes} min
+        <div className="focus-live-info">
+          <div className="focus-live-head">
+            <span className="focus-project">
+              <span className="chip-dot" style={{ background: project?.color ?? NO_PROJECT_COLOR }} />
+              {project?.name ?? "Focus libre"}
+            </span>
+            <span className="mode-chip">
+              {session.mode === "block" ? <Ban size={12} /> : <Bell size={12} />}
+              {session.mode === "block" ? "Blocage" : "Alerte"}
             </span>
           </div>
-          <div className="progress">
+
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
-              className="progress-fill"
-              style={{ background: over ? "var(--danger)" : "var(--warning)", transition: "background 0.3s" }}
-              initial={false}
-              animate={{
-                width: `${budget ? Math.min(100, (distractionMs / budget) * 100) : distractionMs ? 100 : 0}%`,
-              }}
-            />
-          </div>
-          {over && (
-            <span className="small over-text">
-              {session.mode === "block" ? "Budget épuisé : les distractions sont bloquées." : "Budget épuisé !"}
-            </span>
-          )}
-        </div>
+              key={distracted ?? "ok"}
+              className={resting ? "focus-state rest" : distracted ? "focus-state bad" : "focus-state good"}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.16 }}
+            >
+              <motion.span
+                className="state-dot"
+                animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
+                transition={{ duration: distracted ? 0.9 : 2, repeat: Infinity }}
+              />
+              {resting ? "En pause · temps de repos" : distracted ? `Distrait par ${distracted}` : "Concentré"}
+            </motion.div>
+          </AnimatePresence>
 
-        <div className="row">
-          <button className="btn primary" onClick={() => stop(true)}>
-            <Check size={14} strokeWidth={2.5} /> Terminer
-          </button>
-          {confirmQuit ? (
-            <button className="btn danger" onClick={() => stop(false)}>
-              Confirmer l'abandon
+          <div className="focus-live-stats">
+            <div>
+              <span className="tile-caption">Écoulé</span>
+              <b>{formatDuration(elapsed)}</b>
+            </div>
+            <div>
+              <span className="tile-caption">Concentration</span>
+              <b className={pct >= 90 ? "good" : pct < 70 ? "bad" : ""}>{pct} %</b>
+            </div>
+            <div>
+              <span className="tile-caption">Objectif</span>
+              <b>{session.planned_minutes} min</b>
+            </div>
+          </div>
+
+          <div className="budget">
+            <div className="budget-head">
+              <span className="tile-caption">Repos et distractions autorisés</span>
+              <span className={over ? "budget-value over" : "budget-value"}>
+                {formatClock(distractionMs)} / {session.budget_minutes} min
+              </span>
+            </div>
+            <div className="budget-track">
+              <motion.div
+                className={over ? "budget-fill over" : budgetRatio > 0.7 ? "budget-fill warn" : "budget-fill"}
+                initial={false}
+                animate={{ width: `${budgetRatio * 100}%` }}
+                transition={{ type: "spring", stiffness: 200, damping: 28 }}
+              />
+            </div>
+            {over && (
+              <span className="small over-text">
+                {session.mode === "block" ? "Budget épuisé : les distractions sont bloquées." : "Budget épuisé !"}
+              </span>
+            )}
+          </div>
+
+          <div className="row focus-live-actions">
+            <button className="btn primary" onClick={() => stop(true)}>
+              <Check size={14} strokeWidth={2.5} /> Terminer
             </button>
-          ) : (
-            <button className="btn ghost" onClick={() => setConfirmQuit(true)}>
-              Abandonner
-            </button>
-          )}
+            {confirmQuit ? (
+              <button className="btn danger" onClick={() => stop(false)}>
+                Confirmer l'abandon
+              </button>
+            ) : (
+              <button className="btn ghost" onClick={() => setConfirmQuit(true)}>
+                Abandonner
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      <aside className="tile focus-live-side">
+        <span className="tile-title">Distractions</span>
+        {byKey.length === 0 ? (
+          <div className="focus-clean">
+            <Target size={22} />
+            <span>Aucune pour l'instant</span>
+            <span className="muted small">Continue comme ça.</span>
+          </div>
+        ) : (
+          <ul className="distraction-list">
+            {byKey.map(([key, ms]) => (
+              <li key={key} className={key === distracted ? "current" : undefined}>
+                <div className="distraction-row">
+                  <span className="distraction-name">{key}</span>
+                  <span className="distraction-time">{formatClock(ms)}</span>
+                </div>
+                <div className="distraction-bar">
+                  <motion.i initial={false} animate={{ width: `${(ms / maxKey) * 100}%` }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </aside>
     </div>
   );
 }

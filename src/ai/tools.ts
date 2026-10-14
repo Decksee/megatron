@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
+  addMemory,
   createProject,
+  deleteMemory,
+  listMemories,
   createReminder,
   createTask,
   endFocus,
@@ -40,7 +43,21 @@ const obj = (properties: Record<string, unknown>, required: string[] = []): Tool
   ...(required.length ? { required } : {}),
 });
 
+/** Outils de l'apprentissage, retirés quand il est désactivé. */
+export const MEMORY_TOOLS = ["retenir", "oublier"];
+
 export const TOOLS: ToolDef[] = [
+  {
+    name: "retenir",
+    description:
+      "Retient durablement une information sur l'utilisateur (préférence, habitude, client, façon de travailler), en une phrase courte à la troisième personne.",
+    parameters: obj({ fait: str("L'information à retenir, ex. « Il facture ses clients à 450 € la journée »") }, ["fait"]),
+  },
+  {
+    name: "oublier",
+    description: "Oublie une information retenue sur l'utilisateur, retrouvée par mots-clés.",
+    parameters: obj({ sujet: str("Mots-clés de l'information à oublier") }, ["sujet"]),
+  },
   {
     name: "ajouter_tache",
     description: "Ajoute une tâche à la liste de tâches, éventuellement rattachée à un projet.",
@@ -426,6 +443,23 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
     case "verrouiller_pc": {
       await invoke("lock_screen");
       return { result: "Session verrouillée.", label: "PC verrouillé" };
+    }
+    case "retenir": {
+      const fait = String(a.fait ?? "").trim();
+      if (!fait) throw new Error("Rien à retenir.");
+      if (/mot de passe|password|\b(cle|key|token|iban)\b|clé|carte bancaire|\b\d{12,}\b/i.test(fait)) {
+        throw new Error("Je ne retiens pas d'informations sensibles (mots de passe, clés, données bancaires).");
+      }
+      const known = await listMemories();
+      if (known.some((m) => norm(m.text) === norm(fait))) return { result: "Déjà retenu.", label: "Déjà retenu" };
+      await addMemory(fait.slice(0, 300));
+      return { result: "Retenu.", label: `Retenu : ${fait}` };
+    }
+    case "oublier": {
+      const memory = bestMatch(await listMemories(), String(a.sujet ?? ""), (m) => m.text);
+      if (!memory) throw new Error(`Je n'ai rien retenu sur « ${a.sujet} ».`);
+      await deleteMemory(memory.id);
+      return { result: `Oublié : ${memory.text}`, label: `Oublié : ${memory.text}` };
     }
     default:
       throw new Error(`Outil inconnu : ${name}`);
