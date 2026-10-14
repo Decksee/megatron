@@ -36,7 +36,7 @@ Les yeux et le voyant sont entourés d'une **lueur** verte : ce sont les seules 
 | Rôle | Couleur | Code |
 |---|---|---|
 | Yeux, voyant, lueur | Vert Mégatron | `#5be36b` |
-| Corps du robot | Noir profond, avec un fin contour clair | `#111216` (icône) · `#0b0c0f` (mascotte) |
+| Corps du robot | Noir, fondu dans le fond sur l'icône (seuls les yeux et le voyant ressortent) · noir profond (mascotte) | `#000000` · `#0b0c0f` |
 | Fond de l'icône | Noir pur | `#000000` |
 | Colère, distraction | Rouge alerte | `#ff4d4d` |
 | Accent de l'interface (thème sombre) | Vert | `#4fe06a` |
@@ -55,7 +55,7 @@ Les deux sont libres de droits et intégrées à l'application.
 
 | Fichier | Usage |
 |---|---|
-| [`logo/megatron-icone.svg`](logo/megatron-icone.svg) · [`.png`](logo/megatron-icone.png) | **Icône complète** (robot sur fond arrondi). Icône de l'application, raccourcis, zone de notification. |
+| [`logo/megatron-icone.svg`](logo/megatron-icone.svg) · [`.png`](logo/megatron-icone.png) | **Icône de l'application** : les yeux et le voyant sur un carré noir arrondi, le corps fondu dans le noir. Raccourcis, barre des tâches, zone de notification. |
 | [`logo/megatron-yeux-fond-noir.svg`](logo/megatron-yeux-fond-noir.svg) · [`.png`](logo/megatron-yeux-fond-noir.png) | **Yeux seuls sur fond noir.** Avatar (bot Telegram, profils), découpe ronde. |
 | [`logo/megatron-yeux.svg`](logo/megatron-yeux.svg) · [`.png`](logo/megatron-yeux.png) | **Yeux seuls sur fond transparent**, à poser sur un fond sombre. En-têtes, présentations. |
 | `src-tauri/icon.svg` → `src-tauri/icons/` | Source de l'icône de l'application, déclinée automatiquement en toutes les tailles (`npx tauri icon src-tauri/icon.svg`). |

@@ -22,9 +22,12 @@ if (-not (Test-Path $keyPath)) { throw "Clé de signature introuvable : $keyPath
 
 # 1. Numéro de version (tauri.conf.json fait foi pour les mises à jour)
 $confPath = "src-tauri\tauri.conf.json"
-$conf = Get-Content $confPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$conf.version = $Version
-[System.IO.File]::WriteAllText((Resolve-Path $confPath), ($conf | ConvertTo-Json -Depth 20), (New-Object System.Text.UTF8Encoding $false))
+# Seul le numéro change : le reste du fichier garde sa mise en forme.
+$utf8 = New-Object System.Text.UTF8Encoding $false
+$confFull = (Resolve-Path $confPath).Path
+$confText = [System.IO.File]::ReadAllText($confFull, $utf8)
+$confText = [regex]::Replace($confText, '"version":\s*"[^"]*"', "`"version`": `"$Version`"", 1)
+[System.IO.File]::WriteAllText($confFull, $confText, $utf8)
 Write-Host "Version $Version"
 
 # 2. Construction et signature
