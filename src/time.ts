@@ -1,4 +1,4 @@
-import type { Project, TimeEntry, Timer } from "./db";
+import type { TimeEntry, Timer } from "./db";
 
 export const NO_PROJECT_COLOR = "#8e8e93";
 
@@ -73,14 +73,7 @@ export function formatClock(ms: number) {
 
 export const hours = (ms: number) => ms / HOUR;
 
-const money = (value: number, currency: string) =>
-  new Intl.NumberFormat("fr-FR", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 
-/** Taux horaire réel : prix du projet / tout le temps passé dessus. */
-export function hourlyRate(p: Project, entries: TimeEntry[], now: Date) {
-  const ms = entries.filter((e) => e.project_id === p.id).reduce((s, e) => s + entryMs(e, now), 0);
-  return ms > 60_000 && p.price > 0 ? money(p.price / hours(ms), p.currency) + "/h" : null;
-}
 
 
 export function startOfDay(d: Date) {

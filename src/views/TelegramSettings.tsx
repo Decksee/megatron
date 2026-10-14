@@ -5,6 +5,7 @@ import { setSetting } from "../db";
 import type { Data } from "../useData";
 import { Switch } from "../components/Switch";
 import { Select } from "../components/Select";
+import { ErrorNote } from "../components/ErrorNote";
 import {
   newPairCode,
   sendTelegram,
@@ -50,7 +51,7 @@ function BotSetup() {
       setToken("");
     } catch (e) {
       const raw = String((e as Error)?.message ?? e);
-      setError(/401|404|Unauthorized|Not Found/i.test(raw) ? "Clé refusée par Telegram : vérifie-la (format 123456:ABC…)." : raw);
+      setError(raw);
     } finally {
       setBusy(false);
     }
@@ -90,7 +91,7 @@ function BotSetup() {
           {busy ? "…" : "Connecter"}
         </button>
       </form>
-      {error && <div className="status error">{error}</div>}
+      {error && <ErrorNote raw={error} service="telegram" />}
       <span className="muted small">La clé reste dans le Gestionnaire d'identification Windows.</span>
     </section>
   );
@@ -174,7 +175,7 @@ export function TelegramSettings({ settings }: Pick<Data, "settings">) {
               </button>
             </div>
           </section>
-          {test !== "idle" && test !== "sent" && <div className="status error">{test}</div>}
+          {test !== "idle" && test !== "sent" && <ErrorNote raw={test} service="telegram" />}
 
           <div className="setting-block">
             <Row title="Discuter avec Mégatron" hint="Écris-lui ou envoie un vocal depuis Telegram : même IA, mêmes outils, même conversation.">

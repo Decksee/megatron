@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { setSetting } from "../db";
 import { Select } from "../components/Select";
 import { EmptyState } from "../components/EmptyState";
+import { ErrorNote } from "../components/ErrorNote";
 import {
   AudioLines,
   AppWindow,
@@ -27,7 +28,6 @@ import {
   aiConfig,
   ask,
   cancelRequest,
-  friendlyError,
   cancelTalking,
   endConversation,
   MAIN_SLOT,
@@ -116,7 +116,7 @@ export function AiSetup({ settings, onDone, canCancel }: Pick<Data, "settings"> 
       setHasKey(true);
       onDone();
     } catch (e) {
-      setStatus({ kind: "error", text: friendlyError(errorText(e)) });
+      setStatus({ kind: "error", text: errorText(e) });
     }
   };
 
@@ -203,7 +203,8 @@ export function AiSetup({ settings, onDone, canCancel }: Pick<Data, "settings"> 
         </div>
       </div>
 
-      {status && status.kind !== "busy" && <div className={`status ${status.kind}`}>{status.text}</div>}
+      {status?.kind === "error" && <ErrorNote raw={status.text} service={provider} />}
+      {status?.kind === "ok" && <div className="status ok">{status.text}</div>}
 
       <div className="tile skills">
         <span className="tile-title">Ce que je sais faire</span>
@@ -285,7 +286,8 @@ function VoiceSetup({ settings }: Pick<Data, "settings">) {
           Activer
         </button>
       </form>
-      {status && <div className={`status ${status.kind}`}>{status.text}</div>}
+      {status?.kind === "error" && <ErrorNote raw={status.text} service={provider} />}
+      {status?.kind === "ok" && <div className="status ok">{status.text}</div>}
     </div>
   );
 }

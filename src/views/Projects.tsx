@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { entryMs, startOfDay, formatDuration, hourlyRate, isRunning } from "../time";
+import { entryMs, startOfDay, formatDuration, isRunning } from "../time";
 import { TimerButtons } from "./Time";
 import {
   createProject,
@@ -545,7 +545,6 @@ function ProjectDetail({
   const pr = progress(tasks, p.id);
   const now = new Date();
   const spent = entries.filter((e) => e.project_id === p.id).reduce((s, e) => s + entryMs(e, now), 0);
-  const rate = hourlyRate({ ...p, price: money.total }, entries, now);
   const timer = timers.find((t) => t.project_id === p.id);
   const running = isRunning(entries, p.id);
   const options = statusOptions(profile, p.status);
@@ -618,12 +617,6 @@ function ProjectDetail({
             )}
             <dt>Temps</dt>
             <dd>{formatDuration(spent)}</dd>
-            {profile.money && (
-              <>
-                <dt>Taux réel</dt>
-                <dd>{rate ?? "—"}</dd>
-              </>
-            )}
           </dl>
           {profile.money && <PaidBar project={p} ledger={ledger} />}
           {timer ? (

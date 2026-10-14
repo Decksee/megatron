@@ -10,6 +10,7 @@ import { THEME_OPTIONS, type ThemePref } from "../theme";
 import type { Data } from "../useData";
 import { Select } from "../components/Select";
 import { holdOpen } from "../hold";
+import { ErrorNote } from "../components/ErrorNote";
 import { USAGES, usageOf, type Usage } from "../projects";
 import {
   AZURE_DEFAULT_VOICE,
@@ -236,11 +237,7 @@ function AzureSetup({ settings, onDone }: Pick<Data, "settings"> & { onDone?: ()
       onDone?.();
     } catch (e) {
       const raw = String((e as Error)?.message ?? e);
-      setError(
-        /401|403/.test(raw)
-          ? "Clé refusée : vérifie la clé, et que la région est bien celle de ta ressource Azure."
-          : `Connexion à Azure impossible (${raw.slice(0, 120)}).`,
-      );
+      setError(raw);
     } finally {
       setBusy(false);
     }
@@ -286,7 +283,7 @@ function AzureSetup({ settings, onDone }: Pick<Data, "settings"> & { onDone?: ()
           {busy ? "…" : "Connecter"}
         </button>
       </form>
-      {error && <div className="status error">{error}</div>}
+      {error && <ErrorNote raw={error} service="azure" />}
       <span className="muted small">La clé reste dans le Gestionnaire d'identification Windows.</span>
     </div>
   );

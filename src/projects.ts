@@ -13,7 +13,7 @@ export interface UsageProfile {
   clientPlaceholder: string;
   /** Nom de l'espace qui regroupe les projets par client (null : pas d'espace). */
   clientsLabel: string | null;
-  /** Prix, devise, paiements, taux horaire. */
+  /** Prix, devise, extras et paiements. */
   money: boolean;
   statuses: ProjectStatus[];
   doneLabel: string;
