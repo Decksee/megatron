@@ -1,6 +1,8 @@
 /**
  * Historique des versions, affiché dans la page « Nouveautés » (lien en haut de la fenêtre). Embarqué dans l'app : il marche hors ligne.
  * À compléter avant chaque publication (le script de publication refuse une version absente d'ici).
+ * Ne mentionner que ce que l'utilisateur voit : nouvelles fonctions, changements de fonctionnement ou de design.
+ * Le reste (corrections, détails techniques, dépôt GitHub…) se résume en « Corrections mineures. »
  * La plus récente en premier.
  */
 export interface Release {
@@ -19,7 +21,6 @@ export const CHANGELOG: Release[] = [
     changes: [
       "Lien « Nouveautés » en haut de la fenêtre : chaque version et ce qu'elle apporte, la plus récente en haut.",
       "Un point sur le lien après une mise à jour, tant que tu n'as pas regardé ses nouveautés.",
-      "Titres des versions corrigés sur GitHub (accents).",
     ],
   },
   {
@@ -35,11 +36,8 @@ export const CHANGELOG: Release[] = [
   {
     version: "0.3.1",
     date: "2026-10-15",
-    title: "Encoches à leur place",
-    changes: [
-      "Si Windows déplace une encoche (écran en veille, changement d'entrée), Mégatron la remet sur son écran.",
-      "L'encoche affiche « 9 tâches à faire » au lieu de « 9 à faire ».",
-    ],
+    title: "Corrections mineures",
+    changes: ["Corrections mineures."],
   },
   {
     version: "0.3.0",
