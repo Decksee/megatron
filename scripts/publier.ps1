@@ -20,6 +20,11 @@ if (-not ($env:Path -split ";" | Where-Object { $_ -eq $cargoBin })) { $env:Path
 $keyPath = Join-Path $env:USERPROFILE ".tauri\megatron-updater.key"
 if (-not (Test-Path $keyPath)) { throw "Clé de signature introuvable : $keyPath" }
 
+# 0. La version doit figurer dans l'historique affiché dans l'app (Réglages → Versions).
+if (-not (Select-String -Path "src\changelog.ts" -Pattern "version: `"$([regex]::Escape($Version))`"" -Quiet)) {
+    throw "Ajoute d'abord la version $Version à src\changelog.ts (historique affiché dans l'app)."
+}
+
 # 1. Numéro de version (tauri.conf.json fait foi pour les mises à jour)
 $confPath = "src-tauri\tauri.conf.json"
 # Seul le numéro change : le reste du fichier garde sa mise en forme.

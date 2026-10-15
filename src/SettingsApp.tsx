@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Bot as Bot2, CircleHelp, Database, Smartphone, FolderKanban, Info, ListChecks, Minus, Settings2, Sparkles, Target, X } from "lucide-react";
+import { Bot as Bot2, CircleHelp, History, Database, Smartphone, FolderKanban, Info, ListChecks, Minus, Settings2, Sparkles, Target, X } from "lucide-react";
 import { Welcome } from "./views/Welcome";
 import { Help } from "./views/Help";
+import { Versions } from "./views/Versions";
 import { useData } from "./useData";
 import { useTheme } from "./theme";
 import { setSetting, type FocusMode } from "./db";
@@ -31,6 +32,7 @@ const SETTINGS = [
   { id: "focus", label: "Focus", icon: Target, hint: "Tes réglages de concentration par défaut et ce qui te distrait." },
   { id: "phone", label: "Téléphone", icon: Smartphone, hint: "Notifications et discussion avec Mégatron depuis Telegram." },
   { id: "data", label: "Données", icon: Database, hint: "Sauvegarde et restauration de tout ce que contient Mégatron." },
+  { id: "versions", label: "Versions", icon: History, hint: "Les mises à jour, et ce qu'apporte chaque version de Mégatron." },
   { id: "about", label: "À propos", icon: Info, hint: "Raccourcis et confidentialité." },
 ] as const;
 type SettingsId = (typeof SETTINGS)[number]["id"];
@@ -167,6 +169,7 @@ export function SettingsApp() {
                   {sub === "focus" && <FocusSection {...data} />}
                   {sub === "phone" && <TelegramSettings settings={data.settings} />}
                   {sub === "data" && <DataSettings />}
+                  {sub === "versions" && <Versions settings={data.settings} />}
                   {sub === "about" && <About settings={data.settings} />}
                 </motion.div>
               </AnimatePresence>
@@ -291,7 +294,6 @@ function About({ settings }: Pick<Data, "settings">) {
           <div className="muted small">Ton encoche de productivité</div>
         </div>
       </div>
-      <UpdateSetting settings={settings} />
       <section className="setting column">
         <div className="setting-title">Raccourcis</div>
         <div className="shortcut-list">

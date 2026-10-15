@@ -2456,3 +2456,25 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 @container tasks (max-width: 559px) {
   .task-project { display: contents; }
 }
+
+/* ---------- Historique des versions ---------- */
+.versions { list-style: none; margin: 6px 0 0; padding: 0 0 0 14px; display: flex; flex-direction: column; gap: 6px; border-left: 2px solid rgb(var(--fg-rgb) / 0.08); }
+.version { position: relative; padding: 10px 14px; border-radius: 14px; background: var(--tile); }
+.version::before {
+  content: ""; position: absolute; left: -21px; top: 16px; width: 10px; height: 10px; border-radius: 50%;
+  background: rgb(var(--fg-rgb) / 0.2); box-shadow: 0 0 0 3px var(--bg, #000);
+}
+.version.current::before { background: var(--accent); }
+.version.current { box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.4); }
+.version-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.version-number { font-variant-numeric: tabular-nums; font-size: 14px; }
+.version-title { font-weight: 600; }
+.version-date { margin-left: auto; }
+.version-badge {
+  font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  color: var(--accent); background: rgb(var(--accent-rgb) / 0.15);
+}
+.version-badge.new { color: var(--warning); background: rgb(var(--warning-rgb) / 0.15); }
+.version-changes { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.version-changes li { font-size: 12.5px; line-height: 1.45; color: var(--text); }
+.version-changes li::marker { color: var(--muted); }
