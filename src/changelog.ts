@@ -15,6 +15,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: "0.3.7",
+    date: "2026-10-15",
+    title: "Ta journée en un coup d'œil",
+    changes: [
+      "L'encoche n'affiche plus que les tâches du jour (« 5 tâches aujourd'hui »).",
+      "Dictée avec le bouton micro : Mégatron répond par écrit, sans lire sa réponse à voix haute.",
+    ],
+  },
+  {
     version: "0.3.6",
     date: "2026-10-15",
     title: "Filtres et tâches dans l'encoche",

@@ -12,6 +12,7 @@ import { focusElapsedMs, IDLE_KEY, useFocusMonitor } from "./focus";
 import { dueReminders, SNOOZE_MINUTES, useReminderWatcher } from "./reminders";
 import { useTelegram } from "./telegram";
 import { useUpdateCheck } from "./updater";
+import { taskBucket } from "./projects";
 import { useBreakNudge, useDailyBriefing, useFirstRun } from "./wellbeing";
 import { useMood, useNotchCursor, useNotchOccupied } from "./mood";
 import { formatTrackTime, mediaAppName, mediaPosition, useMedia } from "./media";
@@ -298,7 +299,8 @@ export function App() {
   }, [hoverZone.width, hoverZone.height, interactive, mini]);
 
   const time = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  const remaining = data.tasks.filter((t) => !t.done).length;
+  // Seulement les tâches de la journée : prévues aujourd'hui (ou reportées) et celles dont l'échéance est là.
+  const remaining = data.tasks.filter((t) => !t.done && taskBucket(t, now) === "today").length;
   const runningTimers = data.timers.filter((t) => isRunning(data.entries, t.project_id));
   const first = runningTimers[0];
   const today = totalMs(data.entries, startOfDay(now), addDays(startOfDay(now), 1), now);
@@ -533,7 +535,7 @@ export function App() {
                 ) : (
                   <>
                     <span className="pill-time">{time}</span>
-                    <span className="pill-work">{remaining ? `${remaining} tâche${remaining > 1 ? "s" : ""} à faire` : "à jour"}</span>
+                    <span className="pill-work">{remaining ? `${remaining} tâche${remaining > 1 ? "s" : ""} aujourd'hui` : "rien aujourd'hui"}</span>
                   </>
                 )}
               </motion.div>

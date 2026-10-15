@@ -573,7 +573,11 @@ export function isNoise(text: string) {
 }
 
 /** Arrête l'enregistrement, affiche tout de suite la bulle, transcrit, puis envoie le texte à l'assistant. */
-export async function stopTalking(config: AiConfig, voice: VoiceConfig) {
+/**
+ * Fin de la dictée : transcrit puis envoie à l'assistant.
+ * `speak: false` (bouton micro de la discussion) : simple dictée, la réponse s'affiche sans être lue à voix haute.
+ */
+export async function stopTalking(config: AiConfig, voice: VoiceConfig, options: { speak?: boolean } = {}) {
   if (!state.recording) return;
   const run = ++runId;
   set({ recording: false, transcribing: true });
@@ -585,7 +589,10 @@ export async function stopTalking(config: AiConfig, voice: VoiceConfig) {
     const text = await transcribe(voice, wav);
     if (run !== runId) return; // annulée entre-temps
     set({ transcribing: false });
-    if (text.trim() && !isNoise(text)) await ask(text, config, bubble, true);
+    if (text.trim() && !isNoise(text)) {
+      const speak = options.speak ?? true;
+      await ask(text, config, bubble, speak, { silent: !speak });
+    }
     else {
       removeMessage(bubble);
       push("error", "Je n'ai rien entendu.");

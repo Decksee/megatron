@@ -388,8 +388,9 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
       endConversation();
       return;
     }
-    if (ai.recording) stopTalking(config, voice);
-    else startTalking(() => stopTalking(config, voice));
+    // Bouton micro = dictée : la réponse s'affiche sans être lue (la conversation vocale, elle, parle).
+    if (ai.recording) stopTalking(config, voice, { speak: false });
+    else startTalking(() => stopTalking(config, voice, { speak: false }));
   };
 
   return (
