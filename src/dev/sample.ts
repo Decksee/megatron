@@ -22,9 +22,9 @@ export const SAMPLE_PROJECTS: Project[] = [
 ];
 
 export const SAMPLE_TASKS: Task[] = [
-  { id: 1, project_id: 1, title: "Intégrer la page d'accueil", done: 0, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(300), completed_at: null },
-  { id: 2, project_id: 1, title: "Formulaire de contact", done: 0, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(280), completed_at: null },
-  { id: 3, project_id: 2, title: "Envoyer 3 pistes de logo", done: 1, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(900), completed_at: sqlAgo(60) },
+  { id: 1, project_id: 1, title: "Intégrer la page d'accueil", done: 0, due_date: day(1), planned_date: day(0), extra_id: null, created_at: sqlAgo(300), completed_at: null },
+  { id: 2, project_id: 1, title: "Formulaire de contact", done: 0, due_date: day(4), planned_date: null, extra_id: null, created_at: sqlAgo(280), completed_at: null },
+  { id: 3, project_id: 2, title: "Envoyer 3 pistes de logo", done: 1, due_date: day(-1), planned_date: null, extra_id: null, created_at: sqlAgo(900), completed_at: sqlAgo(60) },
   { id: 4, project_id: null, title: "Relancer la facture de mars", done: 0, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(120), completed_at: null },
   { id: 5, project_id: 2, title: "Choisir la typographie", done: 0, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(100), completed_at: null },
   { id: 6, project_id: 1, title: "Optimiser les images", done: 1, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(2000), completed_at: sqlAgo(1500) },

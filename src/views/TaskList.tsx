@@ -172,16 +172,21 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder,
         <TaskTitle task={task} editing={editingId === task.id} onEditing={(v) => setEditingId(v ? task.id : null)} />
         {/* Projet et dates groupés à droite : ils s'empilent au lieu d'écraser l'intitulé. */}
         <span className="task-meta">
-          {showProject && project && (
-            <span className="tag-pill" title={project.name}>
-              <i style={{ background: project.color }} />
-              <span className="tag-pill-name">{project.name}</span>
+          {showProject && (
+            <span className="task-project">
+              {project && (
+                <span className="tag-pill" title={project.name}>
+                  <i style={{ background: project.color }} />
+                  <span className="tag-pill-name">{project.name}</span>
+                </span>
+              )}
             </span>
           )}
           {/* Les deux dates posées : l'une sous l'autre. Sinon, sur une ligne (la vide n'est qu'une icône). */}
           <span className={task.planned_date && task.due_date ? "task-dates stacked" : "task-dates"}>
-            {(!task.done || task.planned_date) && <PlanChip task={task} />}
-            {(!task.done || task.due_date) && <DueChip task={task} />}
+            {/* Tâche faite sans cette date : une case vide garde les colonnes alignées. */}
+            {!task.done || task.planned_date ? <PlanChip task={task} /> : <span className="date-slot" />}
+            {!task.done || task.due_date ? <DueChip task={task} /> : <span className="date-slot" />}
           </span>
         </span>
         {editingId !== task.id && (

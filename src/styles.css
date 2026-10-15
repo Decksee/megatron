@@ -2424,3 +2424,35 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
   .welcome-features { grid-template-columns: 1fr; }
 }
 .window-page > .help { flex: 1; min-height: 0; }
+
+/* ---------- Listes larges (fenêtre) : une tâche = une ligne, dates alignées en colonnes ---------- */
+.task-list { container: tasks / inline-size; }
+.date-slot { display: none; }
+@container tasks (min-width: 560px) {
+  .task { align-items: center; gap: 12px; }
+  .task .check, .task .icon-btn, .task .tag-pill, .task .date-chip { margin-top: 0; }
+  .task-meta { flex-direction: row; align-items: center; justify-content: flex-end; gap: 10px; max-width: none; flex-shrink: 0; }
+  .task-meta .tag-pill { max-width: 160px; }
+  .task-dates, .task-dates.stacked { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px; }
+  /* Deux colonnes fixes : jour prévu puis échéance, à la même place sur chaque ligne. */
+  .task-dates .date-chip, .task-dates:not(.stacked) .date-chip:not(.set) { order: 0; width: 108px; justify-content: flex-start; }
+  .date-slot { display: block; width: 108px; flex-shrink: 0; }
+  .task .icon-btn { flex-shrink: 0; }
+}
+
+/* Extras dans un espace large : prix et boutons sur une ligne. */
+.extras { container: extras / inline-size; }
+@container extras (min-width: 560px) {
+  .extra-head { align-items: center; }
+  .extra-head > .check { margin-top: 0; }
+  .extra-side { flex-direction: row; align-items: center; gap: 10px; }
+}
+.task-project { display: none; }
+@container tasks (min-width: 560px) {
+  /* Colonne fixe pour le projet : les puces commencent toutes au même endroit. */
+  .task-project { display: flex; width: 170px; flex-shrink: 0; }
+  .task-project .tag-pill { max-width: 100%; }
+}
+@container tasks (max-width: 559px) {
+  .task-project { display: contents; }
+}

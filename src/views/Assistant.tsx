@@ -334,19 +334,39 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
 
   // À l'ouverture, on arrive directement en bas (sans défilement visible) ; ensuite, chaque nouveau
   // message défile en douceur (y compris quand une bulle se remplit).
-  const opened = useRef(false);
+  // Dans la fenêtre, la conversation arrive de la base juste après l'affichage : tout ce qui change
+  // pendant l'ouverture (ou le passage d'une liste vide à pleine) est un saut direct, pas un défilement.
+  const mountedAt = useRef(performance.now());
+  const shown = useRef(0);
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    if (!opened.current) {
+    const opening = performance.now() - mountedAt.current < 800 || (shown.current === 0 && ai.messages.length > 1);
+    shown.current = ai.messages.length;
+    if (opening) {
       list.scrollTop = list.scrollHeight;
-      // Les bulles finissent de se placer juste après le premier affichage : on recolle en bas.
+      // Les bulles finissent de se placer juste après l'affichage : on recolle en bas.
       requestAnimationFrame(() => (list.scrollTop = list.scrollHeight));
-      opened.current = true;
       return;
     }
     list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, [ai.messages, ai.busy, ai.recording, ai.transcribing]);
+
+  // Pendant l'ouverture, les bulles qui grandissent (animation d'entrée, images) gardent la liste collée en bas.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || typeof ResizeObserver === "undefined") return;
+    const stick = new ResizeObserver(() => {
+      if (performance.now() - mountedAt.current < 1200) list.scrollTop = list.scrollHeight;
+    });
+    for (const child of Array.from(list.children)) stick.observe(child);
+    stick.observe(list);
+    const stop = window.setTimeout(() => stick.disconnect(), 1300);
+    return () => {
+      window.clearTimeout(stop);
+      stick.disconnect();
+    };
+  }, [ai.messages.length]);
 
   const send = (value = text) => {
     if (!value.trim() && !ai.pendingFiles.length) return;
