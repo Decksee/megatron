@@ -1,4 +1,4 @@
-# Publie une nouvelle version de Mégatron : construit l'installateur signé, puis le met en ligne
+﻿# Publie une nouvelle version de Mégatron : construit l'installateur signé, puis le met en ligne
 # dans les versions (Releases) du dépôt GitHub. Les Mégatron installés la trouvent et proposent de l'installer.
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\publier.ps1 -Version 0.2.0 -Notes "Ce qui change"
