@@ -15,6 +15,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: "0.3.4",
+    date: "2026-10-15",
+    title: "Mises à jour plus claires",
+    changes: [
+      "Après une mise à jour, un bandeau te félicite et t'emmène vers les nouveautés.",
+      "Le bandeau « nouvelle version » ne propose plus qu'une version plus récente que la tienne.",
+      "Tâches dans la fenêtre : intitulés plus lisibles, projet collé aux dates ; quand la place manque, projet et dates passent sous l'intitulé.",
+      "L'encoche se range dès son ouverture quand une fenêtre est derrière elle.",
+      "Corrections mineures.",
+    ],
+  },
+  {
     version: "0.3.3",
     date: "2026-10-15",
     title: "Historique des versions",

@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { setSetting, type Settings } from "./db";
+import { getVersion } from "@tauri-apps/api/app";
+import { listSettings, setSetting, type Settings } from "./db";
 import { isLeader } from "./leader";
 import { notify } from "./notify";
 
@@ -17,6 +18,32 @@ const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
 export interface UpdateInfo {
   version: string;
   notes: string;
+}
+
+/** « 0.3.10 » est plus récent que « 0.3.9 » : comparaison nombre par nombre. */
+export function isNewer(a: string, b: string) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d) return d > 0;
+  }
+  return false;
+}
+
+/**
+ * Au démarrage : oublie une « mise à jour disponible » déjà installée (ou plus ancienne que la version
+ * actuelle) et repère une mise à jour qui vient d'être faite, pour féliciter dans la fenêtre.
+ */
+async function reconcileVersion() {
+  const installed = await getVersion();
+  const s = await listSettings();
+  const pending = availableUpdate(s);
+  if (pending && !isNewer(pending.version, installed)) await setSetting("update_available", "");
+  if (s.last_version && s.last_version !== installed && isNewer(installed, s.last_version)) {
+    await setSetting("just_updated", installed);
+  }
+  if (s.last_version !== installed) await setSetting("last_version", installed);
 }
 
 export const availableUpdate = (settings: Settings): UpdateInfo | null => {
@@ -60,6 +87,9 @@ export function useUpdateCheck(settings: Settings) {
   useEffect(() => {
     if (!isTauri || import.meta.env.DEV) return;
     let stopped = false;
+    void (async () => {
+      if (await isLeader()) await reconcileVersion().catch(console.error);
+    })();
     const run = async () => {
       if (stopped || !(await isLeader())) return;
       try {

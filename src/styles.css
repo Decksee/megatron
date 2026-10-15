@@ -2490,3 +2490,29 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
   position: absolute; top: 3px; right: 1px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
 }
 .news-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
+.update-banner.congrats { background: rgb(var(--accent-rgb) / 0.1); }
+.update-banner.congrats .with-icon { display: flex; align-items: center; gap: 10px; }
+.update-banner.congrats .with-icon > svg { color: var(--accent); flex-shrink: 0; }
+.update-banner .row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.update-banner > span.row { flex: 0 0 auto; }
+
+/* ---------- Tâches dans la fenêtre : ajustements ---------- */
+@container tasks (min-width: 560px) {
+  /* Projet collé aux dates (aligné à droite de sa colonne), colonnes plus étroites : l'intitulé respire. */
+  .task-project { width: 150px; justify-content: flex-end; }
+  .task-dates .date-chip, .task-dates:not(.stacked) .date-chip:not(.set), .date-slot { width: 96px; }
+  .task-dates .date-chip .select-label { flex: 1; text-align: center; }
+  .task { padding: 9px 10px; min-height: 44px; }
+  .task-title { font-size: 13.5px; }
+}
+/* Largeur moyenne : intitulé sur toute la largeur, projet et dates juste en dessous. */
+@container tasks (min-width: 560px) and (max-width: 819px) {
+  .task { flex-wrap: wrap; row-gap: 6px; align-items: flex-start; }
+  .task-title, .task-title-edit { flex: 1 1 0; }
+  .task-meta { order: 10; flex-basis: 100%; justify-content: flex-start; padding-left: 30px; }
+  .task-project { width: auto; justify-content: flex-start; }
+  .task-project:empty { display: none; }
+  .task-dates .date-chip:not(.set), .date-slot { display: none; }
+  .task:hover .task-dates .date-chip:not(.set) { display: inline-flex; }
+  .task-dates .date-chip.set { width: auto; }
+}

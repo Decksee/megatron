@@ -5,7 +5,15 @@ mod media;
 mod telegram;
 mod wake;
 
-use std::{collections::HashMap, sync::Mutex, thread, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
+    thread,
+    time::Duration,
+};
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 use tauri::{
@@ -42,6 +50,15 @@ struct HitArea {
 
 #[derive(Default)]
 struct HitAreas(Mutex<HashMap<String, HitArea>>);
+
+/// Une encoche vient de (re)charger sa page : l'état connu (survol, fenêtre derrière, plein écran)
+/// est oublié pour lui être renvoyé au prochain passage, sinon elle l'ignorerait jusqu'au prochain changement.
+static RESYNC: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+fn notch_resync() {
+    RESYNC.store(true, Ordering::Relaxed);
+}
 
 #[tauri::command]
 fn set_hit_area(
@@ -390,6 +407,13 @@ fn spawn_hover_watcher(app: AppHandle) {
         loop {
             thread::sleep(POLL_INTERVAL);
             tick = tick.wrapping_add(1);
+            if RESYNC.swap(false, Ordering::Relaxed) {
+                inside.clear();
+                occupied.clear();
+                hidden.clear();
+                // Forcer un contrôle « fenêtre derrière » dès ce passage.
+                tick = tick - tick % BEHIND_EVERY;
+            }
             if tick % MONITOR_SYNC_EVERY == 0 {
                 let handle = app.clone();
                 let _ = app.run_on_main_thread(move || sync_notch_windows(&handle));
@@ -677,6 +701,7 @@ pub fn run() {
         .manage(HitAreas::default())
         .invoke_handler(tauri::generate_handler![
             set_hit_area,
+            notch_resync,
             write_text_file,
             read_text_file,
             idle_seconds,

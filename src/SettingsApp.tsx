@@ -127,7 +127,13 @@ export function SettingsApp() {
         </div>
       </header>
 
-      <UpdateBanner settings={data.settings} />
+      <UpdateBanner
+        settings={data.settings}
+        onNews={() => {
+          setNews(true);
+          unseen.markSeen();
+        }}
+      />
       <main className={page === "settings" || touring || news ? "window-content" : "window-content wide"}>
         <AnimatePresence mode="wait">
           {news && !touring ? (

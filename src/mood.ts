@@ -104,6 +104,8 @@ export function useNotchOccupied() {
   useEffect(() => {
     if (!isTauri) return;
     const unlisten = getCurrentWebviewWindow().listen<boolean>("notch-occupied", (e) => setOccupied(e.payload));
+    // Une fois à l'écoute (démarrage, redémarrage après mise à jour) : on redemande l'état actuel.
+    void unlisten.then(() => invoke("notch_resync")).catch(() => {});
     return () => {
       unlisten.then((fn) => fn());
     };

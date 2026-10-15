@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { Download, RefreshCw } from "lucide-react";
-import type { Settings } from "../db";
+import { Download, PartyPopper, RefreshCw, X } from "lucide-react";
+import { setSetting, type Settings } from "../db";
 import { ErrorNote } from "../components/ErrorNote";
-import { availableUpdate, checkForUpdate, installUpdate } from "../updater";
+import { availableUpdate, checkForUpdate, installUpdate, isNewer } from "../updater";
 
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -31,10 +31,58 @@ function InstallButton({ label = "Installer maintenant" }: { label?: string }) {
   );
 }
 
-/** Bandeau en haut de la fenêtre Mégatron quand une nouvelle version est prête. */
-export function UpdateBanner({ settings }: { settings: Settings }) {
+/** Le bandeau de félicitations disparaît tout seul au bout de ce temps. */
+const CONGRATS_MS = 20_000;
+
+/**
+ * Bandeau en haut de la fenêtre Mégatron : une nouvelle version à installer (seulement si elle est
+ * plus récente que celle installée), ou des félicitations juste après une mise à jour.
+ */
+export function UpdateBanner({ settings, onNews }: { settings: Settings; onNews?: () => void }) {
+  const [installed, setInstalled] = useState<string | null>(null);
+  useEffect(() => {
+    if (isTauri) getVersion().then(setInstalled).catch(() => {});
+  }, []);
+  const justUpdated = !!installed && settings.just_updated === installed;
+  useEffect(() => {
+    if (!justUpdated) return;
+    const t = window.setTimeout(() => void setSetting("just_updated", ""), CONGRATS_MS);
+    return () => window.clearTimeout(t);
+  }, [justUpdated]);
+
+  if (justUpdated) {
+    const close = () => void setSetting("just_updated", "");
+    return (
+      <div className="update-banner congrats">
+        <span className="with-icon">
+          <PartyPopper size={15} />
+          <span>
+            <b>Mégatron est à jour : version {installed}.</b> Découvre ce qui a changé.
+          </span>
+        </span>
+        <span className="row">
+          {onNews && (
+            <button
+              className="btn primary"
+              onClick={() => {
+                close();
+                onNews();
+              }}
+            >
+              Voir les nouveautés
+            </button>
+          )}
+          <button className="icon-round" onClick={close} aria-label="Fermer">
+            <X size={14} />
+          </button>
+        </span>
+      </div>
+    );
+  }
+
   const update = availableUpdate(settings);
-  if (!update) return null;
+  // Une info périmée (version déjà installée ou plus ancienne) ne s'affiche jamais.
+  if (!update || !installed || !isNewer(update.version, installed)) return null;
   return (
     <div className="update-banner">
       <span>
