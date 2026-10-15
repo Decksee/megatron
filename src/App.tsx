@@ -34,7 +34,7 @@ import { Assistant } from "./views/Assistant";
 
 const isTauri = "__TAURI_INTERNALS__" in window;
 
-const COLLAPSED = { width: 230, height: 36 };
+const COLLAPSED = { width: 260, height: 36 };
 /** Pilule un peu plus large quand une musique joue (titre + avancement). */
 const COLLAPSED_MEDIA = { width: 340, height: 40 };
 /** Fin de focus réussie : la pastille s'élargit pour féliciter. */
@@ -533,7 +533,7 @@ export function App() {
                 ) : (
                   <>
                     <span className="pill-time">{time}</span>
-                    <span className="pill-work">{remaining ? `${remaining} à faire` : "à jour"}</span>
+                    <span className="pill-work">{remaining ? `${remaining} tâche${remaining > 1 ? "s" : ""} à faire` : "à jour"}</span>
                   </>
                 )}
               </motion.div>
