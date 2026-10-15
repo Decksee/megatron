@@ -2478,3 +2478,15 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 .version-changes { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 .version-changes li { font-size: 12.5px; line-height: 1.45; color: var(--text); }
 .version-changes li::marker { color: var(--muted); }
+
+/* Lien « Nouveautés » dans la barre de titre, à côté des boutons de la fenêtre. */
+.window-buttons { align-items: center; }
+.window-link {
+  position: relative; margin-right: 6px; padding: 4px 8px; border: 0; border-radius: 8px; cursor: pointer;
+  background: transparent; color: var(--accent); font: inherit; font-size: 12.5px; font-weight: 600;
+}
+.window-link:hover, .window-link.active { background: rgb(var(--accent-rgb) / 0.12); }
+.window-link-dot {
+  position: absolute; top: 3px; right: 1px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+.news-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { CHANGELOG } from "../changelog";
 import type { Settings } from "../db";
-import { UpdateSetting } from "./UpdatePanel";
 
 const formatDate = (iso: string) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
@@ -31,7 +30,6 @@ export function Versions({ settings }: { settings: Settings }) {
 
   return (
     <div className="settings">
-      <UpdateSetting settings={settings} />
       <ol className="versions">
         {releases.map((r) => {
           const current = r.version === installed;

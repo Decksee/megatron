@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Bot as Bot2, CircleHelp, History, Database, Smartphone, FolderKanban, Info, ListChecks, Minus, Settings2, Sparkles, Target, X } from "lucide-react";
+import { ArrowLeft, Bot as Bot2, CircleHelp, Database, Smartphone, FolderKanban, Info, ListChecks, Minus, Settings2, Sparkles, Target, X } from "lucide-react";
 import { Welcome } from "./views/Welcome";
 import { Help } from "./views/Help";
 import { Versions } from "./views/Versions";
+import { getVersion } from "@tauri-apps/api/app";
 import { useData } from "./useData";
 import { useTheme } from "./theme";
 import { setSetting, type FocusMode } from "./db";
@@ -32,7 +33,6 @@ const SETTINGS = [
   { id: "focus", label: "Focus", icon: Target, hint: "Tes réglages de concentration par défaut et ce qui te distrait." },
   { id: "phone", label: "Téléphone", icon: Smartphone, hint: "Notifications et discussion avec Mégatron depuis Telegram." },
   { id: "data", label: "Données", icon: Database, hint: "Sauvegarde et restauration de tout ce que contient Mégatron." },
-  { id: "versions", label: "Versions", icon: History, hint: "Les mises à jour, et ce qu'apporte chaque version de Mégatron." },
   { id: "about", label: "À propos", icon: Info, hint: "Raccourcis et confidentialité." },
 ] as const;
 type SettingsId = (typeof SETTINGS)[number]["id"];
@@ -73,6 +73,9 @@ export function SettingsApp() {
   const [sub, setSub] = useState<SettingsId>(initial?.sub ?? "general");
   /** Visite guidée : au premier lancement (section « welcome ») ou depuis l'aide. */
   const [touring, setTouring] = useState(new URLSearchParams(location.search).get("section") === "welcome");
+  /** Page « Nouveautés », ouverte depuis le lien de la barre de titre. */
+  const [news, setNews] = useState(new URLSearchParams(location.search).get("section") === "news");
+  const unseen = useUnseenNews(data.settings);
 
   // Fichier glissé sur la fenêtre : direction la discussion, prêt à partir avec le prochain message.
   useFileDrop((paths) => {
@@ -84,6 +87,7 @@ export function SettingsApp() {
     if (!("__TAURI_INTERNALS__" in window)) return;
     const unlisten = listen<string>("settings-section", (e) => {
       if (e.payload === "welcome") return setTouring(true);
+      if (e.payload === "news") return setNews(true);
       const r = resolve(e.payload);
       if (!r) return;
       setPage(r.page);
@@ -104,6 +108,16 @@ export function SettingsApp() {
           <span data-tauri-drag-region>Mégatron</span>
         </div>
         <div className="window-buttons">
+          <button
+            className={news ? "window-link active" : "window-link"}
+            onClick={() => {
+              setNews((v) => !v);
+              unseen.markSeen();
+            }}
+          >
+            Nouveautés
+            {unseen.has && !news && <span className="window-link-dot" aria-label="Nouvelle version installée" />}
+          </button>
           <button className="icon-round" onClick={() => getCurrentWindow().minimize()} aria-label="Réduire">
             <Minus size={14} />
           </button>
@@ -114,9 +128,22 @@ export function SettingsApp() {
       </header>
 
       <UpdateBanner settings={data.settings} />
-      <main className={page === "settings" || touring ? "window-content" : "window-content wide"}>
+      <main className={page === "settings" || touring || news ? "window-content" : "window-content wide"}>
         <AnimatePresence mode="wait">
-          {touring ? (
+          {news && !touring ? (
+            <motion.div key="news" className="window-section" {...pageMotion}>
+              <button className="btn ghost news-back" onClick={() => setNews(false)}>
+                <ArrowLeft size={14} /> Retour
+              </button>
+              <header className="window-head">
+                <div>
+                  <h1 className="window-title">Nouveautés</h1>
+                  <p className="muted small">Ce qu'apporte chaque version de Mégatron, la plus récente en haut.</p>
+                </div>
+              </header>
+              <Versions settings={data.settings} />
+            </motion.div>
+          ) : touring ? (
             <motion.div key="welcome" className="window-section" {...pageMotion}>
               <Welcome
                 settings={data.settings}
@@ -169,7 +196,6 @@ export function SettingsApp() {
                   {sub === "focus" && <FocusSection {...data} />}
                   {sub === "phone" && <TelegramSettings settings={data.settings} />}
                   {sub === "data" && <DataSettings />}
-                  {sub === "versions" && <Versions settings={data.settings} />}
                   {sub === "about" && <About settings={data.settings} />}
                 </motion.div>
               </AnimatePresence>
@@ -190,7 +216,10 @@ export function SettingsApp() {
           <button
             key={id}
             className={id === page ? "dock-item active" : "dock-item"}
-            onClick={() => setPage(id)}
+            onClick={() => {
+              setPage(id);
+              setNews(false);
+            }}
             aria-current={id === page ? "page" : undefined}
             aria-label={label}
           >
@@ -294,6 +323,7 @@ function About({ settings }: Pick<Data, "settings">) {
           <div className="muted small">Ton encoche de productivité</div>
         </div>
       </div>
+      <UpdateSetting settings={settings} />
       <section className="setting column">
         <div className="setting-title">Raccourcis</div>
         <div className="shortcut-list">
@@ -312,4 +342,18 @@ function About({ settings }: Pick<Data, "settings">) {
       </section>
     </div>
   );
+}
+
+/** Une nouvelle version est installée et ses nouveautés n'ont pas encore été ouvertes : un point sur le lien. */
+function useUnseenNews(settings: Data["settings"]) {
+  const [installed, setInstalled] = useState<string | null>(null);
+  useEffect(() => {
+    if ("__TAURI_INTERNALS__" in window) getVersion().then(setInstalled).catch(() => {});
+  }, []);
+  return {
+    has: !!installed && settings.news_seen !== installed,
+    markSeen: () => {
+      if (installed && settings.news_seen !== installed) void setSetting("news_seen", installed);
+    },
+  };
 }

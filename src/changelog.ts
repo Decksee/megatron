@@ -1,5 +1,5 @@
 /**
- * Historique des versions, affiché dans Réglages → Versions. Embarqué dans l'app : il marche hors ligne.
+ * Historique des versions, affiché dans la page « Nouveautés » (lien en haut de la fenêtre). Embarqué dans l'app : il marche hors ligne.
  * À compléter avant chaque publication (le script de publication refuse une version absente d'ici).
  * La plus récente en premier.
  */
@@ -17,7 +17,8 @@ export const CHANGELOG: Release[] = [
     date: "2026-10-15",
     title: "Historique des versions",
     changes: [
-      "Nouvel onglet Réglages → Versions : chaque version et ce qu'elle apporte.",
+      "Lien « Nouveautés » en haut de la fenêtre : chaque version et ce qu'elle apporte, la plus récente en haut.",
+      "Un point sur le lien après une mise à jour, tant que tu n'as pas regardé ses nouveautés.",
       "Titres des versions corrigés sur GitHub (accents).",
     ],
   },
