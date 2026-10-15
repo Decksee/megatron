@@ -321,7 +321,17 @@ fn place_on_monitor(win: &WebviewWindow, m: &Monitor) {
     let _ = win.set_size(PhysicalSize::new(width, height));
 }
 
-/// Une encoche par écran : crée celles qui manquent, ferme celles des écrans débranchés.
+/// L'encoche n'est plus centrée en haut de son écran (quelques pixels de marge pour les arrondis).
+fn is_misplaced(win: &WebviewWindow, m: &Monitor) -> bool {
+    let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) else {
+        return false;
+    };
+    let width = (WINDOW_W * m.scale_factor()).round() as i32;
+    let x = m.position().x + (m.size().width as i32 - width) / 2;
+    (pos.x - x).abs() > 4 || (pos.y - m.position().y).abs() > 4 || (size.width as i32 - width).abs() > 4
+}
+
+/// Une encoche par écran : crée celles qui manquent, replace celles qui ont bougé, ferme celles des écrans débranchés.
 fn sync_notch_windows(app: &AppHandle) {
     let monitors = app.available_monitors().unwrap_or_default();
     let wanted: HashMap<String, Monitor> =
@@ -335,7 +345,13 @@ fn sync_notch_windows(app: &AppHandle) {
     }
 
     for (label, monitor) in &wanted {
-        if app.get_webview_window(label).is_some() {
+        if let Some(win) = app.get_webview_window(label) {
+            // Windows déplace parfois les fenêtres d'un écran qui se met en veille ou change d'entrée
+            // vers l'écran principal : l'encoche est remise à sa place dès qu'elle en sort.
+            if is_misplaced(&win, monitor) {
+                eprintln!("Encoche {label} replacée sur son écran");
+                place_on_monitor(&win, monitor);
+            }
             continue;
         }
         let built = WebviewWindowBuilder::new(app, label, WebviewUrl::default())
