@@ -2506,7 +2506,7 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
   .task-title { font-size: 13.5px; }
 }
 /* Largeur moyenne : intitulé sur toute la largeur, projet et dates juste en dessous. */
-@container tasks (min-width: 560px) and (max-width: 819px) {
+@container tasks (max-width: 819px) {
   .task { flex-wrap: wrap; row-gap: 6px; align-items: flex-start; }
   .task-title, .task-title-edit { flex: 1 1 0; }
   .task-meta { order: 10; flex-basis: 100%; justify-content: flex-start; padding-left: 30px; }
@@ -2519,3 +2519,31 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 
 /* Une ligne de tâche garde toujours la hauteur de son contenu (la liste défile, elle ne l'écrase pas). */
 .tasks > .task { flex-shrink: 0; }
+
+/* Ligne de puces défilante avec flèches (filtres de projets). */
+.scroll-chips { position: relative; display: flex; align-items: center; min-width: 0; flex: 1; }
+.scroll-chips > .chips { flex: 1; min-width: 0; scroll-behavior: smooth; }
+/* Les puces s'effacent vers la flèche au lieu d'être coupées net. */
+.scroll-chips.at-right > .chips { mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); }
+.scroll-chips.at-left > .chips { mask-image: linear-gradient(90deg, transparent, #000 44px); }
+.scroll-chips.at-left.at-right > .chips { mask-image: linear-gradient(90deg, transparent, #000 44px, #000 calc(100% - 44px), transparent); }
+.scroll-chips-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 1;
+  width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; cursor: pointer;
+  border: 1px solid rgb(var(--fg-rgb) / 0.1); background: var(--tile, #1c1c1e); color: var(--text);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.35); transition: background 0.15s, color 0.15s;
+}
+.scroll-chips-arrow:hover { background: rgb(var(--accent-rgb) / 0.18); color: var(--accent); }
+.scroll-chips-arrow.left { left: 0; }
+.scroll-chips-arrow.right { right: 0; }
+.view > .scroll-chips, .tasks-head > .scroll-chips { flex: 0 0 auto; }
+
+/* Encoche (liste étroite) : même disposition que la fenêtre moyenne, projet et dates en ligne sous l'intitulé. */
+@container tasks (max-width: 559px) {
+  .task-meta { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px; max-width: none; }
+  .task-meta .tag-pill { max-width: 160px; margin-top: 0; }
+  .task-dates, .task-dates.stacked { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .task-dates:not(.stacked) .date-chip:not(.set) { order: 0; }
+  .task .check, .task .icon-btn { margin-top: 1px; }
+  .task .date-chip { margin-top: 0; }
+}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import type { Data } from "../useData";
 import { TaskList } from "./TaskList";
+import { ScrollChips } from "../components/ScrollChips";
 import { ProgressRing } from "./Today";
 import { addDays, startOfWeek } from "../time";
 
@@ -47,11 +48,11 @@ export function Tasks({ projects, tasks }: Data) {
   return (
     <div className="split">
       <div className="view">
-        <div className="chips">
+        <ScrollChips>
           {chip("all", "Toutes")}
           {chip("none", "Sans projet")}
           {active.map((p) => chip(p.id, p.name, p.color))}
-        </div>
+        </ScrollChips>
         <TaskList
           tasks={visible}
           projects={projects}

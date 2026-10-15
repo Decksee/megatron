@@ -16,6 +16,7 @@ import {
 } from "../db";
 import type { Data } from "../useData";
 import { TaskList } from "./TaskList";
+import { ScrollChips } from "../components/ScrollChips";
 import { Select } from "../components/Select";
 import { ClientInput } from "../components/ClientInput";
 import { Briefcase, CalendarClock, ChevronLeft, ChevronRight, GraduationCap, Pencil, Play, Plus, Sparkles, Trash2, Users } from "lucide-react";
@@ -342,7 +343,7 @@ function ProjectList({
         </button>
       </div>
       <div className="list-toolbar">
-        <div className="chips">
+        <ScrollChips>
           <button className={filter === "all" ? "chip active" : "chip"} onClick={() => setFilter("all")}>
             Tous · {projects.length}
           </button>
@@ -356,7 +357,7 @@ function ProjectList({
               </button>
             );
           })}
-        </div>
+        </ScrollChips>
         {/* Pas de client / matière renseigné : pas d'espace dédié. */}
         {clientCount > 0 && (
           <button className="btn ghost clients-btn" onClick={onClients}>

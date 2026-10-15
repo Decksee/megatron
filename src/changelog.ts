@@ -15,6 +15,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: "0.3.6",
+    date: "2026-10-15",
+    title: "Filtres et tâches dans l'encoche",
+    changes: [
+      "Flèches pour faire défiler les filtres de projets et de statuts quand ils ne tiennent pas sur la ligne.",
+      "Tâches dans l'encoche : projet et dates passent sous l'intitulé, comme dans la fenêtre.",
+    ],
+  },
+  {
     version: "0.3.5",
     date: "2026-10-15",
     title: "Mises à jour repérées plus vite",
