@@ -296,6 +296,12 @@ fn migrations() -> Vec<Migration> {
         sql: "ALTER TABLE focus_sessions ADD COLUMN paused_at TEXT;
               ALTER TABLE focus_sessions ADD COLUMN paused_ms INTEGER NOT NULL DEFAULT 0;",
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 10,
+        description: "jour prevu des taches (distinct de l'echeance)",
+        sql: "ALTER TABLE tasks ADD COLUMN planned_date TEXT;",
+        kind: MigrationKind::Up,
     }]
 }
 

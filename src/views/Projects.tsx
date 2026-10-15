@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ConfirmDelete } from "../components/ConfirmDelete";
 import { AnimatePresence, motion } from "motion/react";
 import { entryMs, startOfDay, formatDuration, isRunning } from "../time";
 import { TimerButtons } from "./Time";
@@ -25,13 +26,16 @@ import {
   changeStatus,
   clientNames,
   clientSummaries,
+  convertAmounts,
   displayStatus,
   formatAmounts,
   formatDay,
   formatMoney,
   fromIsoDay,
   isOpen,
+  mixesEuroAndCfa,
   moneyTotals,
+  type MoneyView,
   projectMoney,
   statusesFor,
   statusLabel,
@@ -44,7 +48,16 @@ import {
   type UsageProfile,
 } from "../projects";
 
-const CURRENCIES = ["EUR", "USD", "GBP", "CHF", "CAD"];
+/** Devises proposées (codes ISO : le franc CFA existe en deux zones, Afrique de l'Ouest et Afrique centrale). */
+const CURRENCIES = [
+  { value: "EUR", label: "EUR" },
+  { value: "XOF", label: "FCFA", hint: "Ouest" },
+  { value: "XAF", label: "FCFA", hint: "Centre" },
+  { value: "USD", label: "USD" },
+  { value: "GBP", label: "GBP" },
+  { value: "CHF", label: "CHF" },
+  { value: "CAD", label: "CAD" },
+];
 
 const formatPrice = (p: Pick<Project, "price" | "currency">) => formatMoney(p.price, p.currency);
 
@@ -252,11 +265,18 @@ function ProjectList({
   onClients,
 }: Data & { profile: UsageProfile; onOpen: (id: number) => void; onNew: () => void; onClients: () => void }) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [moneyView, setMoneyView] = useMoneyView();
   const ledger = { extras, payments };
   const open = projects.filter(isOpen);
   const unpaid = awaitingPayment(projects, ledger);
   const totals = moneyTotals(projects, ledger);
-  const openTotals = moneyTotals(open, ledger);
+  // En cours : reste à gagner sur ce qui n'est pas livré (acomptes déduits).
+  // À encaisser : tout ce qui reste dû, dont la part exigible (travail déjà livré).
+  const canConvert = profile.money && mixesEuroAndCfa(totals.ongoing, totals.owed);
+  const view = canConvert ? moneyView : null;
+  const openAmount = formatAmounts(convertAmounts(totals.ongoing, view));
+  const owedAmount = formatAmounts(convertAmounts(totals.owed, view));
+  const dueNowAmount = formatAmounts(convertAmounts(totals.pending, view));
   const now = new Date();
   const nextDeadline = open
     .filter((p) => p.deadline && fromIsoDay(p.deadline) >= startOfDay(now))
@@ -273,21 +293,37 @@ function ProjectList({
       <div className="stat-strip">
         <div className="tile strip-tile">
           <span className="tile-caption">En cours</span>
-          <span className="strip-value">{profile.money ? formatAmounts(openTotals.total) : `${open.length} projet${open.length > 1 ? "s" : ""}`}</span>
-          <span className="tile-caption">
-            {profile.money
-              ? `${open.length} projet${open.length > 1 ? "s" : ""} à livrer`
-              : profile.doneLabel === "Rendu"
-                ? "à rendre"
-                : "à terminer"}
+          <span className="strip-value" title={profile.money ? openAmount : undefined}>
+            {profile.money ? openAmount : `${open.length} projet${open.length > 1 ? "s" : ""}`}
+          </span>
+          <span className="strip-foot">
+            <span className="tile-caption">
+              {profile.money
+                ? `${open.length} projet${open.length > 1 ? "s" : ""} à livrer`
+                : profile.doneLabel === "Rendu"
+                  ? "à rendre"
+                  : "à terminer"}
+            </span>
+            {canConvert && <MoneySwitch value={moneyView} onChange={setMoneyView} />}
           </span>
         </div>
         {profile.money ? (
-          <button className="tile strip-tile strip-button" onClick={() => setFilter(filter === "unpaid" ? "all" : "unpaid")}>
+          <div className="tile strip-tile">
             <span className="tile-caption">À encaisser</span>
-            <span className={unpaid.length ? "strip-value unpaid" : "strip-value"}>{formatAmounts(totals.pending)}</span>
-            <span className="tile-caption">{unpaid.length ? `${unpaid.length} en attente de paiement` : "Rien en attente"}</span>
-          </button>
+            <span className={unpaid.length ? "strip-value unpaid" : "strip-value"} title={owedAmount}>
+              {owedAmount}
+            </span>
+            <span className="strip-foot">
+              <span className="tile-caption" title={unpaid.length ? `${unpaid.length} projet(s) livré(s) en attente de paiement` : undefined}>
+                {unpaid.length
+                  ? `dont ${dueNowAmount} sur du livré`
+                  : Object.keys(totals.owed).length
+                    ? "rien d'exigible pour l'instant"
+                    : "Rien en attente"}
+              </span>
+              {canConvert && <MoneySwitch value={moneyView} onChange={setMoneyView} />}
+            </span>
+          </div>
         ) : (
           <div className="tile strip-tile">
             <span className="tile-caption">Tâches restantes</span>
@@ -534,7 +570,6 @@ function ProjectDetail({
   onBack,
   onEdit,
 }: Data & { project: Project; profile: UsageProfile; backLabel: string; onBack: () => void; onEdit: () => void }) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [tab, setTab] = useState<DetailTab>("tasks");
   const ledger = { extras, payments };
   const money = projectMoney(p, ledger);
@@ -560,15 +595,7 @@ function ProjectDetail({
           <button className="btn ghost" onClick={onEdit}>
             <Pencil size={13} /> Modifier
           </button>
-          {confirmDelete ? (
-            <button className="btn danger" onClick={() => deleteProject(p.id).then(onBack)}>
-              Confirmer la suppression
-            </button>
-          ) : (
-            <button className="btn ghost" onClick={() => setConfirmDelete(true)}>
-              <Trash2 size={13} /> Supprimer
-            </button>
-          )}
+          <ConfirmDelete variant="button" onConfirm={() => deleteProject(p.id).then(onBack)} ariaLabel={`Supprimer le projet ${p.name}`} />
         </div>
       </div>
       <div className="detail-grid">
@@ -772,7 +799,7 @@ function ProjectForm({
                   <Select
                     value={form.currency}
                     onChange={(v) => set("currency", v)}
-                    options={CURRENCIES.map((c) => ({ value: c, label: c }))}
+                    options={CURRENCIES}
                     ariaLabel="Devise"
                   />
                 </div>
@@ -849,5 +876,53 @@ function ProjectForm({
         </div>
       </div>
     </form>
+  );
+}
+
+const MONEY_VIEW_KEY = "megatron:money-view";
+
+/** Devise d'affichage des totaux (€ ou FCFA, ou par devise), retenue d'une ouverture à l'autre. */
+function useMoneyView() {
+  const [view, setView] = useState<MoneyView>(() => {
+    try {
+      const v = localStorage.getItem(MONEY_VIEW_KEY);
+      return v === "EUR" || v === "XOF" ? v : null;
+    } catch {
+      return null;
+    }
+  });
+  const change = (v: MoneyView) => {
+    setView(v);
+    try {
+      if (v) localStorage.setItem(MONEY_VIEW_KEY, v);
+      else localStorage.removeItem(MONEY_VIEW_KEY);
+    } catch {
+      /* stockage indisponible : le choix vaut pour cette ouverture */
+    }
+  };
+  return [view, change] as const;
+}
+
+/** Bascule € / FCFA : un second clic sur l'option choisie revient aux montants par devise. */
+function MoneySwitch({ value, onChange }: { value: MoneyView; onChange: (v: MoneyView) => void }) {
+  const options: { value: Exclude<MoneyView, null>; label: string; hint: string }[] = [
+    { value: "EUR", label: "€", hint: "Tout convertir en euros" },
+    { value: "XOF", label: "FCFA", hint: "Tout convertir en francs CFA" },
+  ];
+  return (
+    <span className="money-switch" role="group" aria-label="Devise d'affichage">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          className={value === o.value ? "active" : ""}
+          aria-pressed={value === o.value}
+          title={value === o.value ? "Revenir aux montants par devise" : `${o.hint} (1 € = 655,957 FCFA)`}
+          onClick={() => onChange(value === o.value ? null : o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </span>
   );
 }

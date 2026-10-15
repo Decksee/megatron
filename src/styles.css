@@ -326,6 +326,8 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
 .date-chip:hover, .date-chip.open { opacity: 1; color: var(--fg); background: rgb(var(--fg-rgb) / 0.1); }
 .task:hover .date-chip, .todo-add .date-chip, .date-chip:focus-visible { opacity: 1; }
 .task.done .date-chip { opacity: 0.6; }
+/* Échéance (drapeau) : orange le jour J, rouge une fois dépassée. Le jour prévu reste en couleur d'accent. */
+.date-chip.due.today { color: var(--warning); background: rgb(var(--warning-rgb) / 0.14); }
 
 .progress {
   height: 5px;
@@ -359,7 +361,29 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
 }
 .task:hover { background: rgb(var(--fg-rgb) / 0.05); }
 .task:hover .icon-btn { opacity: 1; }
-.task-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Texte long : il passe à la ligne au lieu d'être coupé. */
+.task-title { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; cursor: text; }
+.task { align-items: flex-start; }
+.task .check, .task .icon-btn, .task .tag-pill, .task .date-chip { margin-top: 1px; flex-shrink: 0; }
+/* Projet + dates : une colonne étroite à droite, alignée à droite, qui passe à la ligne. */
+.task-meta {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  flex: 0 1 auto; min-width: 0; max-width: 42%;
+}
+.task-meta .tag-pill { max-width: 100%; margin-top: 1px; }
+.tag-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-dates { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.task-dates:empty { display: none; }
+.task-dates.stacked { flex-direction: column; align-items: flex-end; }
+/* Une seule date posée : la puce vide (icône seule) passe à sa gauche. */
+.task-dates:not(.stacked) .date-chip:not(.set) { order: -1; }
+.task-meta { max-width: 38%; }
+.task-title-edit {
+  flex: 1; min-width: 0; resize: none; overflow: hidden; margin: -3px 0; padding: 2px 6px;
+  font: inherit; line-height: 1.4; color: var(--text);
+  background: rgb(var(--fg-rgb) / 0.06); border: 1px solid rgb(var(--accent-rgb) / 0.5); border-radius: 7px; outline: none;
+}
+.task .icon-btn.edit:hover { color: var(--accent); }
 .task.done .task-title { color: var(--muted); text-decoration: line-through; }
 .check {
   width: 18px;
@@ -800,7 +824,19 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
 .reminder.done .reminder-title { color: var(--muted); text-decoration: line-through; }
 .reminder-bell { width: 18px; text-align: center; font-size: 13px; }
 .reminder-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.reminder-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reminder-title { font-size: 13px; font-weight: 600; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
+.reminder { align-items: flex-start; }
+.reminder .tag-pill { max-width: 38%; }
+.reminder .icon-btn { opacity: 0; transition: opacity 0.15s; }
+.reminder:hover .icon-btn, .reminder .icon-btn:focus-visible, .reminder .confirm-delete.armed { opacity: 1; }
+.reminder .icon-btn.edit:hover { color: var(--accent); }
+.reminder.editing { box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.55); }
+.reminder-form.editing { box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.45); }
+.reminder-edit-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em;
+}
+.reminder-edit-head .link { display: inline-flex; align-items: center; gap: 3px; text-transform: none; letter-spacing: 0; }
 .done-toggle { list-style: none; padding: 6px 8px; }
 .done-toggle .link { margin-left: 0; font-size: 12px; color: var(--muted); }
 
@@ -1176,7 +1212,7 @@ button.tile:focus-visible { outline: 2px solid var(--accent); }
   background: rgb(var(--fg-rgb) / 0.04);
   font-size: 12.5px;
 }
-.todo-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-title { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
 .todo.done .todo-title { color: var(--muted); text-decoration: line-through; }
 .todo-check {
   width: 16px;
@@ -1913,7 +1949,6 @@ button.strip-new:hover { background: rgb(var(--accent-rgb) / 0.22); border-color
 
 .strip-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: pointer; }
-.strip-button:hover { background: rgb(var(--fg-rgb) / 0.08); }
 .unpaid { color: #ff6482; }
 .list-toolbar { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .list-toolbar .chips { flex: 1; }
@@ -2143,17 +2178,29 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 
 .extras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .extra { border-radius: 12px; background: rgb(var(--fg-rgb) / 0.045); }
-.extra-head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 10px; }
+.extra-head { display: flex; align-items: flex-start; gap: 10px; padding: 9px 8px 9px 10px; }
+.extra-head > .check { margin-top: 2px; }
 .extra-head .icon-btn { opacity: 0; }
-.extra:hover .extra-head .icon-btn { opacity: 1; }
-.extra-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0; }
-.extra-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.extra:hover .extra-head .icon-btn, .extra-head .icon-btn:focus-visible { opacity: 1; }
+/* Nom complet (il passe à la ligne), avancement des tâches dessous. */
+.extra-title {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0;
+}
+.extra-name { font-weight: 600; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
+.extra-sub { display: inline-flex; align-items: center; gap: 4px; }
+/* Prix et boutons, empilés à droite. */
+.extra-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.extra-actions { display: flex; align-items: center; gap: 2px; }
+.extra-edit { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 6px; }
+.extra-edit .task-title-edit { margin: 0; font-weight: 600; }
+.extra-edit .amount-input { width: 84px; flex-shrink: 0; }
 .extra.done .extra-name { color: var(--muted); text-decoration: line-through; }
 .extra.done .check { background: var(--accent); border-color: var(--accent); }
 .extra-chevron { color: var(--muted); transition: transform 0.18s; flex-shrink: 0; }
 .extra-chevron.open { transform: rotate(180deg); }
 .extra-price { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.extra-tasks { overflow: hidden; padding: 0 8px 8px 30px; }
+.extra-tasks { overflow: hidden; padding: 0 6px 8px 22px; }
 .tasks.compact { gap: 2px; }
 
 .paid-bar { display: flex; flex-direction: column; gap: 6px; }
@@ -2302,3 +2349,28 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 .pill-tag.paused { background: rgb(var(--fg-rgb) / 0.12); color: var(--muted); }
 .focus-live-actions { flex-wrap: wrap; }
 .focus-live-actions .btn { padding-left: 10px; padding-right: 10px; }
+
+/* Suppression en deux temps */
+.confirm-delete.armed {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+  height: 26px; padding: 0 10px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--danger); color: #fff; font: inherit; font-size: 12px; font-weight: 700;
+  box-shadow: 0 4px 14px rgb(var(--danger-rgb) / 0.35);
+}
+.confirm-delete.armed:hover { filter: brightness(1.08); }
+.task .confirm-delete.armed { margin-top: -3px; }
+
+/* Bascule € / FCFA sous les totaux de la bande de projets. */
+.strip-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.strip-foot > .tile-caption { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.money-switch {
+  display: inline-flex; flex-shrink: 0; padding: 2px; gap: 2px; border-radius: 999px;
+  background: rgb(var(--fg-rgb) / 0.06);
+}
+.money-switch button {
+  height: 18px; padding: 0 7px; border: 0; border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--muted); font: inherit; font-size: 10.5px; font-weight: 700;
+  transition: background 0.15s, color 0.15s;
+}
+.money-switch button:hover { color: var(--fg); }
+.money-switch button.active { background: rgb(var(--accent-rgb) / 0.18); color: var(--accent); }

@@ -29,8 +29,10 @@ export interface Task {
   project_id: number | null;
   title: string;
   done: number;
-  /** Échéance au format AAAA-MM-JJ. */
+  /** Échéance (date limite) au format AAAA-MM-JJ. */
   due_date: string | null;
+  /** Jour où l'on prévoit de faire la tâche, AAAA-MM-JJ (distinct de l'échéance). */
+  planned_date: string | null;
   /** Extra du projet auquel la tâche appartient (null : tâche du projet de base). */
   extra_id: number | null;
   created_at: string;
@@ -148,9 +150,10 @@ export async function listProjects() {
 }
 
 export async function listTasks() {
-  // Les tâches datées d'abord (les plus proches en tête), puis les autres.
+  // Les tâches datées d'abord (jour prévu, sinon échéance ; les plus proches en tête), puis les autres.
   return (await db()).select<Task[]>(
-    "SELECT * FROM tasks ORDER BY done ASC, due_date IS NULL, due_date ASC, created_at DESC",
+    `SELECT * FROM tasks ORDER BY done ASC, COALESCE(planned_date, due_date) IS NULL,
+       COALESCE(planned_date, due_date) ASC, due_date IS NULL, due_date ASC, created_at DESC`,
   );
 }
 
@@ -193,13 +196,29 @@ export async function deleteProject(id: number) {
   return write("DELETE FROM projects WHERE id=$1", [id]);
 }
 
-export function createTask(title: string, projectId: number | null, dueDate: string | null = null, extraId: number | null = null) {
-  return write("INSERT INTO tasks (title, project_id, due_date, extra_id) VALUES ($1,$2,$3,$4)", [
+export function createTask(
+  title: string,
+  projectId: number | null,
+  dueDate: string | null = null,
+  extraId: number | null = null,
+  plannedDate: string | null = null,
+) {
+  return write("INSERT INTO tasks (title, project_id, due_date, extra_id, planned_date) VALUES ($1,$2,$3,$4,$5)", [
     title,
     projectId,
     dueDate,
     extraId,
+    plannedDate,
   ]);
+}
+
+/** Rattache une tâche à un extra (et donc à son projet), ou la détache (extraId null). */
+export function setTaskExtra(id: number, projectId: number | null, extraId: number | null) {
+  return write("UPDATE tasks SET project_id=$1, extra_id=$2 WHERE id=$3", [projectId, extraId, id]);
+}
+
+export function setTaskPlanned(id: number, plannedDate: string | null) {
+  return write("UPDATE tasks SET planned_date=$1 WHERE id=$2", [plannedDate, id]);
 }
 
 export function setTaskDue(id: number, dueDate: string | null) {
@@ -210,6 +229,10 @@ export function toggleTask(task: Task) {
   return task.done
     ? write("UPDATE tasks SET done=0, completed_at=NULL WHERE id=$1", [task.id])
     : write("UPDATE tasks SET done=1, completed_at=datetime('now') WHERE id=$1", [task.id]);
+}
+
+export function renameTask(id: number, title: string) {
+  return write("UPDATE tasks SET title=$1 WHERE id=$2", [title, id]);
 }
 
 export function deleteTask(id: number) {
@@ -392,6 +415,17 @@ export async function listReminders() {
   return (await db()).select<Reminder[]>("SELECT * FROM reminders ORDER BY done ASC, due_at ASC");
 }
 
+/** Modifie un rappel ; il sonnera de nouveau à sa (nouvelle) heure. */
+export function updateReminder(id: number, r: { title: string; dueAt: Date; repeat: ReminderRepeat; projectId: number | null }) {
+  return write("UPDATE reminders SET title=$1, due_at=$2, repeat=$3, project_id=$4, notified_at=NULL, done=0 WHERE id=$5", [
+    r.title,
+    r.dueAt.toISOString(),
+    r.repeat,
+    r.projectId,
+    id,
+  ]);
+}
+
 export function createReminder(r: { title: string; dueAt: Date; repeat: ReminderRepeat; projectId: number | null }) {
   return write("INSERT INTO reminders (title, due_at, repeat, project_id) VALUES ($1,$2,$3,$4)", [
     r.title,
@@ -496,7 +530,7 @@ const nowSql = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 
 export interface Backup {
   app: "megatron";
-  version: 8;
+  version: 9;
   exported_at: string;
   projects: Project[];
   tasks: Task[];
@@ -525,7 +559,7 @@ export async function exportBackup(): Promise<Backup> {
   ]);
   return {
     app: "megatron",
-    version: 8,
+    version: 9,
     exported_at: new Date().toISOString(),
     projects,
     tasks,
@@ -580,9 +614,9 @@ export async function importBackup(raw: unknown) {
   }
   for (const t of b.tasks) {
     await d.execute(
-      "INSERT INTO tasks (id, project_id, title, done, due_date, extra_id, created_at, completed_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+      "INSERT INTO tasks (id, project_id, title, done, due_date, extra_id, created_at, completed_at, planned_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
       [t.id, t.project_id ?? null, t.title, t.done ? 1 : 0, t.due_date ?? null, t.extra_id ?? null, t.created_at ?? nowSql(),
-        t.completed_at ?? null],
+        t.completed_at ?? null, t.planned_date ?? null],
     );
   }
   // Les sauvegardes v1 n'ont ni temps ni réglages.

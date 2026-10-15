@@ -130,8 +130,11 @@ async function commandTasks() {
   if (!pending.length) return "✅ Rien à faire, tout est fait !";
   const lines = pending.slice(0, 25).map((t) => {
     const project = t.project_id != null ? ` · ${names.get(t.project_id)}` : "";
-    const due = t.due_date ? ` · ${t.due_date === toIsoDay(new Date()) ? "aujourd'hui" : t.due_date}` : "";
-    return `• ${t.title}${project}${due}`;
+    const today = toIsoDay(new Date());
+    const day = (iso: string) => (iso === today ? "aujourd'hui" : iso);
+    const planned = t.planned_date ? ` · 📅 ${t.planned_date < today ? "reportée" : day(t.planned_date)}` : "";
+    const due = t.due_date ? ` · ⚑ ${day(t.due_date)}` : "";
+    return `• ${t.title}${project}${planned}${due}`;
   });
   return `📝 ${pending.length} tâche${pending.length > 1 ? "s" : ""} à faire\n${lines.join("\n")}${pending.length > 25 ? "\n…" : ""}`;
 }
@@ -198,8 +201,10 @@ async function askFromPhone(chatId: number, text: string, settings: Settings, fi
     const res = await ask(text, config, undefined, false, { silent: true, badge: "📱", files });
     // Les simples lectures (« 3 tâche(s) consultée(s) ») n'apportent rien sur le téléphone.
     const actions = res.actions.filter((a) => !/consulté/i.test(a));
-    const lines = [...actions.map((a) => `✓ ${a}`), res.reply || res.error || ""].filter(Boolean);
-    return lines.join("\n") || "C'est fait.";
+    // Les actions cochées forment un bloc, séparé du message par une ligne vide.
+    const done = actions.map((a) => `✓ ${a}`).join("\n");
+    const blocks = [done, (res.reply || res.error || "").trim()].filter(Boolean);
+    return blocks.join("\n\n") || "C'est fait.";
   } finally {
     stop();
   }
@@ -336,7 +341,7 @@ async function dailySummary(settings: Settings) {
 
   const doneToday = tasks.filter((t) => t.done && t.completed_at && new Date(t.completed_at + "Z") >= today).length;
   const tomorrowIso = toIsoDay(tomorrow);
-  const dueTomorrow = tasks.filter((t) => !t.done && t.due_date === tomorrowIso);
+  const dueTomorrow = tasks.filter((t) => !t.done && (t.planned_date === tomorrowIso || t.due_date === tomorrowIso));
   const late = tasks.filter((t) => !t.done && t.due_date && t.due_date < toIsoDay(now));
   const remindersTomorrow = reminders.filter((r) => {
     const d = new Date(r.due_at);

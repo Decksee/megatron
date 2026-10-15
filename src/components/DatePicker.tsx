@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { popoverMotion, useDismiss, usePopoverPosition } from "./popover";
@@ -17,6 +17,10 @@ interface Props {
   /** Texte du bouton « chip » (sinon la date). */
   chipLabel?: string;
   chipClassName?: string;
+  /** Icône du bouton (sinon un calendrier). */
+  icon?: ReactNode;
+  /** Infobulle du bouton. */
+  title?: string;
 }
 
 const WEEKDAYS = ["L", "M", "M", "J", "V", "S", "D"];
@@ -62,6 +66,8 @@ export function DatePicker({
   variant = "field",
   chipLabel,
   chipClassName = "",
+  icon,
+  title,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(() => value ?? new Date());
@@ -124,13 +130,16 @@ export function DatePicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={ariaLabel}
+        title={title}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
       >
-        <svg className="select-chevron" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
-          <rect x="2" y="3" width="12" height="11" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-          <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        </svg>
+        {icon ?? (
+          <svg className="select-chevron" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+            <rect x="2" y="3" width="12" height="11" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+        )}
         {(variant === "field" || chipLabel || value) && (
           <span className="select-label">{chipLabel ?? (value ? format(value, withTime) : placeholder)}</span>
         )}

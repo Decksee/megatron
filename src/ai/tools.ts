@@ -3,11 +3,24 @@ import {
   addMemory,
   createExtra,
   createProject,
+  updateExtra,
+  updateProject,
   listExtras,
   listPayments,
   deleteMemory,
   deleteProject,
   deleteTask,
+  deleteExtra,
+  deletePayment,
+  deleteReminder,
+  completeReminder,
+  snoozeReminder,
+  updateReminder,
+  toggleExtra,
+  renameTask,
+  setTaskDue,
+  setTaskPlanned,
+  setTaskExtra,
   listMemories,
   createReminder,
   createTask,
@@ -31,7 +44,7 @@ import {
   type ProjectStatus,
   type ReminderRepeat,
 } from "../db";
-import { changeStatus, projectMoney, recordPayment, STATUS_LABEL } from "../projects";
+import { changeStatus, projectMoney, recordPayment, STATUS_LABEL, taskBucket } from "../projects";
 import { formatDuration, isRunning, overlapMs, periodBuckets, totalMs, type Period } from "../time";
 import type { ToolDef } from "./providers";
 import { requestEndConversation, requestFile } from "./session";
@@ -83,6 +96,22 @@ export const TOOLS: ToolDef[] = [
     ),
   },
   {
+    name: "modifier_tache",
+    description:
+      "Modifie une tâche retrouvée par son intitulé (même approximatif) : son intitulé, son jour prévu, son échéance, l'extra auquel elle est rattachée, ou la rouvre (faite=false). Ne renseigne que ce qui change.",
+    parameters: obj(
+      {
+        titre: str("Intitulé actuel ou mots-clés"),
+        nouveau_titre: str("Nouvel intitulé (optionnel)"),
+        jour: str("Nouveau jour prévu AAAA-MM-JJ (optionnel ; « aucune » pour le retirer)"),
+        echeance: str("Nouvelle échéance AAAA-MM-JJ (optionnel ; « aucune » pour la retirer)"),
+        extra: str("Extra auquel rattacher la tâche (optionnel ; « aucun » pour la remettre sur le projet de base)"),
+        faite: { type: "boolean", description: "true pour la cocher, false pour la rouvrir (optionnel)" },
+      },
+      ["titre"],
+    ),
+  },
+  {
     name: "supprimer_tache",
     description: "Supprime une tâche (pas seulement la cocher), retrouvée par son intitulé. À utiliser quand l'utilisateur demande explicitement de la supprimer ou de la retirer.",
     parameters: obj({ titre: str("Intitulé ou mots-clés de la tâche") }, ["titre"]),
@@ -106,21 +135,26 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: "ajouter_tache",
-    description: "Ajoute une tâche à la liste de tâches, éventuellement rattachée à un projet.",
+    description:
+      "Ajoute une tâche, éventuellement rattachée à un projet, voire à un extra de ce projet (elle apparaît alors sous l'extra : inutile de préfixer l'intitulé par son nom). Deux dates distinctes : le jour prévu (quand l'utilisateur compte la faire : « aujourd'hui », « demain », « jeudi ») et l'échéance (date limite : « à rendre pour », « avant le », « deadline »).",
     parameters: obj(
       {
         titre: str("Intitulé de la tâche"),
         projet: str("Nom du projet (optionnel)"),
-        echeance: str("Date à laquelle la tâche doit être faite, au format AAAA-MM-JJ (optionnel)"),
+        extra: str("Extra du projet auquel rattacher la tâche (optionnel)"),
+        jour: str("Jour prévu pour la faire, AAAA-MM-JJ (optionnel)"),
+        echeance: str("Date limite, AAAA-MM-JJ (optionnel)"),
       },
       ["titre"],
     ),
   },
   {
     name: "lister_taches",
-    description: "Liste les tâches (à faire par défaut), éventuellement celles d'un projet.",
+    description:
+      "Liste les tâches (à faire par défaut), éventuellement celles d'un projet ou de la journée, avec leurs dates de création, jour prévu, échéance et réalisation.",
     parameters: obj({
       projet: str("Nom du projet (optionnel)"),
+      aujourdhui: { type: "boolean", description: "Seulement les tâches de la journée (prévues aujourd'hui ou reportées, ou à rendre aujourd'hui ou en retard)" },
       inclure_faites: { type: "boolean", description: "Inclure aussi les tâches terminées" },
     }),
   },
@@ -175,6 +209,70 @@ export const TOOLS: ToolDef[] = [
     ),
   },
   {
+    name: "modifier_projet",
+    description:
+      "Modifie un projet existant (le renommer, changer son client, son prix, sa devise, ses dates ou ses notes) sans rien supprimer : tâches, extras et paiements sont conservés. Ne renseigne que les champs à changer.",
+    parameters: obj(
+      {
+        projet: str("Nom actuel du projet"),
+        nouveau_nom: str("Nouveau nom (optionnel)"),
+        client: str("Nouveau client (optionnel ; chaîne vide pour le retirer)"),
+        prix: num("Nouveau prix de base (optionnel)"),
+        devise: str("Nouvelle devise (optionnel)", { enum: ["EUR", "XOF", "XAF", "USD", "GBP", "CHF", "CAD"] }),
+        debut: str("Nouvelle date de début AAAA-MM-JJ (optionnel ; « aucune » pour la retirer)"),
+        deadline: str("Nouvelle deadline AAAA-MM-JJ (optionnel ; « aucune » pour la retirer)"),
+        notes: str("Nouvelles notes (optionnel)"),
+      },
+      ["projet"],
+    ),
+  },
+  {
+    name: "modifier_extra",
+    description: "Modifie le nom ou le prix d'un extra d'un projet, ou le marque livré / pas livré.",
+    parameters: obj(
+      {
+        projet: str("Nom du projet"),
+        extra: str("Nom actuel de l'extra (ou mots-clés)"),
+        nouveau_nom: str("Nouveau nom (optionnel)"),
+        prix: num("Nouveau prix (optionnel)"),
+        livre: { type: "boolean", description: "true : extra livré ; false : pas encore livré (optionnel)" },
+      },
+      ["projet", "extra"],
+    ),
+  },
+  {
+    name: "supprimer_extra",
+    description:
+      "Supprime un extra d'un projet avec ses tâches. Demande TOUJOURS confirmation à l'utilisateur en nommant l'extra, puis appelle l'outil avec confirme=true seulement s'il a dit oui.",
+    parameters: obj(
+      {
+        projet: str("Nom du projet"),
+        extra: str("Nom de l'extra (ou mots-clés)"),
+        confirme: { type: "boolean", description: "true seulement après confirmation de l'utilisateur" },
+      },
+      ["projet", "extra", "confirme"],
+    ),
+  },
+  {
+    name: "lister_paiements",
+    description: "Liste les paiements reçus (acomptes, soldes) d'un projet, ou de tous les projets.",
+    parameters: obj({ projet: str("Nom du projet (optionnel)") }),
+  },
+  {
+    name: "supprimer_paiement",
+    description:
+      "Supprime un paiement enregistré par erreur, retrouvé par son projet et son montant (et sa date s'il y en a plusieurs). Demande TOUJOURS confirmation avant, puis appelle l'outil avec confirme=true.",
+    parameters: obj(
+      {
+        projet: str("Nom du projet"),
+        montant: num("Montant du paiement"),
+        date: str("Date du paiement AAAA-MM-JJ (optionnel)"),
+        confirme: { type: "boolean", description: "true seulement après confirmation de l'utilisateur" },
+      },
+      ["projet", "montant", "confirme"],
+    ),
+  },
+  {
     name: "creer_projet",
     description: "Crée un projet client.",
     parameters: obj(
@@ -182,10 +280,11 @@ export const TOOLS: ToolDef[] = [
         nom: str("Nom du projet"),
         client: str("Nom du client (optionnel)"),
         prix: num("Prix du projet (optionnel)"),
-        devise: str("Devise", { enum: ["EUR", "USD", "GBP", "CHF", "CAD"] }),
+        devise: str("Devise (XOF = franc CFA d'Afrique de l'Ouest, XAF = franc CFA d'Afrique centrale)", { enum: ["EUR", "XOF", "XAF", "USD", "GBP", "CHF", "CAD"] }),
         deadline: str("Date limite au format AAAA-MM-JJ (optionnel)"),
         debut: str("Date de début au format AAAA-MM-JJ (optionnel)"),
         statut: str("Statut de départ (en_cours par défaut)", { enum: ["a_demarrer", "en_cours"] }),
+        notes: str("Notes ou description du projet (optionnel)"),
       },
       ["nom"],
     ),
@@ -234,6 +333,28 @@ export const TOOLS: ToolDef[] = [
   },
   { name: "lister_rappels", description: "Liste les rappels à venir.", parameters: obj({}) },
   {
+    name: "gerer_rappel",
+    description:
+      "Agit sur un rappel retrouvé par son intitulé : le marquer fait (un rappel répété passe à la prochaine fois), le reporter de quelques minutes, le modifier (texte, date et heure, répétition, projet) ou le supprimer.",
+    parameters: obj(
+      {
+        titre: str("Intitulé ou mots-clés du rappel"),
+        action: str("Action", { enum: ["fait", "reporter", "modifier", "supprimer"] }),
+        minutes: num("Pour reporter : nombre de minutes (défaut 10)"),
+        nouveau_titre: str("Pour modifier : nouveau texte (optionnel)"),
+        quand: str("Pour modifier : nouvelle date et heure ISO 8601 locale, ex. 2026-10-15T14:30 (optionnel)"),
+        repetition: str("Pour modifier : répétition (optionnel)", { enum: ["none", "daily", "weekdays", "weekly", "monthly"] }),
+        projet: str("Pour modifier : projet (optionnel ; « aucun » pour le retirer)"),
+      },
+      ["titre", "action"],
+    ),
+  },
+  {
+    name: "capture_ecran",
+    description: "Ouvre l'outil de capture d'écran de Windows pour sélectionner une zone.",
+    parameters: obj({}),
+  },
+  {
     name: "stats_temps",
     description: "Temps de travail sur une période : total réel et répartition par projet, minuteurs en cours.",
     parameters: obj({ periode: str("Période", { enum: ["jour", "semaine", "mois"] }) }, ["periode"]),
@@ -274,8 +395,9 @@ export const TOOLS: ToolDef[] = [
       {
         action: str("Action", { enum: ["lecture_pause", "suivant", "precedent", "volume_plus", "volume_moins", "muet"] }),
         fois: num("Pour le volume : nombre de crans de 2 % (défaut 5)"),
+        niveau: num("Volume exact en pourcentage, 0 à 100 (remplace action et fois)"),
       },
-      ["action"],
+      [],
     ),
   },
   { name: "verrouiller_pc", description: "Verrouille la session Windows.", parameters: obj({}) },
@@ -314,6 +436,24 @@ const STATUS_ARG: Record<string, ProjectStatus> = {
 
 const isoDay = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
+/** Retrouve un extra par son nom, dans un projet donné ou, à défaut, parmi tous les extras. */
+async function findExtra(project: Project | null, name: string) {
+  const extras = (await listExtras()).filter((x) => !project || x.project_id === project.id);
+  const extra = bestMatch(extras, name, (x) => x.title);
+  if (!extra) throw new Error(`Aucun extra ne correspond à « ${name} »${project ? ` sur ${project.name}` : ""}.`);
+  return extra;
+}
+
+/** « ven. 16 oct. » plutôt que « 2026-10-16 » dans les étiquettes d'action. */
+const dayLabel = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+
+/** Jour prévu et échéance, fusionnés quand ils tombent le même jour. */
+function datesLabel(planned: string | null, due: string | null) {
+  if (planned && planned === due) return ` · pour ${dayLabel(due)}`;
+  return `${planned ? ` · prévue ${dayLabel(planned)}` : ""}${due ? ` · échéance ${dayLabel(due)}` : ""}`;
+}
+
 async function findProject(name: unknown): Promise<Project | null> {
   if (typeof name !== "string" || !name.trim()) return null;
   const p = bestMatch(await listProjects(), name, (x) => x.name);
@@ -347,22 +487,38 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       const titre = String(a.titre ?? "").trim();
       if (!titre) throw new Error("Intitulé de tâche vide.");
       const due = isoDay(a.echeance);
-      await createTask(titre, project?.id ?? null, due);
+      const planned = isoDay(a.jour);
+      const extra = typeof a.extra === "string" && a.extra.trim() ? await findExtra(project, a.extra) : null;
+      const projectId = extra?.project_id ?? project?.id ?? null;
+      const projectName = extra ? (await listProjects()).find((p) => p.id === extra.project_id)?.name : project?.name;
+      await createTask(titre, projectId, due, extra?.id ?? null, planned);
       return {
         result: "Tâche ajoutée.",
-        label: `Tâche ajoutée : ${titre}${project ? ` (${project.name})` : ""}${due ? ` · pour le ${due}` : ""}`,
+        label: `Tâche ajoutée : ${titre}${extra ? ` (${extra.title})` : projectName ? ` (${projectName})` : ""}${datesLabel(planned, due)}`,
       };
     }
     case "lister_taches": {
       const project = await findProject(a.projet);
       const projects = new Map((await listProjects()).map((p) => [p.id, p.name]));
+      const extraNames = new Map((await listExtras()).map((x) => [x.id, x.title]));
       const tasks = (await listTasks()).filter(
-        (t) => (a.inclure_faites || !t.done) && (!project || t.project_id === project.id),
-      );
-      const lines = tasks.map(
         (t) =>
-          `- ${t.done ? "[fait] " : ""}${t.title}${t.project_id != null ? ` (${projects.get(t.project_id)})` : ""}${t.due_date ? ` | pour le ${t.due_date}` : ""}`,
+          (a.inclure_faites || !t.done) &&
+          (!project || t.project_id === project.id) &&
+          (!a.aujourdhui || (!t.done && taskBucket(t) === "today")),
       );
+      // Dates SQLite (UTC, « AAAA-MM-JJ HH:MM:SS ») → heure locale lisible.
+      const when = (sql: string | null) =>
+        sql
+          ? new Date(sql.replace(" ", "T") + "Z").toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+          : null;
+      const lines = tasks.map((t) => {
+        const project = t.project_id != null ? ` (${projects.get(t.project_id)})` : "";
+        const due = `${t.planned_date ? ` | prévue le ${t.planned_date}` : ""}${t.due_date ? ` | échéance ${t.due_date}` : ""}`;
+        const done = t.done && t.completed_at ? ` | cochée le ${when(t.completed_at)}` : "";
+        const extra = t.extra_id != null ? ` | extra : ${extraNames.get(t.extra_id)}` : "";
+        return `- ${t.done ? "[fait] " : ""}${t.title}${project}${extra}${due} | créée le ${when(t.created_at)}${done}`;
+      });
       return { result: lines.join("\n") || "Aucune tâche.", label: `${tasks.length} tâche(s) consultée(s)` };
     }
     case "terminer_tache": {
@@ -385,9 +541,106 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
           .filter((x) => x.project_id === p.id)
           .map((x) => `${x.title} ${x.price} ${p.currency}${x.done ? " (livré)" : ""}`)
           .join(", ");
-        return `- ${p.name} | client : ${p.client || "—"} | prix de base ${p.price} ${p.currency}${extraList ? ` | extras : ${extraList}` : ""} | total ${m.total} | payé ${m.paid} | reste ${m.remaining} | ${STATUS_LABEL[p.status] ?? p.status} | début : ${p.start_date ?? "—"} | deadline : ${p.deadline ?? "—"} | tâches : ${own.filter((t) => t.done).length}/${own.length}`;
+        return `- ${p.name}${p.notes ? ` | notes : ${p.notes.replace(/\s+/g, " ").slice(0, 200)}` : ""} | client : ${p.client || "—"} | prix de base ${p.price} ${p.currency}${extraList ? ` | extras : ${extraList}` : ""} | total ${m.total} | payé ${m.paid} | reste ${m.remaining} | ${STATUS_LABEL[p.status] ?? p.status} | début : ${p.start_date ?? "—"} | deadline : ${p.deadline ?? "—"} | tâches : ${own.filter((t) => t.done).length}/${own.length}`;
       });
       return { result: lines.join("\n") || "Aucun projet.", label: `${projects.length} projet(s) consulté(s)` };
+    }
+    case "modifier_projet": {
+      const project = await findProject(a.projet);
+      if (!project) throw new Error("Précise le projet à modifier.");
+      // « aucune » / chaîne vide retire la date ; sinon une date AAAA-MM-JJ ; absent = inchangé.
+      const day = (v: unknown, current: string | null) =>
+        v === undefined || v === null ? current : /^(aucune?|non|vide|)$/i.test(String(v).trim()) ? null : (isoDay(v) ?? current);
+      const changes: string[] = [];
+      const next = {
+        name: typeof a.nouveau_nom === "string" && a.nouveau_nom.trim() ? a.nouveau_nom.trim() : project.name,
+        client: typeof a.client === "string" ? a.client.trim() : project.client,
+        price: typeof a.prix === "number" && a.prix >= 0 ? a.prix : project.price,
+        currency: typeof a.devise === "string" && a.devise ? a.devise : project.currency,
+        status: project.status,
+        start_date: day(a.debut, project.start_date),
+        deadline: day(a.deadline, project.deadline),
+        notes: typeof a.notes === "string" ? a.notes : project.notes,
+        color: project.color,
+      };
+      if (next.name !== project.name) changes.push(`nom : ${next.name}`);
+      if (next.client !== project.client) changes.push(`client : ${next.client || "aucun"}`);
+      if (next.price !== project.price || next.currency !== project.currency) changes.push(`prix : ${next.price} ${next.currency}`);
+      if (next.start_date !== project.start_date) changes.push(`début : ${next.start_date ?? "aucun"}`);
+      if (next.deadline !== project.deadline) changes.push(`deadline : ${next.deadline ?? "aucune"}`);
+      if (next.notes !== project.notes) changes.push("notes");
+      if (!changes.length) return { result: "Rien à changer.", label: `${project.name} : rien à changer` };
+      await updateProject(project.id, next);
+      return { result: `Projet modifié (${changes.join(", ")}).`, label: `Projet modifié : ${changes.join(" · ")}` };
+    }
+    case "modifier_extra": {
+      const project = await findProject(a.projet);
+      if (!project) throw new Error("Précise le projet.");
+      const extra = bestMatch(
+        (await listExtras()).filter((x) => x.project_id === project.id),
+        String(a.extra ?? ""),
+        (x) => x.title,
+      );
+      if (!extra) throw new Error(`Aucun extra ne correspond à « ${a.extra} » sur ${project.name}.`);
+      const title = typeof a.nouveau_nom === "string" && a.nouveau_nom.trim() ? a.nouveau_nom.trim() : extra.title;
+      const price = typeof a.prix === "number" && a.prix >= 0 ? a.prix : extra.price;
+      if (title !== extra.title || price !== extra.price) await updateExtra(extra.id, title, price);
+      const delivered = typeof a.livre === "boolean" && a.livre !== !!extra.done;
+      if (delivered) await toggleExtra(extra);
+      return {
+        result: "Extra modifié.",
+        label: `Extra modifié : ${title} · ${price} ${project.currency}${delivered ? (a.livre ? " · livré" : " · pas livré") : ""}`,
+      };
+    }
+    case "supprimer_extra": {
+      const project = await findProject(a.projet);
+      if (!project) throw new Error("Précise le projet.");
+      const extra = await findExtra(project, String(a.extra ?? ""));
+      if (a.confirme !== true) {
+        return {
+          result: `Pas supprimé : demande d'abord à l'utilisateur de confirmer la suppression de l'extra « ${extra.title} » et de ses tâches.`,
+          label: `Confirmation demandée : ${extra.title}`,
+        };
+      }
+      await deleteExtra(extra.id);
+      return { result: `Extra « ${extra.title} » supprimé.`, label: `Extra supprimé : ${extra.title} (${project.name})` };
+    }
+    case "lister_paiements": {
+      const project = await findProject(a.projet);
+      const [payments, projects] = await Promise.all([listPayments(), listProjects()]);
+      const byId = new Map(projects.map((p) => [p.id, p]));
+      const lines = payments
+        .filter((x) => !project || x.project_id === project.id)
+        .map((x) => {
+          const p = byId.get(x.project_id);
+          return `- ${x.paid_on} | ${x.amount} ${p?.currency ?? ""} | ${p?.name ?? "?"}${x.note ? ` | ${x.note}` : ""}`;
+        });
+      return { result: lines.join("\n") || "Aucun paiement.", label: `${lines.length} paiement(s) consulté(s)` };
+    }
+    case "supprimer_paiement": {
+      const project = await findProject(a.projet);
+      if (!project) throw new Error("Précise le projet.");
+      const montant = Number(a.montant);
+      const jour = isoDay(a.date);
+      const matches = (await listPayments()).filter(
+        (x) => x.project_id === project.id && Math.abs(x.amount - montant) < 0.01 && (!jour || x.paid_on === jour),
+      );
+      if (!matches.length) throw new Error(`Aucun paiement de ${montant} ${project.currency} sur ${project.name}.`);
+      if (matches.length > 1 && !jour) {
+        throw new Error(`Plusieurs paiements de ${montant} : précise la date (${matches.map((x) => x.paid_on).join(", ")}).`);
+      }
+      const pay = matches[0];
+      if (a.confirme !== true) {
+        return {
+          result: `Pas supprimé : demande d'abord à l'utilisateur de confirmer la suppression du paiement de ${pay.amount} ${project.currency} du ${pay.paid_on}.`,
+          label: `Confirmation demandée : paiement de ${pay.amount} ${project.currency}`,
+        };
+      }
+      await deletePayment(pay.id);
+      return {
+        result: "Paiement supprimé.",
+        label: `Paiement supprimé : ${pay.amount} ${project.currency} du ${dayLabel(pay.paid_on)} (${project.name})`,
+      };
     }
     case "creer_projet": {
       const nom = String(a.nom ?? "").trim();
@@ -402,7 +655,7 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
         status: a.statut === "a_demarrer" ? "todo" : "active",
         start_date: isoDay(a.debut),
         deadline,
-        notes: "",
+        notes: String(a.notes ?? "").trim(),
         color: PROJECT_COLORS[count % PROJECT_COLORS.length],
       });
       return { result: "Projet créé.", label: `Projet créé : ${nom}` };
@@ -490,6 +743,47 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       const when = due.toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
       return { result: `Rappel créé pour ${due.toString()}.`, label: `Rappel : ${titre} · ${when}` };
     }
+    case "gerer_rappel": {
+      const reminder = bestMatch(
+        (await listReminders()).filter((r) => !r.done),
+        String(a.titre ?? ""),
+        (r) => r.title,
+      );
+      if (!reminder) throw new Error(`Aucun rappel ne correspond à « ${a.titre} ».`);
+      if (a.action === "supprimer") {
+        await deleteReminder(reminder.id);
+        return { result: "Rappel supprimé.", label: `Rappel supprimé : ${reminder.title}` };
+      }
+      if (a.action === "modifier") {
+        const when = typeof a.quand === "string" && a.quand.trim() ? new Date(a.quand) : new Date(reminder.due_at);
+        if (Number.isNaN(when.getTime())) throw new Error("Date du rappel invalide.");
+        const repeat = (["none", "daily", "weekdays", "weekly", "monthly"].includes(String(a.repetition))
+          ? a.repetition
+          : reminder.repeat) as ReminderRepeat;
+        let projectId = reminder.project_id;
+        if (typeof a.projet === "string" && a.projet.trim()) {
+          projectId = /^(aucun|aucune|non|rien)$/i.test(a.projet.trim()) ? null : ((await findProject(a.projet))?.id ?? null);
+        }
+        const title = typeof a.nouveau_titre === "string" && a.nouveau_titre.trim() ? a.nouveau_titre.trim() : reminder.title;
+        await updateReminder(reminder.id, { title, dueAt: when, repeat, projectId });
+        const label = when.toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+        return { result: `Rappel modifié (${when.toString()}).`, label: `Rappel modifié : ${title} · ${label}` };
+      }
+      if (a.action === "reporter") {
+        const minutes = Number(a.minutes) > 0 ? Number(a.minutes) : 10;
+        await snoozeReminder(reminder, minutes);
+        return { result: `Rappel reporté de ${minutes} min.`, label: `Rappel reporté : ${reminder.title} · ${minutes} min` };
+      }
+      await completeReminder(reminder);
+      return {
+        result: reminder.repeat === "none" ? "Rappel fait." : "Rappel fait ; il revient à la prochaine occurrence.",
+        label: `Rappel fait : ${reminder.title}`,
+      };
+    }
+    case "capture_ecran": {
+      await invoke("screen_snip");
+      return { result: "Outil de capture ouvert.", label: "Capture d'écran" };
+    }
     case "lister_rappels": {
       const reminders = (await listReminders()).filter((r) => !r.done);
       const lines = reminders.map((r) => `- ${r.title} | ${new Date(r.due_at).toString()} | ${r.repeat}`);
@@ -540,6 +834,11 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       return { result: "Dossier ouvert.", label: `Dossier ouvert : ${FOLDER_LABEL[String(a.dossier)] ?? a.dossier}` };
     }
     case "controle_media": {
+      if (typeof a.niveau === "number") {
+        const level = Math.max(0, Math.min(100, a.niveau));
+        await invoke("volume_set", { level: level / 100, muted: false });
+        return { result: `Volume à ${level} %.`, label: `Volume : ${Math.round(level)} %` };
+      }
       await invoke("media_key", { action: String(a.action), times: a.fois == null ? null : Number(a.fois) });
       const labels: Record<string, string> = {
         lecture_pause: "Lecture / pause",
@@ -583,6 +882,51 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       }
       await deleteProject(project.id);
       return { result: `Projet « ${project.name} » supprimé.`, label: `Projet supprimé : ${project.name}` };
+    }
+    case "modifier_tache": {
+      const task = bestMatch(await listTasks(), String(a.titre ?? ""), (t) => t.title);
+      if (!task) throw new Error(`Aucune tâche ne correspond à « ${a.titre} ».`);
+      // « aucune » / chaîne vide retire la date ; sinon une date AAAA-MM-JJ ; absent = inchangé.
+      const day = (v: unknown, current: string | null) =>
+        v === undefined || v === null ? current : /^(aucune?|non|vide|)$/i.test(String(v).trim()) ? null : (isoDay(v) ?? current);
+      const changes: string[] = [];
+      const nouveau = String(a.nouveau_titre ?? "").trim();
+      if (nouveau && nouveau !== task.title) {
+        await renameTask(task.id, nouveau);
+        changes.push(nouveau);
+      }
+      const planned = day(a.jour, task.planned_date);
+      if (planned !== task.planned_date) {
+        await setTaskPlanned(task.id, planned);
+        changes.push(planned ? `prévue ${dayLabel(planned)}` : "sans jour prévu");
+      }
+      const due = day(a.echeance, task.due_date);
+      if (due !== task.due_date) {
+        await setTaskDue(task.id, due);
+        changes.push(due ? `échéance ${dayLabel(due)}` : "sans échéance");
+      }
+      if (typeof a.faite === "boolean" && a.faite !== !!task.done) {
+        await toggleTask(task);
+        changes.push(a.faite ? "cochée" : "rouverte");
+      }
+      if (typeof a.extra === "string" && a.extra.trim()) {
+        if (/^(aucun|aucune|non|rien|projet)$/i.test(a.extra.trim())) {
+          if (task.extra_id != null) {
+            await setTaskExtra(task.id, task.project_id, null);
+            changes.push("retirée de l'extra");
+          }
+        } else {
+          const project = task.project_id != null ? (await listProjects()).find((p) => p.id === task.project_id) ?? null : null;
+          const extra = await findExtra(project, a.extra);
+          if (extra && extra.id !== task.extra_id) {
+            await setTaskExtra(task.id, extra.project_id, extra.id);
+            changes.push(`dans ${extra.title}`);
+          }
+        }
+      }
+      if (!changes.length) return { result: "Rien à changer.", label: `${task.title} : rien à changer` };
+      const dates = changes.filter((c) => c !== nouveau);
+      return { result: "Tâche modifiée.", label: [`Tâche modifiée : ${nouveau || task.title}`, ...dates].join(" · ") };
     }
     case "supprimer_tache": {
       const task = bestMatch(await listTasks(), String(a.titre ?? ""), (t) => t.title);

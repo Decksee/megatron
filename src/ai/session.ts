@@ -73,7 +73,10 @@ const SYSTEM = `Tu es Mégatron, un assistant qui vit dans une petite encoche en
 Tu gères ses tâches, ses projets clients, son temps de travail, ses sessions de focus et ses rappels, et tu peux ouvrir des applications, des sites et des dossiers ou contrôler la musique, grâce à tes outils.
 
 Règles :
-- Réponds en français, en une ou deux phrases courtes : la réponse s'affiche dans un petit espace. Pas de titres ni de tableaux.
+- Réponds en français, court et clair : la réponse s'affiche dans un petit espace. Pas de titres ni de tableaux.
+- Aère tes réponses : va à la ligne dès que tu changes d'idée, plutôt qu'un gros paragraphe. Pour plusieurs éléments (tâches, projets, montants, étapes), mets-en un par ligne, précédé d'un tiret. Une réponse d'une seule phrase reste sur une ligne.
+- Tes outils couvrent tout ce que l'app permet (projets, extras, paiements, tâches, dates, rappels, temps, focus, contrôles du PC). Avant de dire que tu ne peux pas, vérifie s'il existe un outil ou une combinaison d'outils pour le faire.
+- Chaque action réussie s'affiche déjà au-dessus de ta réponse (« ✓ Projet créé : … »). Ne la redécris pas : contente-toi d'ajouter ce qui manque (un problème, une précision, une question).
 - Quand on te demande une action, fais-la directement avec l'outil adapté, sans demander de confirmation, sauf si la demande est vraiment ambiguë.
 - Pour répondre sur les données (tâches, projets, temps, rappels), lis-les avec les outils : n'invente rien.
 - Chaque message de l'utilisateur commence par la date et l'heure actuelles entre crochets : sers-t'en pour les dates relatives (« demain à 9 h », « dans 20 minutes »).
@@ -535,6 +538,19 @@ export async function transcribe(voice: VoiceConfig, wav: string, mime = "audio/
   throw lastError;
 }
 
+/**
+ * Transcription qui ne veut rien dire : vide, une lettre, de la ponctuation, ou les phrases que les modèles
+ * de transcription inventent sur du bruit ou du silence (« Merci. », « Sous-titres réalisés par… »).
+ */
+const HALLUCINATIONS = /^(merci( beaucoup)?|sous-?titr|sous-?titres? (réalisés|faits)|merci d'avoir regardé|abonnez-vous|musique|applaudissements|rires?|silence|bruit|\.\.\.)/i;
+export function isNoise(text: string) {
+  const t = text.trim();
+  const letters = t.replace(/[^\p{L}\p{N}]/gu, "");
+  if (letters.length < 2) return true;
+  if (/^[\[(].*[\])]$/.test(t)) return true; // « [Musique] », « (bruit) »
+  return t.length < 40 && HALLUCINATIONS.test(t) && !/merci.{3,}/i.test(t.replace(/merci( beaucoup)?[.!]?$/i, ""));
+}
+
 /** Arrête l'enregistrement, affiche tout de suite la bulle, transcrit, puis envoie le texte à l'assistant. */
 export async function stopTalking(config: AiConfig, voice: VoiceConfig) {
   if (!state.recording) return;
@@ -548,7 +564,7 @@ export async function stopTalking(config: AiConfig, voice: VoiceConfig) {
     const text = await transcribe(voice, wav);
     if (run !== runId) return; // annulée entre-temps
     set({ transcribing: false });
-    if (text.trim()) await ask(text, config, bubble, true);
+    if (text.trim() && !isNoise(text)) await ask(text, config, bubble, true);
     else {
       removeMessage(bubble);
       push("error", "Je n'ai rien entendu.");
@@ -653,6 +669,8 @@ export async function startConversation(config: AiConfig, voice: VoiceConfig, op
   const active = () => state.conversing && state.epoch === epoch;
   /** Silences tolérés pendant qu'on attend un fichier (l'utilisateur va le chercher). */
   let fileWaits = 0;
+  /** Bruits pris pour de la parole d'affilée : au-delà, la conversation s'arrête. */
+  let noiseTurns = 0;
   try {
     endRequested = false;
     while (active()) {
@@ -688,10 +706,14 @@ export async function startConversation(config: AiConfig, voice: VoiceConfig, op
         removeMessage(bubble);
         break;
       }
-      if (!text) {
+      // Rien de compréhensible (bruit, une lettre…) : on réécoute sans rien envoyer.
+      // (« Merci » seul est une formule de fin, traitée juste après : on ne l'écarte pas ici.)
+      if (!text || (isNoise(text) && !isEnding(text))) {
         removeMessage(bubble);
-        break;
+        if (++noiseTurns >= 3) break;
+        continue;
       }
+      noiseTurns = 0;
       if (isEnding(text)) {
         updateMessage(bubble, text);
         const bye = pick(GOODBYES);

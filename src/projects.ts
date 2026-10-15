@@ -130,6 +130,18 @@ export function relativeDay(iso: string, now = new Date()) {
 
 export const isOverdue = (iso: string, now = new Date()) => iso < toIsoDay(now);
 
+/**
+ * Où ranger une tâche à faire :
+ * « today » : prévue aujourd'hui ou avant (reportée), ou dont l'échéance est aujourd'hui ou dépassée ;
+ * « later » : prévue (ou à rendre) un jour suivant ; « none » : ni jour prévu ni échéance.
+ */
+export function taskBucket(t: { planned_date: string | null; due_date: string | null }, now = new Date()) {
+  const today = toIsoDay(now);
+  if ((t.planned_date && t.planned_date <= today) || (t.due_date && t.due_date <= today)) return "today";
+  if (t.planned_date || t.due_date) return "later";
+  return "none";
+}
+
 export const formatMoney = (value: number, currency = "EUR") =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 
@@ -172,20 +184,23 @@ const addTo = (m: Record<string, number>, currency: string, value: number) => {
  * Totaux d'une liste de projets, par devise :
  * - encaissé : l'argent vraiment reçu ;
  * - à encaisser : ce qui reste dû sur le travail livré ;
- * - en cours : ce qui reste à gagner sur les projets pas encore livrés.
+ * - en cours : ce qui reste à gagner sur les projets pas encore livrés ;
+ * - dû : tout ce qui reste à recevoir, livré ou non (en cours + à encaisser).
  */
 export function moneyTotals(projects: Project[], ledger: Ledger) {
   const paid: Record<string, number> = {};
   const pending: Record<string, number> = {};
   const ongoing: Record<string, number> = {};
   const total: Record<string, number> = {};
+  const owed: Record<string, number> = {};
   for (const p of projects) {
     const m = projectMoney(p, ledger);
     addTo(paid, p.currency, m.paid);
     addTo(total, p.currency, m.total);
     addTo(delivered(p) ? pending : ongoing, p.currency, m.remaining);
+    addTo(owed, p.currency, m.remaining);
   }
-  return { paid, pending, ongoing, total };
+  return { paid, pending, ongoing, total, owed };
 }
 
 /** Projets dont il reste de l'argent à recevoir pour du travail livré. */
@@ -236,6 +251,30 @@ export const formatAmounts = (m: Record<string, number>) => {
   const parts = Object.entries(m).filter(([, v]) => v > 0);
   return parts.length ? parts.map(([cur, v]) => formatMoney(v, cur)).join(" + ") : formatMoney(0);
 };
+
+/**
+ * Parités fixes : le franc CFA (XOF à l'ouest, XAF au centre) est arrimé à l'euro, 1 € = 655,957 FCFA.
+ * La conversion est donc exacte, sans taux du jour. Les autres devises ne se convertissent pas.
+ */
+const PEG: Record<string, number> = { EUR: 1, XOF: 655.957, XAF: 655.957 };
+export type MoneyView = "EUR" | "XOF" | null;
+
+/** Regroupe l'euro et le franc CFA dans la devise choisie (null : montants laissés par devise). */
+export function convertAmounts(m: Record<string, number>, target: MoneyView) {
+  if (!target) return m;
+  const out: Record<string, number> = {};
+  for (const [cur, v] of Object.entries(m)) {
+    const key = PEG[cur] ? target : cur;
+    out[key] = (out[key] ?? 0) + (PEG[cur] ? (v / PEG[cur]) * PEG[target] : v);
+  }
+  return out;
+}
+
+/** Vrai si des montants mêlent euro et franc CFA : la bascule € / FCFA a alors un sens. */
+export function mixesEuroAndCfa(...maps: Record<string, number>[]) {
+  const has = (c: string) => maps.some((m) => (m[c] ?? 0) > 0);
+  return has("EUR") && (has("XOF") || has("XAF"));
+}
 
 // ---------- Paiements : statut tenu à jour ----------
 

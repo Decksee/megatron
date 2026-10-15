@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { invoke } from "@tauri-apps/api/core";
 import { setSetting } from "../db";
@@ -332,9 +332,20 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
     inputRef.current?.focus();
   }, [ai.focusRequest]);
 
-  // Toujours afficher le dernier message (y compris quand une bulle se remplit).
-  useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+  // À l'ouverture, on arrive directement en bas (sans défilement visible) ; ensuite, chaque nouveau
+  // message défile en douceur (y compris quand une bulle se remplit).
+  const opened = useRef(false);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    if (!opened.current) {
+      list.scrollTop = list.scrollHeight;
+      // Les bulles finissent de se placer juste après le premier affichage : on recolle en bas.
+      requestAnimationFrame(() => (list.scrollTop = list.scrollHeight));
+      opened.current = true;
+      return;
+    }
+    list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, [ai.messages, ai.busy, ai.recording, ai.transcribing]);
 
   const send = (value = text) => {

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { ConfirmDelete } from "../components/ConfirmDelete";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown, Plus, Trash2, X } from "lucide-react";
-import { createExtra, deleteExtra, deletePayment, toggleExtra, type Extra, type Project } from "../db";
+import { Check, ChevronDown, Pencil, Plus } from "lucide-react";
+import { createExtra, deleteExtra, deletePayment, toggleExtra, updateExtra, type Extra, type Project } from "../db";
 import type { Data } from "../useData";
 import { TaskList } from "./TaskList";
 import { DatePicker } from "../components/DatePicker";
@@ -39,9 +40,80 @@ export function PaidBar({ project, ledger }: { project: Project; ledger: Ledger 
   );
 }
 
+/** Modification d'un extra en place : nom (qui grandit avec le texte) et prix. Entrée enregistre, Échap annule. */
+function ExtraEdit({ extra, onDone }: { extra: Extra; onDone: () => void }) {
+  const [title, setTitle] = useState(extra.title);
+  const [price, setPrice] = useState(String(extra.price));
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, []);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
+
+  const save = async () => {
+    const t = title.replace(/\s+/g, " ").trim();
+    const value = parseAmount(price);
+    onDone();
+    if (t && (t !== extra.title || value !== extra.price)) await updateExtra(extra.id, t, value);
+  };
+  const keys = (e: KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void save();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onDone();
+    }
+  };
+
+  return (
+    <form
+      className="extra-edit"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+      // Enregistre quand on clique en dehors du formulaire.
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) void save();
+      }}
+    >
+      <textarea
+        ref={ref}
+        className="task-title-edit"
+        rows={1}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={keys}
+        aria-label="Nom de l'extra"
+      />
+      <input
+        className="amount-input"
+        inputMode="decimal"
+        value={price}
+        onChange={(e) => setPrice(e.target.value)}
+        onKeyDown={keys}
+        aria-label="Prix de l'extra"
+      />
+      <button type="submit" className="btn primary icon" aria-label="Enregistrer">
+        <Check size={13} strokeWidth={2.6} />
+      </button>
+    </form>
+  );
+}
+
 function ExtraRow({ extra, project, tasks, projects }: { extra: Extra; project: Project; tasks: Data["tasks"]; projects: Data["projects"] }) {
   const [open, setOpen] = useState(false);
-  const [confirm, setConfirm] = useState(false);
+  const [editing, setEditing] = useState(false);
   const own = tasks.filter((t) => t.extra_id === extra.id);
   const done = own.filter((t) => t.done).length;
   return (
@@ -55,20 +127,33 @@ function ExtraRow({ extra, project, tasks, projects }: { extra: Extra; project: 
         >
           {extra.done ? <Check size={11} strokeWidth={3} /> : null}
         </motion.button>
-        <button className="extra-title" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          <span className="extra-name">{extra.title}</span>
-          <span className="muted small">{own.length ? `${done}/${own.length} tâches` : "Sans sous-tâche"}</span>
-          <ChevronDown size={13} className={open ? "extra-chevron open" : "extra-chevron"} />
-        </button>
-        <span className="extra-price">{formatMoney(extra.price, project.currency)}</span>
-        {confirm ? (
-          <button className="btn danger icon" onClick={() => deleteExtra(extra.id)}>
-            Supprimer ?
-          </button>
+        {editing ? (
+          <ExtraEdit extra={extra} onDone={() => setEditing(false)} />
         ) : (
-          <button className="icon-btn" onClick={() => setConfirm(true)} aria-label="Supprimer l'extra">
-            <X size={14} />
-          </button>
+          <>
+            <button
+              className="extra-title"
+              onClick={() => setOpen((o) => !o)}
+              onDoubleClick={() => setEditing(true)}
+              aria-expanded={open}
+              title="Clic : voir les tâches · double-clic : modifier"
+            >
+              <span className="extra-name">{extra.title}</span>
+              <span className="extra-sub muted small">
+                {own.length ? `${done}/${own.length} tâche${own.length > 1 ? "s" : ""}` : "Sans sous-tâche"}
+                <ChevronDown size={12} className={open ? "extra-chevron open" : "extra-chevron"} />
+              </span>
+            </button>
+            <span className="extra-side">
+              <span className="extra-price">{formatMoney(extra.price, project.currency)}</span>
+              <span className="extra-actions">
+                <button className="icon-btn edit" onClick={() => setEditing(true)} aria-label="Modifier l'extra">
+                  <Pencil size={13} />
+                </button>
+                <ConfirmDelete onConfirm={() => deleteExtra(extra.id)} ariaLabel="Supprimer l'extra" />
+              </span>
+            </span>
+          </>
         )}
       </div>
       <AnimatePresence initial={false}>
@@ -206,9 +291,7 @@ export function PaymentsPanel({ project, ledger }: { project: Project; ledger: L
               <span className="payment-date">{formatDay(x.paid_on)}</span>
               <span className="payment-note">{x.note || "Paiement"}</span>
               <b className="payment-amount">{formatMoney(x.amount, project.currency)}</b>
-              <button className="icon-btn" onClick={() => deletePayment(x.id)} aria-label="Supprimer le paiement">
-                <Trash2 size={13} />
-              </button>
+              <ConfirmDelete onConfirm={() => deletePayment(x.id)} ariaLabel="Supprimer le paiement" />
             </li>
           ))}
         </ul>

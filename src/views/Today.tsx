@@ -1,4 +1,4 @@
-import { isOpen } from "../projects";
+import { isOpen, taskBucket, toIsoDay } from "../projects";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Clock3, Plus } from "lucide-react";
@@ -217,7 +217,8 @@ function CountdownTile({ settings, now }: Data & { now: Date }) {
 function TodoTile({ tasks, projects, now }: Data & { now: Date }) {
   const colorOf = new Map(projects.map((p) => [p.id, p.color]));
   const [title, setTitle] = useState("");
-  const pending = tasks.filter((t) => !t.done);
+  // Les tâches prévues un jour suivant n'ont rien à faire dans « Aujourd'hui ».
+  const pending = tasks.filter((t) => !t.done && taskBucket(t, now) !== "later");
   const doneToday = tasks.filter(
     (t) => t.done && t.completed_at && sameDay(new Date(t.completed_at + "Z"), now),
   );
@@ -228,7 +229,7 @@ function TodoTile({ tasks, projects, now }: Data & { now: Date }) {
     const t = title.trim();
     if (!t) return;
     setTitle("");
-    await createTask(t, null);
+    await createTask(t, null, null, null, toIsoDay(new Date()));
   };
 
   return (

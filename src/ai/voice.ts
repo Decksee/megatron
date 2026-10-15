@@ -12,6 +12,12 @@ const MAX_SECONDS = 60;
 const SPEECH_RMS = 0.02;
 const SILENCE_RMS = 0.012;
 const SILENCE_AFTER_SPEECH_MS = 1400;
+/** Durée de voix minimale pour considérer qu'on parle (les bruits brefs sont ignorés). */
+const MIN_SPEECH_MS = 320;
+/** La voix doit dépasser le bruit ambiant de ce facteur. */
+const NOISE_FACTOR = 2.6;
+/** Son gardé avant le début de la phrase quand on lui coupe la parole. */
+const LEAD_MS = 400;
 const NO_SPEECH_TIMEOUT_MS = 6000;
 
 interface Recording {
@@ -41,8 +47,7 @@ export interface RecordingOptions {
 
 /** Pendant que Mégatron parle, seuil de voix plus haut : sa propre voix ne doit pas compter. */
 const BARGE_IN_RMS = 0.09;
-/** Morceaux gardés avant le début de la parole quand on lui coupe la parole (~0,5 s). */
-const LEAD_CHUNKS = 2;
+
 
 /** Pourquoi l'enregistrement s'est arrêté tout seul. */
 export type StopReason = "done" | "no-speech" | "max";
@@ -54,12 +59,18 @@ export async function startRecording(onAutoStop?: (reason: StopReason) => void, 
   });
   const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
   const source = ctx.createMediaStreamSource(stream);
-  const node = ctx.createScriptProcessor(4096, 1, 1);
+  // Petits blocs (128 ms) : on distingue mieux un bruit bref d'une vraie phrase.
+  const node = ctx.createScriptProcessor(2048, 1, 1);
   const chunks: Float32Array[] = [];
   let startedAt = performance.now();
   let spoke = false;
   let silenceSince: number | null = null;
   let stopped = false;
+  // Bruit ambiant de la pièce, suivi en continu : le seuil de voix s'adapte (ventilateur, rue…).
+  let noise = 0.008;
+  /** Voix candidate : du son au-dessus du seuil, pas encore assez long pour compter. */
+  let voiceMs = 0;
+  let quietMs = 0;
   node.onaudioprocess = (e) => {
     const data = new Float32Array(e.inputBuffer.getChannelData(0));
     chunks.push(data);
@@ -69,18 +80,29 @@ export async function startRecording(onAutoStop?: (reason: StopReason) => void, 
     level = rms;
     if (!options.stopOnSilence || stopped) return;
     const t = performance.now();
+    const frameMs = (data.length / ctx.sampleRate) * 1000;
     const holding = !spoke && !!options.holdWhile?.();
     if (holding) startedAt = t; // le délai « rien dit » démarre quand il a fini de parler
-    if (rms > (holding ? BARGE_IN_RMS : SPEECH_RMS)) {
-      if (!spoke) {
-        // On ne garde que ce qui précède juste la parole : pas le reste de sa réponse captée par le micro.
-        if (holding) chunks.splice(0, Math.max(0, chunks.length - LEAD_CHUNKS));
+    const threshold = Math.max(holding ? BARGE_IN_RMS : SPEECH_RMS, noise * NOISE_FACTOR);
+    if (rms > threshold) {
+      voiceMs += frameMs;
+      quietMs = 0;
+      // Il faut un vrai bout de phrase : un claquement ou un bruit bref ne compte pas.
+      if (!spoke && voiceMs >= MIN_SPEECH_MS) {
+        spoke = true;
+        // On ne garde que la phrase et ce qui la précède juste : pas le reste de sa réponse captée par le micro.
+        if (holding) chunks.splice(0, Math.max(0, chunks.length - Math.ceil((voiceMs + LEAD_MS) / frameMs)));
         options.onSpeechStart?.();
       }
-      spoke = true;
-      silenceSince = null;
-    } else if (rms < SILENCE_RMS) {
-      silenceSince ??= t;
+      if (spoke) silenceSince = null;
+    } else {
+      if (!spoke) {
+        noise = noise * 0.95 + rms * 0.05;
+        quietMs += frameMs;
+        // Le son s'est arrêté avant d'être une phrase : c'était du bruit, on oublie.
+        if (quietMs > 400) voiceMs = 0;
+      }
+      if (rms < Math.max(SILENCE_RMS, noise * NOISE_FACTOR * 0.7)) silenceSince ??= t;
     }
     const doneTalking = spoke && silenceSince != null && t - silenceSince > SILENCE_AFTER_SPEECH_MS;
     const neverTalked = !spoke && t - startedAt > NO_SPEECH_TIMEOUT_MS;
@@ -89,6 +111,7 @@ export async function startRecording(onAutoStop?: (reason: StopReason) => void, 
       onAutoStop?.(doneTalking ? "done" : "no-speech");
     }
   };
+
   source.connect(node);
   node.connect(ctx.destination);
   current = { stream, ctx, node, chunks, timeout: window.setTimeout(() => onAutoStop?.("max"), MAX_SECONDS * 1000) };

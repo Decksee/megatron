@@ -5,6 +5,7 @@ import {
   createReminder,
   deleteReminder,
   snoozeReminder,
+  updateReminder,
   type Reminder,
   type ReminderRepeat,
 } from "../db";
@@ -12,7 +13,8 @@ import { formatDue, REPEAT_LABEL, SNOOZE_MINUTES } from "../reminders";
 import type { Data } from "../useData";
 import { Select } from "../components/Select";
 import { DatePicker } from "../components/DatePicker";
-import { ArrowRight, BellRing, Check, Repeat, X } from "lucide-react";
+import { ArrowRight, BellRing, Check, Pencil, Repeat, X } from "lucide-react";
+import { ConfirmDelete } from "../components/ConfirmDelete";
 import { EmptyState } from "../components/EmptyState";
 import { projectOptions } from "../options";
 
@@ -59,6 +61,8 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
   const [repeat, setRepeat] = useState<ReminderRepeat>("none");
   const [projectId, setProjectId] = useState<number | null>(null);
   const [showDone, setShowDone] = useState(false);
+  /** Rappel en cours de modification : le formulaire du haut sert alors à le modifier. */
+  const [editing, setEditing] = useState<Reminder | null>(null);
 
   const valid = title.trim() && due;
   const upcoming = reminders.filter((r) => !r.done);
@@ -67,10 +71,33 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
   const next = upcoming.filter((r) => new Date(r.due_at) > now)[0];
   const todayCount = upcoming.filter((r) => new Date(r.due_at).toDateString() === now.toDateString()).length;
 
+  const reset = () => {
+    setEditing(null);
+    setTitle("");
+    setDue(new Date(Date.now() + 30 * 60_000));
+    setRepeat("none");
+    setProjectId(null);
+  };
+
   const add = async () => {
     if (!valid) return;
-    await createReminder({ title: title.trim(), dueAt: due!, repeat, projectId });
-    setTitle("");
+    const r = { title: title.trim(), dueAt: due!, repeat, projectId };
+    if (editing) {
+      await updateReminder(editing.id, r);
+      reset();
+    } else {
+      await createReminder(r);
+      setTitle("");
+    }
+  };
+
+  const edit = (r: Reminder) => {
+    setEditing(r);
+    setTitle(r.title);
+    setDue(new Date(r.due_at));
+    setRepeat(r.repeat);
+    setProjectId(r.project_id);
+    requestAnimationFrame(() => document.getElementById("reminder-title")?.focus());
   };
 
   const row = (r: Reminder) => {
@@ -84,7 +111,8 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, x: 20 }}
         transition={{ duration: 0.18 }}
-        className={isDue ? "reminder due" : r.done ? "reminder done" : "reminder"}
+        className={`${isDue ? "reminder due" : r.done ? "reminder done" : "reminder"}${editing?.id === r.id ? " editing" : ""}`}
+        onDoubleClick={() => edit(r)}
       >
         <div className="reminder-time">
           <span className="rt-hour">
@@ -109,9 +137,9 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
           )}
         </div>
         {project && (
-          <span className="tag-pill">
+          <span className="tag-pill" title={project.name}>
             <i style={{ background: project.color }} />
-            {project.name}
+            <span className="tag-pill-name">{project.name}</span>
           </span>
         )}
         {isDue && (
@@ -124,9 +152,16 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
             </button>
           </>
         )}
-        <button className="icon-btn" onClick={() => deleteReminder(r.id)} aria-label="Supprimer le rappel">
-          <X size={14} />
+        <button className="icon-btn edit" onClick={() => edit(r)} aria-label="Modifier le rappel">
+          <Pencil size={13} />
         </button>
+        <ConfirmDelete
+          onConfirm={() => {
+            if (editing?.id === r.id) reset();
+            return deleteReminder(r.id);
+          }}
+          ariaLabel="Supprimer le rappel"
+        />
       </motion.li>
     );
   };
@@ -135,22 +170,33 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
     <div className="split">
     <div className="view">
       <form
-        className="tile reminder-form"
+        className={editing ? "tile reminder-form editing" : "tile reminder-form"}
         onSubmit={(e) => {
           e.preventDefault();
           add();
         }}
       >
+        {editing && (
+          <div className="reminder-edit-head">
+            <span className="with-icon">
+              <Pencil size={12} /> Modifier le rappel
+            </span>
+            <button type="button" className="link muted" onClick={reset}>
+              <X size={12} /> Annuler
+            </button>
+          </div>
+        )}
         <div className="composer-line">
           <BellRing size={15} className="tile-icon" />
           <input
             id="reminder-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && editing && reset()}
             placeholder="Me rappeler de… (ex : relancer le client)"
           />
-          <button type="submit" className="todo-send" disabled={!valid} aria-label="Ajouter le rappel">
-            <ArrowRight size={14} strokeWidth={2.5} />
+          <button type="submit" className="todo-send" disabled={!valid} aria-label={editing ? "Enregistrer le rappel" : "Ajouter le rappel"}>
+            {editing ? <Check size={14} strokeWidth={2.6} /> : <ArrowRight size={14} strokeWidth={2.5} />}
           </button>
         </div>
         <div className="row wrap composer-meta">
