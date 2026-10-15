@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Bot as Bot2, Database, Smartphone, FolderKanban, Info, ListChecks, Minus, Settings2, Sparkles, Target, X } from "lucide-react";
+import { Bot as Bot2, CircleHelp, Database, Smartphone, FolderKanban, Info, ListChecks, Minus, Settings2, Sparkles, Target, X } from "lucide-react";
+import { Welcome } from "./views/Welcome";
+import { Help } from "./views/Help";
 import { useData } from "./useData";
 import { useTheme } from "./theme";
 import { setSetting, type FocusMode } from "./db";
@@ -37,6 +39,7 @@ const PAGES = [
   { id: "tasks", label: "Tâches", icon: ListChecks },
   { id: "projects", label: "Projets", icon: FolderKanban },
   { id: "assistant", label: "IA", icon: Bot2 },
+  { id: "help", label: "Aide", icon: CircleHelp },
   { id: "settings", label: "Réglages", icon: Settings2 },
 ] as const;
 type PageId = (typeof PAGES)[number]["id"];
@@ -66,6 +69,8 @@ export function SettingsApp() {
   const initial = resolve(new URLSearchParams(location.search).get("section"));
   const [page, setPage] = useState<PageId>(initial?.page ?? "tasks");
   const [sub, setSub] = useState<SettingsId>(initial?.sub ?? "general");
+  /** Visite guidée : au premier lancement (section « welcome ») ou depuis l'aide. */
+  const [touring, setTouring] = useState(new URLSearchParams(location.search).get("section") === "welcome");
 
   // Fichier glissé sur la fenêtre : direction la discussion, prêt à partir avec le prochain message.
   useFileDrop((paths) => {
@@ -76,6 +81,7 @@ export function SettingsApp() {
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return;
     const unlisten = listen<string>("settings-section", (e) => {
+      if (e.payload === "welcome") return setTouring(true);
       const r = resolve(e.payload);
       if (!r) return;
       setPage(r.page);
@@ -106,9 +112,22 @@ export function SettingsApp() {
       </header>
 
       <UpdateBanner settings={data.settings} />
-      <main className={page === "settings" ? "window-content" : "window-content wide"}>
+      <main className={page === "settings" || touring ? "window-content" : "window-content wide"}>
         <AnimatePresence mode="wait">
-          {page === "settings" ? (
+          {touring ? (
+            <motion.div key="welcome" className="window-section" {...pageMotion}>
+              <Welcome
+                settings={data.settings}
+                onFinish={(target) => {
+                  setTouring(false);
+                  if (target === "ia") {
+                    setPage("settings");
+                    setSub("ia");
+                  } else setPage("tasks");
+                }}
+              />
+            </motion.div>
+          ) : page === "settings" ? (
             <motion.div key="settings" className="window-section" {...pageMotion}>
               <div className="segmented settings-tabs">
                 {SETTINGS.map((s) => (
@@ -157,12 +176,13 @@ export function SettingsApp() {
               {page === "tasks" && <Tasks {...data} />}
               {page === "projects" && <Projects {...data} />}
               {page === "assistant" && <Assistant {...data} />}
+              {page === "help" && <Help onTour={() => setTouring(true)} />}
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
-      <nav className="dock" aria-label="Sections">
+      <nav className={touring ? "dock hidden" : "dock"} aria-label="Sections">
         {PAGES.map(({ id, label, icon: Icon }) => (
           <button
             key={id}

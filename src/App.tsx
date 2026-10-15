@@ -12,6 +12,7 @@ import { focusElapsedMs, IDLE_KEY, useFocusMonitor } from "./focus";
 import { dueReminders, SNOOZE_MINUTES, useReminderWatcher } from "./reminders";
 import { useTelegram } from "./telegram";
 import { useUpdateCheck } from "./updater";
+import { useBreakNudge, useDailyBriefing, useFirstRun } from "./wellbeing";
 import { useMood, useNotchCursor, useNotchOccupied } from "./mood";
 import { formatTrackTime, mediaAppName, mediaPosition, useMedia } from "./media";
 import { addFiles, aiConfig, aiStore, useAi, voiceConfig } from "./ai/session";
@@ -118,6 +119,9 @@ export function App() {
   useReminderWatcher(data);
   useTelegram(data);
   useUpdateCheck(data.settings);
+  useDailyBriefing();
+  useBreakNudge();
+  useFirstRun(data);
   useAssistantShortcut(data, () => {
     setTab("assistant");
     setExpanded(true);

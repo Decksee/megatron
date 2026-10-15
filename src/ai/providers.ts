@@ -188,7 +188,7 @@ export function buildBody(p: ProviderId, system: string, history: unknown[], too
       max_tokens: 16000,
       system,
       messages: history,
-      tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })),
+      ...(tools.length && { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })) }),
       cache_control: { type: "ephemeral" },
     };
   }
@@ -196,7 +196,8 @@ export function buildBody(p: ProviderId, system: string, history: unknown[], too
     return {
       systemInstruction: { parts: [{ text: system }] },
       contents: history,
-      tools: [
+      // Sans outil (simple rédaction), la liste est omise : les API refusent une liste vide.
+      ...(tools.length && { tools: [
         {
           functionDeclarations: tools.map((t) =>
             // Gemini refuse un objet sans propriétés : on omet alors les paramètres.
@@ -205,12 +206,12 @@ export function buildBody(p: ProviderId, system: string, history: unknown[], too
               : { name: t.name, description: t.description },
           ),
         },
-      ],
+      ] }),
     };
   }
   return {
     messages: [{ role: "system", content: system }, ...history],
-    tools: tools.map((t) => ({ type: "function", function: t })),
+    ...(tools.length && { tools: tools.map((t) => ({ type: "function", function: t })) }),
   };
 }
 

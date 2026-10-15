@@ -14,6 +14,7 @@ import { holdOpen } from "../hold";
 import { WAKE_SENSITIVITY, wakeSensitivity, wakeThreshold } from "../wakeword";
 import { ErrorNote } from "../components/ErrorNote";
 import { USAGES, usageOf, type Usage } from "../projects";
+import { BREAK_OPTIONS, briefingOn } from "../wellbeing";
 import {
   AZURE_DEFAULT_VOICE,
   AZURE_REGIONS,
@@ -100,6 +101,15 @@ export function GeneralSettings({ settings }: Pick<Data, "settings">) {
         </div>
       </Setting>
       <AutostartSetting />
+      <Setting title="Point du matin" hint="Une notification avec ce que tu as à faire aujourd'hui, quand tu arrives sur ton PC.">
+        <Switch label="Point du matin" checked={briefingOn(settings)} onChange={(v) => setSetting("briefing", v ? "1" : "0")} />
+      </Setting>
+      <Setting
+        title="Conseils de pause"
+        hint="Quand tu travailles longtemps sans t'arrêter, Mégatron te propose de souffler (jamais pendant un focus)."
+      >
+        <Select value={settings.break_after ?? "90"} onChange={(v) => setSetting("break_after", v)} options={BREAK_OPTIONS} />
+      </Setting>
       <Setting
         title="Ranger l'encoche en fine barre"
         hint="Pour ne pas cacher tes onglets : « Automatique » la range quand une fenêtre est derrière elle. Passe la souris dessus pour l'ouvrir."

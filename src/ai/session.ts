@@ -363,6 +363,27 @@ async function chat(config: AiConfig, body: object) {
   }
 }
 
+/**
+ * Fait rédiger un court texte (notification) par l'IA, sans outils ni historique : rien n'apparaît
+ * dans la discussion. Renvoie null si l'IA n'est pas configurée, échoue, ou juge qu'il n'y a rien à dire (« RIEN »).
+ */
+export async function compose(settings: Settings, instruction: string): Promise<string | null> {
+  const config = aiConfig(settings);
+  if (!config) return null;
+  const system =
+    "Tu es Mégatron, l'assistant de productivité de l'utilisateur. Tu écris le texte d'une notification Windows : " +
+    "en français, tutoiement, chaleureux et concret, 160 caractères au plus, sans guillemets, sans titre, sans markdown. " +
+    "Si rien ne justifie la notification, réponds exactement RIEN.";
+  try {
+    const res = await chat(config, buildBody(config.provider, system, [userMessage(config.provider, instruction)], []));
+    const text = parseResponse(config.provider, res).text?.trim().replace(/^["«\s]+|["»\s]+$/g, "");
+    if (!text || /^RIEN\.?$/i.test(text)) return null;
+    return text.length > 220 ? `${text.slice(0, 217)}…` : text;
+  } catch {
+    return null;
+  }
+}
+
 /** Change à chaque demande ou annulation : une réponse arrivée après une annulation est ignorée. */
 let runId = 0;
 
