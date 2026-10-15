@@ -17,8 +17,11 @@ export const CHANGELOG: Release[] = [
   {
     version: "0.3.5",
     date: "2026-10-15",
-    title: "Corrections mineures",
-    changes: ["Corrections mineures."],
+    title: "Mises à jour repérées plus vite",
+    changes: [
+      "Une nouvelle version s'annonce dans la fenêtre sans relancer Mégatron : il vérifie toutes les 30 minutes et quand tu reviens sur la fenêtre.",
+      "Corrections mineures.",
+    ],
   },
   {
     version: "0.3.4",

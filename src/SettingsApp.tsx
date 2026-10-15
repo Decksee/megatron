@@ -13,6 +13,7 @@ import { setSetting, type FocusMode } from "./db";
 import { addFiles, aiConfig } from "./ai/session";
 import { useFileDrop } from "./fileDrop";
 import { UpdateBanner, UpdateSetting } from "./views/UpdatePanel";
+import { useUpdateCheckOnFocus } from "./updater";
 import { PROVIDERS } from "./ai/providers";
 import { FOCUS_BUDGETS, FOCUS_DURATIONS } from "./focus";
 import { Bot } from "./components/Bot";
@@ -76,6 +77,7 @@ export function SettingsApp() {
   /** Page « Nouveautés », ouverte depuis le lien de la barre de titre. */
   const [news, setNews] = useState(new URLSearchParams(location.search).get("section") === "news");
   const unseen = useUnseenNews(data.settings);
+  useUpdateCheckOnFocus();
 
   // Fichier glissé sur la fenêtre : direction la discussion, prêt à partir avec le prochain message.
   useFileDrop((paths) => {

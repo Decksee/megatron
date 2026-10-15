@@ -7,12 +7,15 @@ import { isLeader } from "./leader";
 import { notify } from "./notify";
 
 /**
- * Mises à jour automatiques : la fenêtre « première » regarde au démarrage puis toutes les 6 h
- * si une nouvelle version est publiée. Les mises à jour sont signées : l'app n'installe que les tiennes.
+ * Mises à jour automatiques : la fenêtre « première » regarde au démarrage puis toutes les 30 min
+ * si une nouvelle version est publiée, et la fenêtre Mégatron regarde aussi quand on la ramène au premier plan.
+ * Pas besoin de relancer l'app pour voir le bandeau. Les mises à jour sont signées : l'app n'installe que les tiennes.
  */
 
 const FIRST_CHECK_MS = 30_000;
-const CHECK_EVERY_MS = 6 * 3_600_000;
+const CHECK_EVERY_MS = 30 * 60_000;
+/** Vérification au retour sur la fenêtre : au plus une fois par période. */
+const FOCUS_CHECK_MIN_MS = 2 * 60_000;
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export interface UpdateInfo {
@@ -110,5 +113,30 @@ export function useUpdateCheck(settings: Settings) {
       window.clearInterval(every);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
+let lastFocusCheck = 0;
+
+/**
+ * Fenêtre Mégatron : quand elle revient au premier plan (ouverte, ressortie de la barre des tâches),
+ * on revérifie s'il y a une mise à jour — le bandeau apparaît sans relancer l'app.
+ */
+export function useUpdateCheckOnFocus() {
+  useEffect(() => {
+    if (!isTauri || import.meta.env.DEV) return;
+    const run = () => {
+      if (Date.now() - lastFocusCheck < FOCUS_CHECK_MIN_MS) return;
+      lastFocusCheck = Date.now();
+      void checkForUpdate().catch((e) => console.error("Vérification des mises à jour impossible :", e));
+    };
+    run();
+    const onVisible = () => document.visibilityState === "visible" && run();
+    window.addEventListener("focus", run);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", run);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 }
