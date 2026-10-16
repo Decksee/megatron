@@ -102,6 +102,7 @@ export const TOOLS: ToolDef[] = [
     parameters: obj(
       {
         titre: str("Intitulé actuel ou mots-clés"),
+        projet: str("Projet de la tâche (optionnel ; à donner quand plusieurs tâches portent le même nom)"),
         nouveau_titre: str("Nouvel intitulé (optionnel)"),
         jour: str("Nouveau jour prévu AAAA-MM-JJ (optionnel ; « aucune » pour le retirer)"),
         echeance: str("Nouvelle échéance AAAA-MM-JJ (optionnel ; « aucune » pour la retirer)"),
@@ -114,7 +115,13 @@ export const TOOLS: ToolDef[] = [
   {
     name: "supprimer_tache",
     description: "Supprime une tâche (pas seulement la cocher), retrouvée par son intitulé. À utiliser quand l'utilisateur demande explicitement de la supprimer ou de la retirer.",
-    parameters: obj({ titre: str("Intitulé ou mots-clés de la tâche") }, ["titre"]),
+    parameters: obj(
+      {
+        titre: str("Intitulé ou mots-clés de la tâche"),
+        projet: str("Projet de la tâche (optionnel ; à donner quand plusieurs tâches portent le même nom)"),
+      },
+      ["titre"],
+    ),
   },
   {
     name: "demander_fichier",
@@ -161,7 +168,13 @@ export const TOOLS: ToolDef[] = [
   {
     name: "terminer_tache",
     description: "Coche une tâche à faire comme terminée, retrouvée par son intitulé (même approximatif).",
-    parameters: obj({ titre: str("Intitulé ou mots-clés de la tâche") }, ["titre"]),
+    parameters: obj(
+      {
+        titre: str("Intitulé ou mots-clés de la tâche"),
+        projet: str("Projet de la tâche (optionnel ; à donner quand plusieurs tâches portent le même nom)"),
+      },
+      ["titre"],
+    ),
   },
   {
     name: "lister_projets",
@@ -425,6 +438,41 @@ function bestMatch<T>(items: T[], query: string, text: (t: T) => string): T | un
   return best?.item;
 }
 
+/** Les éléments qui obtiennent le meilleur score (plusieurs en cas d'homonymes). */
+function topMatches<T>(items: T[], query: string, text: (t: T) => string): T[] {
+  const q = norm(query);
+  if (!q) return [];
+  const words = q.split(/\s+/);
+  const scored = items
+    .map((item) => {
+      const n = norm(text(item));
+      return { item, score: n === q ? 4 : n.startsWith(q) ? 3 : n.includes(q) ? 2 : words.every((w) => n.includes(w)) ? 1 : 0 };
+    })
+    .filter((x) => x.score);
+  const max = Math.max(0, ...scored.map((x) => x.score));
+  return scored.filter((x) => x.score === max).map((x) => x.item);
+}
+
+/**
+ * Retrouve une tâche par son intitulé, dans le projet donné s'il y en a un. Si plusieurs tâches de projets
+ * différents correspondent autant, on ne devine pas : l'erreur liste les projets pour que l'IA précise.
+ */
+async function findTask(a: Record<string, unknown>, pendingOnly = false) {
+  const project = await findProject(a.projet);
+  const tasks = (await listTasks()).filter((t) => (!pendingOnly || !t.done) && (!project || t.project_id === project.id));
+  const matches = topMatches(tasks, String(a.titre ?? ""), (t) => t.title);
+  if (!matches.length) {
+    throw new Error(`Aucune tâche${pendingOnly ? " à faire" : ""} ne correspond à « ${a.titre} »${project ? ` dans ${project.name}` : ""}.`);
+  }
+  const projectIds = new Set(matches.map((t) => t.project_id));
+  if (projectIds.size > 1) {
+    const names = new Map((await listProjects()).map((p) => [p.id, p.name]));
+    const list = [...projectIds].map((id) => (id == null ? "sans projet" : names.get(id))).join(", ");
+    throw new Error(`Plusieurs tâches « ${a.titre} » (${list}) : rappelle l'outil avec le paramètre projet.`);
+  }
+  return matches[0];
+}
+
 const STATUS_ARG: Record<string, ProjectStatus> = {
   a_demarrer: "todo",
   en_cours: "active",
@@ -522,12 +570,7 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       return { result: lines.join("\n") || "Aucune tâche.", label: `${tasks.length} tâche(s) consultée(s)` };
     }
     case "terminer_tache": {
-      const task = bestMatch(
-        (await listTasks()).filter((t) => !t.done),
-        String(a.titre ?? ""),
-        (t) => t.title,
-      );
-      if (!task) throw new Error(`Aucune tâche à faire ne correspond à « ${a.titre} ».`);
+      const task = await findTask(a, true);
       await toggleTask(task);
       return { result: `Tâche « ${task.title} » terminée.`, label: `Tâche terminée : ${task.title}` };
     }
@@ -884,8 +927,7 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       return { result: `Projet « ${project.name} » supprimé.`, label: `Projet supprimé : ${project.name}` };
     }
     case "modifier_tache": {
-      const task = bestMatch(await listTasks(), String(a.titre ?? ""), (t) => t.title);
-      if (!task) throw new Error(`Aucune tâche ne correspond à « ${a.titre} ».`);
+      const task = await findTask(a);
       // « aucune » / chaîne vide retire la date ; sinon une date AAAA-MM-JJ ; absent = inchangé.
       const day = (v: unknown, current: string | null) =>
         v === undefined || v === null ? current : /^(aucune?|non|vide|)$/i.test(String(v).trim()) ? null : (isoDay(v) ?? current);
@@ -929,8 +971,7 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       return { result: "Tâche modifiée.", label: [`Tâche modifiée : ${nouveau || task.title}`, ...dates].join(" · ") };
     }
     case "supprimer_tache": {
-      const task = bestMatch(await listTasks(), String(a.titre ?? ""), (t) => t.title);
-      if (!task) throw new Error(`Aucune tâche ne correspond à « ${a.titre} ».`);
+      const task = await findTask(a);
       await deleteTask(task.id);
       return { result: `Tâche « ${task.title} » supprimée.`, label: `Tâche supprimée : ${task.title}` };
     }
