@@ -15,6 +15,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: "0.3.9",
+    date: "2026-10-16",
+    title: "Retards et argent plus clairs",
+    changes: [
+      "Tâches en retard en rouge, dans une section « En retard » en tête de liste.",
+      "Accueil de l'encoche : un bandeau indique combien de tâches sont en retard, et sur quels projets.",
+      "Fenêtre : une case « En retard » détaille les retards par projet.",
+      "Projets : nouvelles cases Total, Encaissé, Restant à encaisser et Prochaine deadline de projet.",
+      "Une deadline de projet dépassée s'affiche en rouge, sur la case et sur la carte du projet.",
+    ],
+  },
+  {
     version: "0.3.8",
     date: "2026-10-16",
     title: "Corrections mineures",

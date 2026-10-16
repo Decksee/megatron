@@ -1,7 +1,7 @@
-import { isOpen, taskBucket, toIsoDay } from "../projects";
+import { isOpen, isTaskLate, lateByProject, taskBucket, toIsoDay } from "../projects";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, Clock3, Plus } from "lucide-react";
+import { AlertTriangle, Check, Clock3, Plus } from "lucide-react";
 import { createTask, setSetting, toggleTask } from "../db";
 import { addDays, formatClock, formatDuration, isRunning, NO_PROJECT_COLOR, startOfDay, startOfWeek, totalMs } from "../time";
 import type { Data } from "../useData";
@@ -59,7 +59,7 @@ export function Today({ now, onOpen, ...data }: Data & { now: Date; onOpen: (tab
         <WeekTile {...data} now={now} onOpen={() => onOpen("reminders")} />
         <CountdownTile {...data} now={now} />
       </div>
-      <TodoTile {...data} now={now} />
+      <TodoTile {...data} now={now} onOpen={() => onOpen("tasks")} />
     </div>
   );
 }
@@ -214,7 +214,7 @@ function CountdownTile({ settings, now }: Data & { now: Date }) {
   );
 }
 
-function TodoTile({ tasks, projects, now }: Data & { now: Date }) {
+function TodoTile({ tasks, projects, now, onOpen }: Data & { now: Date; onOpen: () => void }) {
   const colorOf = new Map(projects.map((p) => [p.id, p.color]));
   const [title, setTitle] = useState("");
   // Les tâches prévues un jour suivant n'ont rien à faire dans « Aujourd'hui ».
@@ -222,7 +222,10 @@ function TodoTile({ tasks, projects, now }: Data & { now: Date }) {
   const doneToday = tasks.filter(
     (t) => t.done && t.completed_at && sameDay(new Date(t.completed_at + "Z"), now),
   );
-  const shown = [...pending, ...doneToday];
+  // Les tâches en retard d'abord.
+  const shown = [...pending.filter((t) => isTaskLate(t, now)), ...pending.filter((t) => !isTaskLate(t, now)), ...doneToday];
+  const late = lateByProject(tasks, now);
+  const nameOf = new Map(projects.map((p) => [p.id, p.name]));
   const ratio = shown.length ? doneToday.length / shown.length : 0;
 
   const add = async () => {
@@ -242,6 +245,22 @@ function TodoTile({ tasks, projects, now }: Data & { now: Date }) {
           </span>
         </ProgressRing>
       </div>
+      {late.total > 0 && (
+        <button className="late-banner" onClick={onOpen} title="Voir les tâches">
+          <AlertTriangle size={13} />
+          <span>
+            <b>
+              {late.total} tâche{late.total > 1 ? "s" : ""} en retard
+            </b>
+            {" · "}
+            {late.groups
+              .slice(0, 3)
+              .map(([id, n]) => `${id == null ? "sans projet" : nameOf.get(id)} ${n}`)
+              .join(" · ")}
+            {late.groups.length > 3 ? " …" : ""}
+          </span>
+        </button>
+      )}
       <ul className="todo-list">
         <AnimatePresence initial={false}>
           {shown.map((t) => (
@@ -251,7 +270,7 @@ function TodoTile({ tasks, projects, now }: Data & { now: Date }) {
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className={t.done ? "todo done" : "todo"}
+              className={t.done ? "todo done" : isTaskLate(t, now) ? "todo late" : "todo"}
             >
               <button className="todo-check" onClick={() => toggleTask(t)} aria-label={t.done ? "Marquer à faire" : "Marquer faite"}>
                 {t.done ? <Check size={11} strokeWidth={3} /> : null}

@@ -135,6 +135,18 @@ export const isOverdue = (iso: string, now = new Date()) => iso < toIsoDay(now);
  * « today » : prévue aujourd'hui ou avant (reportée), ou dont l'échéance est aujourd'hui ou dépassée ;
  * « later » : prévue (ou à rendre) un jour suivant ; « none » : ni jour prévu ni échéance.
  */
+/** Échéance dépassée et pas encore faite. */
+export const isTaskLate = (t: { done: number; due_date: string | null }, now = new Date()) =>
+  !t.done && !!t.due_date && t.due_date < toIsoDay(now);
+
+/** Tâches en retard, regroupées par projet (le plus chargé en premier ; null = sans projet). */
+export function lateByProject<T extends { done: number; due_date: string | null; project_id: number | null }>(tasks: T[], now = new Date()) {
+  const groups = new Map<number | null, number>();
+  for (const t of tasks) if (isTaskLate(t, now)) groups.set(t.project_id, (groups.get(t.project_id) ?? 0) + 1);
+  const total = [...groups.values()].reduce((s, n) => s + n, 0);
+  return { total, groups: [...groups.entries()].sort((a, b) => b[1] - a[1]) };
+}
+
 export function taskBucket(t: { planned_date: string | null; due_date: string | null }, now = new Date()) {
   const today = toIsoDay(now);
   if ((t.planned_date && t.planned_date <= today) || (t.due_date && t.due_date <= today)) return "today";

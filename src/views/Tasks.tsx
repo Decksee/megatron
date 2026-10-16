@@ -5,6 +5,8 @@ import { TaskList } from "./TaskList";
 import { ScrollChips } from "../components/ScrollChips";
 import { ProgressRing } from "./Today";
 import { addDays, startOfWeek } from "../time";
+import { lateByProject } from "../projects";
+import { AlertTriangle } from "lucide-react";
 
 type Filter = "all" | "none" | number;
 
@@ -30,6 +32,7 @@ export function Tasks({ projects, tasks }: Data) {
   });
   const weekMax = Math.max(1, ...week.map((d) => d.count));
   const weekTotal = week.reduce((s, d) => s + d.count, 0);
+  const late = lateByProject(tasks);
   const perProject = active
     .map((p) => ({ p, left: tasks.filter((t) => t.project_id === p.id && !t.done).length }))
     .filter((x) => x.left > 0);
@@ -92,6 +95,23 @@ export function Tasks({ projects, tasks }: Data) {
             ))}
           </div>
         </div>
+        {late.total > 0 && (
+          <div className="tile side-list late-tile">
+            <span className="tile-title with-icon">
+              <AlertTriangle size={13} /> {late.total} en retard
+            </span>
+            {late.groups.map(([id, n]) => {
+              const p = id == null ? undefined : projects.find((x) => x.id === id);
+              return (
+                <button key={String(id)} className="side-row" onClick={() => setFilter(id ?? "none")}>
+                  <span className="chip-dot" style={{ background: p?.color ?? "var(--muted)" }} />
+                  <span className="side-row-name">{p?.name ?? "Sans projet"}</span>
+                  <span className="side-row-value">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         {perProject.length > 0 && (
           <div className="tile side-list">
             <span className="tile-title">Par projet</span>

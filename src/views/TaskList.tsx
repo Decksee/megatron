@@ -5,7 +5,7 @@ import { ArrowRight, CalendarDays, Check, Flag, Pencil, Plus } from "lucide-reac
 import { createTask, deleteTask, renameTask, setTaskDue, setTaskPlanned, toggleTask, type Project, type Task } from "../db";
 import { EmptyState } from "../components/EmptyState";
 import { DatePicker } from "../components/DatePicker";
-import { fromIsoDay, isOverdue, relativeDay, taskBucket, toIsoDay } from "../projects";
+import { fromIsoDay, isOverdue, isTaskLate, relativeDay, taskBucket, toIsoDay } from "../projects";
 
 interface Props {
   tasks: Task[];
@@ -134,8 +134,10 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder,
   const pending = tasks.filter((t) => !t.done);
   const done = tasks.filter((t) => t.done);
   const now = new Date();
+  const late = pending.filter((t) => isTaskLate(t, now));
   const groups = [
-    { label: "Aujourd'hui", items: pending.filter((t) => taskBucket(t, now) === "today") },
+    { label: "En retard", items: late, late: true },
+    { label: "Aujourd'hui", items: pending.filter((t) => !isTaskLate(t, now) && taskBucket(t, now) === "today") },
     { label: "Plus tard", items: pending.filter((t) => taskBucket(t, now) === "later") },
     { label: "Sans date", items: pending.filter((t) => taskBucket(t, now) === "none") },
   ].filter((g) => g.items.length);
@@ -159,7 +161,7 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder,
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, x: 20, transition: { duration: 0.12 } }}
         transition={{ type: "spring", stiffness: 420, damping: 34 }}
-        className={task.done ? "task done" : "task"}
+        className={task.done ? "task done" : isTaskLate(task) ? "task late" : "task"}
       >
         <motion.button
           className="check"
@@ -247,7 +249,7 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder,
         <ul className="tasks">
           <AnimatePresence initial={false}>
             {groups.flatMap((g) => [
-              <li key={`label-${g.label}`} className="list-label">
+              <li key={`label-${g.label}`} className={"late" in g ? "list-label late" : "list-label"}>
                 {g.label} · {g.items.length}
               </li>,
               ...g.items.map(row),

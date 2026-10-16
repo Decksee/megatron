@@ -34,6 +34,7 @@ import {
   formatMoney,
   fromIsoDay,
   isOpen,
+  isOverdue,
   mixesEuroAndCfa,
   moneyTotals,
   type MoneyView,
@@ -214,8 +215,9 @@ function ProjectCard({
       <div className="card-foot muted small">
         {pr.total ? `${pr.done}/${pr.total} tâches` : "Aucune tâche"}
         {p.deadline && isOpen(p) && (
-          <span className="with-icon">
+          <span className={isOverdue(p.deadline) ? "with-icon deadline-late" : "with-icon"} title={isOverdue(p.deadline) ? "Deadline dépassée" : undefined}>
             <CalendarClock size={12} /> {formatDay(p.deadline)}
+            {isOverdue(p.deadline) && " · en retard"}
           </span>
         )}
         {profile.money && money.paid > 0 && money.remaining > 0 && (
@@ -271,17 +273,24 @@ function ProjectList({
   const open = projects.filter(isOpen);
   const unpaid = awaitingPayment(projects, ledger);
   const totals = moneyTotals(projects, ledger);
-  // En cours : reste à gagner sur ce qui n'est pas livré (acomptes déduits).
-  // À encaisser : tout ce qui reste dû, dont la part exigible (travail déjà livré).
-  const canConvert = profile.money && mixesEuroAndCfa(totals.ongoing, totals.owed);
+  // Total des projets, ce qui est déjà encaissé, et tout ce qui reste dû (dont la part exigible : travail livré).
+  const canConvert = profile.money && mixesEuroAndCfa(totals.total);
   const view = canConvert ? moneyView : null;
-  const openAmount = formatAmounts(convertAmounts(totals.ongoing, view));
+  const total = convertAmounts(totals.total, view);
+  const paid = convertAmounts(totals.paid, view);
+  const totalAmount = formatAmounts(total);
+  const paidAmount = formatAmounts(paid);
   const owedAmount = formatAmounts(convertAmounts(totals.owed, view));
   const dueNowAmount = formatAmounts(convertAmounts(totals.pending, view));
+  // Pourcentage encaissé : seulement si tout est dans une même devise (ou converti).
+  const single = Object.keys(total).length === 1 ? Object.keys(total)[0] : null;
+  const paidPct = single && total[single] > 0 ? Math.round(((paid[single] ?? 0) / total[single]) * 100) : null;
   const now = new Date();
-  const nextDeadline = open
-    .filter((p) => p.deadline && fromIsoDay(p.deadline) >= startOfDay(now))
-    .sort((a, b) => a.deadline!.localeCompare(b.deadline!))[0];
+  const today = toIsoDay(now);
+  const withDeadline = open.filter((p) => p.deadline).sort((a, b) => a.deadline!.localeCompare(b.deadline!));
+  // Une deadline dépassée passe avant la prochaine : c'est elle qu'il faut voir.
+  const overdue = withDeadline.filter((p) => p.deadline! < today);
+  const nextDeadline = overdue[0] ?? withDeadline.find((p) => p.deadline! >= today);
   const visible = filter === "all" ? projects : projects.filter((p) => displayStatus(profile, p.status) === filter);
   const clientCount = profile.clientsLabel ? clientSummaries(projects).length : 0;
   const openIds = new Set(open.map((p) => p.id));
@@ -291,51 +300,64 @@ function ProjectList({
 
   return (
     <>
-      <div className="stat-strip">
-        <div className="tile strip-tile">
-          <span className="tile-caption">En cours</span>
-          <span className="strip-value" title={profile.money ? openAmount : undefined}>
-            {profile.money ? openAmount : `${open.length} projet${open.length > 1 ? "s" : ""}`}
-          </span>
-          <span className="strip-foot">
-            <span className="tile-caption">
-              {profile.money
-                ? `${open.length} projet${open.length > 1 ? "s" : ""} à livrer`
-                : profile.doneLabel === "Rendu"
-                  ? "à rendre"
-                  : "à terminer"}
-            </span>
-            {canConvert && <MoneySwitch value={moneyView} onChange={setMoneyView} />}
-          </span>
-        </div>
+      <div className={profile.money ? "stat-strip money" : "stat-strip"}>
         {profile.money ? (
-          <div className="tile strip-tile">
-            <span className="tile-caption">À encaisser</span>
-            <span className={unpaid.length ? "strip-value unpaid" : "strip-value"} title={owedAmount}>
-              {owedAmount}
-            </span>
-            <span className="strip-foot">
+          <>
+            <div className="tile strip-tile">
+              <span className="tile-caption">Total</span>
+              <span className="strip-value" title={totalAmount}>
+                {totalAmount}
+              </span>
+              <span className="strip-foot">
+                <span className="tile-caption">
+                  {projects.length} projet{projects.length > 1 ? "s" : ""}
+                </span>
+                {canConvert && <MoneySwitch value={moneyView} onChange={setMoneyView} />}
+              </span>
+            </div>
+            <div className="tile strip-tile">
+              <span className="tile-caption">Encaissé</span>
+              <span className="strip-value paid" title={paidAmount}>
+                {paidAmount}
+              </span>
+              <span className="tile-caption">{paidPct != null ? `${paidPct} % du total` : "déjà reçu"}</span>
+            </div>
+            <div className="tile strip-tile">
+              <span className="tile-caption">Restant à encaisser</span>
+              <span className={Object.keys(totals.owed).length ? "strip-value unpaid" : "strip-value"} title={owedAmount}>
+                {owedAmount}
+              </span>
               <span className="tile-caption" title={unpaid.length ? `${unpaid.length} projet(s) livré(s) en attente de paiement` : undefined}>
                 {unpaid.length
                   ? `dont ${dueNowAmount} sur du livré`
                   : Object.keys(totals.owed).length
                     ? "rien d'exigible pour l'instant"
-                    : "Rien en attente"}
+                    : "tout est payé"}
               </span>
-              {canConvert && <MoneySwitch value={moneyView} onChange={setMoneyView} />}
-            </span>
-          </div>
+            </div>
+          </>
         ) : (
-          <div className="tile strip-tile">
-            <span className="tile-caption">Tâches restantes</span>
-            <span className="strip-value">{tasksLeft}</span>
-            <span className="tile-caption">dans tes projets en cours</span>
-          </div>
+          <>
+            <div className="tile strip-tile">
+              <span className="tile-caption">En cours</span>
+              <span className="strip-value">{`${open.length} projet${open.length > 1 ? "s" : ""}`}</span>
+              <span className="tile-caption">{profile.doneLabel === "Rendu" ? "à rendre" : "à terminer"}</span>
+            </div>
+            <div className="tile strip-tile">
+              <span className="tile-caption">Tâches restantes</span>
+              <span className="strip-value">{tasksLeft}</span>
+              <span className="tile-caption">dans tes projets en cours</span>
+            </div>
+          </>
         )}
-        <div className="tile strip-tile">
-          <span className="tile-caption">{profile.nextDeadlineLabel}</span>
-          <span className="strip-value">{nextDeadline ? formatDay(nextDeadline.deadline!) : "—"}</span>
-          <span className="tile-caption strip-name">{nextDeadline?.name ?? "Aucune"}</span>
+        <div className={overdue.length ? "tile strip-tile late" : "tile strip-tile"}>
+          <span className="tile-caption">{overdue.length ? `${profile.deadlineLabel} dépassée` : `${profile.nextDeadlineLabel} de projet`}</span>
+          <span className={overdue.length ? "strip-value unpaid" : "strip-value"}>{nextDeadline ? formatDay(nextDeadline.deadline!) : "—"}</span>
+          <span className="tile-caption strip-name" title={nextDeadline?.name}>
+            {nextDeadline
+              ? `${nextDeadline.name}${overdue.length > 1 ? ` · +${overdue.length - 1} en retard` : overdue.length ? " · en retard" : ""}`
+              : "Aucune"}
+          </span>
         </div>
         <button className="tile strip-tile strip-new" onClick={onNew}>
           <Plus size={20} strokeWidth={2.2} />
@@ -636,7 +658,9 @@ function ProjectDetail({
             <dt>Début</dt>
             <dd>{p.start_date ? formatDay(p.start_date) : "—"}</dd>
             <dt>{profile.deadlineLabel}</dt>
-            <dd>{p.deadline ? formatDay(p.deadline) : "—"}</dd>
+            <dd className={p.deadline && isOpen(p) && isOverdue(p.deadline) ? "deadline-late" : undefined}>
+              {p.deadline ? `${formatDay(p.deadline)}${isOpen(p) && isOverdue(p.deadline) ? " · dépassée" : ""}` : "—"}
+            </dd>
             {profile.money && p.paid_at && (
               <>
                 <dt>Payé le</dt>

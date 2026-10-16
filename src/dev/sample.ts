@@ -15,7 +15,7 @@ const day = (offset: number) => {
 
 export const SAMPLE_PROJECTS: Project[] = [
   { id: 1, name: "Site vitrine Atelier Lune", client: "Atelier Lune", price: 2400, currency: "EUR", status: "active", start_date: null, paid_at: null, deadline: day(4), notes: "Maquettes validées, reste l'intégration.", color: "#0a84ff", created_at: sqlAgo(9000) },
-  { id: 2, name: "Identité visuelle Brasserie", client: "La Mousse", price: 1200, currency: "EUR", status: "active", start_date: null, paid_at: null, deadline: day(12), notes: "", color: "#ff9f0a", created_at: sqlAgo(6000) },
+  { id: 2, name: "Identité visuelle Brasserie", client: "La Mousse", price: 1200, currency: "EUR", status: "active", start_date: null, paid_at: null, deadline: day(-3), notes: "", color: "#ff9f0a", created_at: sqlAgo(6000) },
   { id: 3, name: "Appli de réservation", client: "Studio Nova", price: 5800, currency: "EUR", status: "paused", start_date: null, paid_at: null, deadline: null, notes: "En attente du contenu client.", color: "#bf5af2", created_at: sqlAgo(20000) },
   { id: 4, name: "Logo Atelier Lune", client: "Atelier Lune", price: 800, currency: "EUR", status: "paid", start_date: null, paid_at: sqlAgo(30000), deadline: null, notes: "", color: "#34c759", created_at: sqlAgo(60000) },
   { id: 5, name: "Menu La Mousse", client: "La Mousse", price: 450, currency: "EUR", status: "unpaid", start_date: null, paid_at: null, deadline: null, notes: "", color: "#ff375f", created_at: sqlAgo(15000) },
@@ -23,7 +23,7 @@ export const SAMPLE_PROJECTS: Project[] = [
 
 export const SAMPLE_TASKS: Task[] = [
   { id: 1, project_id: 1, title: "Intégrer la page d'accueil", done: 0, due_date: day(1), planned_date: day(0), extra_id: null, created_at: sqlAgo(300), completed_at: null },
-  { id: 2, project_id: 1, title: "Formulaire de contact", done: 0, due_date: day(4), planned_date: null, extra_id: null, created_at: sqlAgo(280), completed_at: null },
+  { id: 2, project_id: 1, title: "Formulaire de contact", done: 0, due_date: day(-2), planned_date: null, extra_id: null, created_at: sqlAgo(280), completed_at: null },
   { id: 3, project_id: 2, title: "Envoyer 3 pistes de logo", done: 1, due_date: day(-1), planned_date: null, extra_id: null, created_at: sqlAgo(900), completed_at: sqlAgo(60) },
   { id: 4, project_id: null, title: "Relancer la facture de mars", done: 0, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(120), completed_at: null },
   { id: 5, project_id: 2, title: "Choisir la typographie", done: 0, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(100), completed_at: null },
