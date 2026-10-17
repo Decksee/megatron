@@ -19,7 +19,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize, WebviewUrl,
+    AppHandle, Emitter, LogicalSize, Manager, Monitor, PhysicalPosition, WebviewUrl,
     WebviewWindow, WebviewWindowBuilder,
 };
 
@@ -327,25 +327,30 @@ fn monitor_label(m: &Monitor) -> String {
     format!("{NOTCH_PREFIX}{}_{}_{}_{}", p.x, p.y, s.width, s.height)
 }
 
-/// Place la fenêtre centrée en haut de l'écran, en pixels physiques
-/// pour rester juste quand les écrans ont des mises à l'échelle différentes.
+/// Place la fenêtre centrée en haut de son écran. On la pose d'abord sur l'écran (Windows lui donne alors
+/// l'échelle de cet écran), puis on la dimensionne en unités logiques — c'est-à-dire avec l'échelle qu'elle
+/// utilise vraiment pour dessiner — et on la centre d'après sa largeur réelle. Sinon, entre deux écrans à
+/// mises à l'échelle différentes, la fenêtre peut être trop étroite et couper l'encoche ouverte.
 fn place_on_monitor(win: &WebviewWindow, m: &Monitor) {
-    let scale = m.scale_factor();
-    let width = (WINDOW_W * scale).round() as u32;
-    let height = (WINDOW_H * scale).round() as u32;
-    let x = m.position().x + (m.size().width as i32 - width as i32) / 2;
-    let _ = win.set_position(PhysicalPosition::new(x, m.position().y));
-    let _ = win.set_size(PhysicalSize::new(width, height));
+    let (mp, ms) = (m.position(), m.size());
+    let _ = win.set_position(PhysicalPosition::new(mp.x + ms.width as i32 / 4, mp.y));
+    let _ = win.set_size(LogicalSize::new(WINDOW_W, WINDOW_H));
+    let width = win
+        .outer_size()
+        .map(|s| s.width as i32)
+        .unwrap_or((WINDOW_W * m.scale_factor()).round() as i32);
+    let _ = win.set_position(PhysicalPosition::new(mp.x + (ms.width as i32 - width) / 2, mp.y));
 }
 
-/// L'encoche n'est plus centrée en haut de son écran (quelques pixels de marge pour les arrondis).
+/// L'encoche n'est plus centrée en haut de son écran, ou sa taille ne correspond plus à son échelle
+/// (quelques pixels de marge pour les arrondis).
 fn is_misplaced(win: &WebviewWindow, m: &Monitor) -> bool {
-    let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) else {
+    let (Ok(pos), Ok(size), Ok(scale)) = (win.outer_position(), win.outer_size(), win.scale_factor()) else {
         return false;
     };
-    let width = (WINDOW_W * m.scale_factor()).round() as i32;
-    let x = m.position().x + (m.size().width as i32 - width) / 2;
-    (pos.x - x).abs() > 4 || (pos.y - m.position().y).abs() > 4 || (size.width as i32 - width).abs() > 4
+    let expected = (WINDOW_W * scale).round() as i32;
+    let x = m.position().x + (m.size().width as i32 - size.width as i32) / 2;
+    (pos.x - x).abs() > 4 || (pos.y - m.position().y).abs() > 4 || (size.width as i32 - expected).abs() > 4
 }
 
 /// Une encoche par écran : crée celles qui manquent, replace celles qui ont bougé, ferme celles des écrans débranchés.
