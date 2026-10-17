@@ -3,7 +3,8 @@ import { getVersion } from "@tauri-apps/api/app";
 import { Download, PartyPopper, RefreshCw, X } from "lucide-react";
 import { setSetting, type Settings } from "../db";
 import { ErrorNote } from "../components/ErrorNote";
-import { availableUpdate, checkForUpdate, installUpdate, isNewer } from "../updater";
+import { autoUpdateOn, availableUpdate, checkForUpdate, installUpdate, isNewer } from "../updater";
+import { Switch } from "../components/Switch";
 
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -86,7 +87,10 @@ export function UpdateBanner({ settings, onNews }: { settings: Settings; onNews?
   return (
     <div className="update-banner">
       <span>
-        <b>Mégatron {update.version} est disponible.</b> L'installation prend quelques secondes, puis il redémarre.
+        <b>Mégatron {update.version} est disponible.</b>{" "}
+        {autoUpdateOn(settings)
+          ? "Il s'installera tout seul à ta prochaine pause, ou maintenant si tu préfères."
+          : "L'installation prend quelques secondes, puis il redémarre."}
       </span>
       <InstallButton />
     </div>
@@ -114,6 +118,7 @@ export function UpdateSetting({ settings }: { settings: Settings }) {
   };
 
   return (
+    <>
     <section className="setting column">
       <div className="row">
         <div className="grow">
@@ -135,7 +140,22 @@ export function UpdateSetting({ settings }: { settings: Settings }) {
       {state !== "idle" && state !== "checking" && state !== "uptodate" && (
         <div className="status warn">Impossible de vérifier les mises à jour pour le moment (pas de connexion ou aucune version publiée).</div>
       )}
-      <span className="muted small">Mégatron vérifie tout seul au démarrage puis toutes les 6 heures.</span>
+      <span className="muted small">Mégatron vérifie tout seul au démarrage, toutes les 30 minutes et quand tu reviens sur la fenêtre.</span>
     </section>
+    <section className="setting">
+      <div>
+        <div className="setting-title">Mises à jour automatiques</div>
+        <div className="muted small">
+          Mégatron télécharge chaque nouvelle version et l'installe tout seul à ta prochaine pause (jamais pendant un
+          focus, un minuteur ou une conversation), puis redémarre.
+        </div>
+      </div>
+      <Switch
+        label="Mises à jour automatiques"
+        checked={autoUpdateOn(settings)}
+        onChange={(v) => setSetting("auto_update", v ? "1" : "0")}
+      />
+    </section>
+    </>
   );
 }

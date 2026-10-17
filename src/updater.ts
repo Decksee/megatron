@@ -2,7 +2,10 @@ import { useEffect } from "react";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
-import { listSettings, setSetting, type Settings } from "./db";
+import { invoke } from "@tauri-apps/api/core";
+import { listEntries, listFocusSessions, listSettings, setSetting, type Settings } from "./db";
+import { activeFocus } from "./focus";
+import { aiStore } from "./ai/session";
 import { isLeader } from "./leader";
 import { notify } from "./notify";
 
@@ -13,6 +16,12 @@ import { notify } from "./notify";
  */
 
 const FIRST_CHECK_MS = 30_000;
+/** Mise à jour automatique : on regarde chaque minute si le moment est bon pour installer. */
+const AUTO_TICK_MS = 60_000;
+/** Inactivité (clavier, souris) à partir de laquelle on peut installer sans gêner. */
+const AUTO_IDLE_S = 3 * 60;
+/** Juste après le démarrage, une mise à jour prête s'installe sans attendre une pause. */
+const STARTUP_WINDOW_MS = 3 * 60_000;
 const CHECK_EVERY_MS = 30 * 60_000;
 /** Vérification au retour sur la fenêtre : au plus une fois par période. */
 const FOCUS_CHECK_MIN_MS = 2 * 60_000;
@@ -48,6 +57,9 @@ async function reconcileVersion() {
   }
   if (s.last_version !== installed) await setSetting("last_version", installed);
 }
+
+/** Mises à jour automatiques (activées par défaut) : téléchargées puis installées toutes seules. */
+export const autoUpdateOn = (settings: Settings) => settings.auto_update !== "0";
 
 export const availableUpdate = (settings: Settings): UpdateInfo | null => {
   try {
@@ -97,7 +109,8 @@ export function useUpdateCheck(settings: Settings) {
       if (stopped || !(await isLeader())) return;
       try {
         const update = await checkForUpdate();
-        if (update && update.version !== notified) {
+        const auto = autoUpdateOn(await listSettings());
+        if (update && update.version !== notified && !auto) {
           await setSetting("update_notified", update.version);
           await notify("Mise à jour de Mégatron", `La version ${update.version} est disponible : ouvre Mégatron pour l'installer.`);
         }
@@ -138,5 +151,66 @@ export function useUpdateCheckOnFocus() {
       window.removeEventListener("focus", run);
       document.removeEventListener("visibilitychange", onVisible);
     };
+  }, []);
+}
+
+// ---------- Mise à jour automatique ----------
+
+/** Mise à jour déjà téléchargée, prête à être installée. */
+let ready: Update | null = null;
+let downloading = false;
+const startedAt = Date.now();
+
+/** Rien en cours qu'une relance couperait : ni focus, ni minuteur, ni échange avec l'IA. */
+async function nothingRunning() {
+  const ai = aiStore.get();
+  if (ai.busy || ai.transcribing || ai.conversing || ai.recording) return false;
+  const [sessions, entries] = await Promise.all([listFocusSessions(), listEntries()]);
+  return !activeFocus(sessions) && !entries.some((e) => e.ended_at == null);
+}
+
+/**
+ * Fenêtre « première » : dès qu'une nouvelle version est connue, elle est téléchargée en arrière-plan,
+ * puis installée en silence au bon moment — juste après le démarrage, ou quand le PC est inactif depuis
+ * quelques minutes — jamais pendant un focus, un minuteur ou une conversation. Mégatron se relance seul.
+ */
+export function useAutoUpdate() {
+  useEffect(() => {
+    if (!isTauri || import.meta.env.DEV) return;
+    const id = window.setInterval(async () => {
+      try {
+        if (!(await isLeader())) return;
+        const s = await listSettings();
+        const pending = availableUpdate(s);
+        if (!autoUpdateOn(s) || !pending || !isNewer(pending.version, await getVersion())) return;
+
+        if (!ready || ready.version !== pending.version) {
+          if (downloading) return;
+          downloading = true;
+          try {
+            const update = await check();
+            if (update) {
+              await update.download();
+              ready = update;
+            }
+          } finally {
+            downloading = false;
+          }
+          return; // on installera au prochain passage
+        }
+
+        const justStarted = Date.now() - startedAt < STARTUP_WINDOW_MS;
+        const idle = await invoke<number>("idle_seconds").catch(() => 0);
+        if (!justStarted && idle < AUTO_IDLE_S) return;
+        if (!(await nothingRunning())) return;
+
+        await notify("Mise à jour de Mégatron", `Installation de la version ${ready.version}… Mégatron redémarre dans un instant.`);
+        await ready.install(); // installateur silencieux : il ferme puis relance Mégatron
+        await relaunch();
+      } catch (e) {
+        console.error("Mise à jour automatique impossible :", e);
+      }
+    }, AUTO_TICK_MS);
+    return () => window.clearInterval(id);
   }, []);
 }

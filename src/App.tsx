@@ -11,7 +11,7 @@ import { listenAfterWake, useAssistantShortcut, useCountdownWatcher, useIdleAuto
 import { focusElapsedMs, IDLE_KEY, useFocusMonitor } from "./focus";
 import { dueReminders, SNOOZE_MINUTES, useReminderWatcher } from "./reminders";
 import { useTelegram } from "./telegram";
-import { useUpdateCheck } from "./updater";
+import { useAutoUpdate, useUpdateCheck } from "./updater";
 import { taskBucket } from "./projects";
 import { useBreakNudge, useDailyBriefing, useFirstRun } from "./wellbeing";
 import { useMood, useNotchCursor, useNotchOccupied } from "./mood";
@@ -120,6 +120,7 @@ export function App() {
   useReminderWatcher(data);
   useTelegram(data);
   useUpdateCheck(data.settings);
+  useAutoUpdate();
   useDailyBriefing();
   useBreakNudge();
   useFirstRun(data);

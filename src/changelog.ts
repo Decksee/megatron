@@ -15,6 +15,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: "0.4.0",
+    date: "2026-10-17",
+    title: "Mises à jour automatiques",
+    changes: [
+      "Mégatron se met à jour tout seul : il télécharge chaque nouvelle version et l'installe en silence à ta prochaine pause, puis redémarre.",
+      "Jamais pendant un focus, un minuteur ou une conversation.",
+      "Réglages → À propos : « Mises à jour automatiques » à couper si tu préfères installer toi-même.",
+    ],
+  },
+  {
     version: "0.3.9",
     date: "2026-10-16",
     title: "Retards et argent plus clairs",

@@ -132,7 +132,7 @@ const TOPICS: Topic[] = [
       "Les clés d'IA sont rangées dans le Gestionnaire d'identification Windows.",
       "Seules tes demandes à l'IA partent chez le fournisseur choisi.",
       "Réglages → Données : sauvegarde et restauration en un fichier.",
-      "Quand une nouvelle version sort, Mégatron te propose de l'installer en un clic.",
+      "Mégatron se met à jour tout seul, à ta prochaine pause (Réglages → À propos pour couper).",
     ],
   },
 ];
