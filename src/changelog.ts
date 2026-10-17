@@ -17,11 +17,13 @@ export const CHANGELOG: Release[] = [
   {
     version: "0.4.0",
     date: "2026-10-17",
-    title: "Mises à jour automatiques",
+    title: "Mises à jour automatiques et Boost",
     changes: [
       "Mégatron se met à jour tout seul : il télécharge chaque nouvelle version et l'installe en silence à ta prochaine pause, puis redémarre.",
       "Jamais pendant un focus, un minuteur ou une conversation.",
       "Réglages → À propos : « Mises à jour automatiques » à couper si tu préfères installer toi-même.",
+      "Boost : quand des tâches glissent à répétition ou que tu ne planifies plus rien, Mégatron te coache et suit tes progrès.",
+      "Boost : un message motivant quand tu enchaînes les heures de travail ou les tâches cochées, parfois avec l'exemple de quelqu'un qui a beaucoup progressé.",
     ],
   },
   {

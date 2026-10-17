@@ -83,6 +83,7 @@ const TOPICS: Topic[] = [
       "Au-delà, Mégatron t'alerte ou réduit la fenêtre qui te distrait (Réglages → Focus).",
       "Tu peux mettre un focus en pause et le reprendre.",
       "Quand tu travailles longtemps sans pause (1 h 30 par défaut), Mégatron te propose de souffler. Jamais pendant un focus.",
+      "Boost : si des tâches glissent souvent ou que tu ne planifies plus rien, Mégatron te donne des conseils et suit tes progrès ; quand tu enchaînes, il te motive.",
     ],
   },
   {

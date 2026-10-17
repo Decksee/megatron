@@ -14,6 +14,7 @@ import { useTelegram } from "./telegram";
 import { useAutoUpdate, useUpdateCheck } from "./updater";
 import { taskBucket } from "./projects";
 import { useBreakNudge, useDailyBriefing, useFirstRun } from "./wellbeing";
+import { useBoost } from "./boost";
 import { useMood, useNotchCursor, useNotchOccupied } from "./mood";
 import { formatTrackTime, mediaAppName, mediaPosition, useMedia } from "./media";
 import { addFiles, aiConfig, aiStore, useAi, voiceConfig } from "./ai/session";
@@ -123,6 +124,7 @@ export function App() {
   useAutoUpdate();
   useDailyBriefing();
   useBreakNudge();
+  useBoost();
   useFirstRun(data);
   useAssistantShortcut(data, () => {
     setTab("assistant");

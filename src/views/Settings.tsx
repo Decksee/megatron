@@ -15,6 +15,7 @@ import { WAKE_SENSITIVITY, wakeSensitivity, wakeThreshold } from "../wakeword";
 import { ErrorNote } from "../components/ErrorNote";
 import { USAGES, usageOf, type Usage } from "../projects";
 import { BREAK_OPTIONS, briefingOn } from "../wellbeing";
+import { boostOn } from "../boost";
 import {
   AZURE_DEFAULT_VOICE,
   AZURE_REGIONS,
@@ -109,6 +110,12 @@ export function GeneralSettings({ settings }: Pick<Data, "settings">) {
         hint="Quand tu travailles longtemps sans t'arrêter, Mégatron te propose de souffler (jamais pendant un focus)."
       >
         <Select value={settings.break_after ?? "90"} onChange={(v) => setSetting("break_after", v)} options={BREAK_OPTIONS} />
+      </Setting>
+      <Setting
+        title="Boost"
+        hint="Mégatron te coache quand des tâches glissent ou que tu ne planifies plus rien, et te motive quand tu enchaînes. Deux messages par jour au plus."
+      >
+        <Switch label="Boost" checked={boostOn(settings)} onChange={(v) => setSetting("boost", v ? "1" : "0")} />
       </Setting>
       <Setting
         title="Ranger l'encoche en fine barre"
