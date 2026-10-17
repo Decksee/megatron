@@ -2568,3 +2568,7 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 .late-banner > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .late-tile .tile-title { color: var(--danger); display: flex; align-items: center; gap: 6px; }
 .deadline-late { color: var(--danger) !important; font-weight: 600; }
+
+/* Coche bien centrée dans son cercle : pas de marge intérieure de bouton, icône en bloc. */
+.check, .todo-check { padding: 0; box-sizing: border-box; line-height: 0; }
+.check > svg, .todo-check > svg { display: block; margin: 0; flex-shrink: 0; }
