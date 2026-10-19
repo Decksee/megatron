@@ -132,7 +132,10 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder,
   const [editingId, setEditingId] = useState<number | null>(null);
   const byId = new Map(projects.map((p) => [p.id, p]));
   const pending = tasks.filter((t) => !t.done);
-  const done = tasks.filter((t) => t.done);
+  // Terminées : la plus récemment cochée en premier (dates SQLite « AAAA-MM-JJ HH:MM:SS », triables telles quelles).
+  const done = tasks
+    .filter((t) => t.done)
+    .sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""));
   const now = new Date();
   const late = pending.filter((t) => isTaskLate(t, now));
   const groups = [
