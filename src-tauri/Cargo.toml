@@ -29,3 +29,12 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+
+# Compilations de développement plus légères : pas d'informations de débogage (on ne s'en sert pas),
+# et les dépendances sans symboles. Le dossier target/debug grossit beaucoup moins vite.
+[profile.dev]
+debug = 0
+
+[profile.dev.package."*"]
+debug = 0
+strip = "debuginfo"
