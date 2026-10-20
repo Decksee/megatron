@@ -42,13 +42,21 @@ async function todayFacts(now: Date) {
   const rem = reminders
     .filter((r) => !r.done && new Date(r.due_at) >= now && new Date(r.due_at) < dayEnd)
     .sort((a, b) => a.due_at.localeCompare(b.due_at));
-  const soon = new Date(now.getTime() + 3 * 86_400_000);
-  const deadlines = projects.filter((p) => isOpen(p) && p.deadline && p.deadline >= today && p.deadline <= toIsoDay(soon));
-  return { todo, late, rem, deadlines };
+  const soon = toIsoDay(new Date(now.getTime() + 3 * 86_400_000));
+  const open = projects.filter((p) => isOpen(p) && p.deadline);
+  const deadlines = open.filter((p) => p.deadline! >= today && p.deadline! <= soon);
+  // Deadlines de projets déjà passées (projet pas livré) : à signaler en premier.
+  const lateProjects = open.filter((p) => p.deadline! < today).sort((a, b) => a.deadline!.localeCompare(b.deadline!));
+  // Tâches à rendre dans les 3 prochains jours (pas encore dans la journée) : à anticiper.
+  const dueSoon = tasks
+    .filter((t) => !t.done && t.due_date && t.due_date > today && t.due_date <= soon)
+    .sort((a, b) => a.due_date!.localeCompare(b.due_date!));
+  return { todo, late, rem, deadlines, lateProjects, dueSoon };
 }
 
-function briefingFallback({ todo, late, rem, deadlines }: Awaited<ReturnType<typeof todayFacts>>) {
+function briefingFallback({ todo, late, rem, deadlines, lateProjects, dueSoon }: Awaited<ReturnType<typeof todayFacts>>) {
   const parts: string[] = [];
+  if (lateProjects.length) parts.push(`deadline dépassée : ${lateProjects.map((p) => p.name).join(", ")}`);
   if (todo.length) {
     const names = todo.slice(0, 3).map((t) => t.title).join(", ");
     parts.push(`${todo.length} tâche${todo.length > 1 ? "s" : ""} : ${names}${todo.length > 3 ? "…" : ""}`);
@@ -56,6 +64,7 @@ function briefingFallback({ todo, late, rem, deadlines }: Awaited<ReturnType<typ
   if (late.length) parts.push(`${late.length} en retard`);
   if (rem.length) parts.push(`${rem.length} rappel${rem.length > 1 ? "s" : ""} (${hhmm(new Date(rem[0].due_at))} ${rem[0].title})`);
   if (deadlines.length) parts.push(`deadline ${formatDay(deadlines[0].deadline!)} : ${deadlines[0].name}`);
+  if (dueSoon.length) parts.push(`à rendre bientôt : ${dueSoon[0].title} (${formatDay(dueSoon[0].due_date!)})`);
   return parts.length ? parts.join(" · ") : "Rien de prévu aujourd'hui. Bonne journée !";
 }
 
@@ -65,13 +74,15 @@ async function sendBriefing(settings: Settings, now: Date) {
     `Il est ${hhmm(now)}, ${now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}.`,
     `Tâches du jour : ${facts.todo.map((t) => `${t.title}${t.due_date && t.due_date < toIsoDay(now) ? " (en retard)" : ""}`).join(" ; ") || "aucune"}.`,
     `Rappels aujourd'hui : ${facts.rem.map((r) => `${hhmm(new Date(r.due_at))} ${r.title}`).join(" ; ") || "aucun"}.`,
+    `Deadlines de projets DÉPASSÉES (projet pas encore livré) : ${facts.lateProjects.map((p) => `${p.name} (prévue le ${p.deadline})`).join(" ; ") || "aucune"}.`,
     `Deadlines de projets dans les 3 jours : ${facts.deadlines.map((p) => `${p.name} le ${p.deadline}`).join(" ; ") || "aucune"}.`,
+    `Tâches à rendre dans les 3 prochains jours : ${facts.dueSoon.map((t) => `${t.title} le ${t.due_date}`).join(" ; ") || "aucune"}.`,
   ];
   const text =
     (await compose(
       settings,
       `Écris le point du matin : ce que l'utilisateur doit faire aujourd'hui, en commençant par le plus important ` +
-        `(retards, deadlines proches). Cite les éléments, pas de liste à puces. S'il n'y a rien, souhaite-lui une bonne journée.\n${lines.join("\n")}`,
+        `(deadlines dépassées, tâches en retard, puis ce qui arrive bientôt). Cite les éléments, pas de liste à puces. S'il n'y a rien, souhaite-lui une bonne journée.\n${lines.join("\n")}`,
     )) ?? briefingFallback(facts);
   await notify("☀️ Ta journée", text);
 }
