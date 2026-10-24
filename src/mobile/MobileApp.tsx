@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useDragControls } from "motion/react";
-import { AlertTriangle, ArrowUp, Bot as BotIcon, CalendarDays, Flag, FolderKanban, ListChecks, Plus, Settings2, Sun, X } from "lucide-react";
+import { AlertTriangle, ArrowUp, Bell, Bot as BotIcon, CalendarDays, ChevronLeft, Flag, FolderKanban, ListChecks, Plus, Settings2, Sun, Target, X } from "lucide-react";
 import { useData, type Data } from "../useData";
 import { useTheme } from "../theme";
 import { Bot } from "../components/Bot";
@@ -10,52 +10,115 @@ import { TaskList } from "../views/TaskList";
 import { Projects } from "../views/Projects";
 import { ProgressRing } from "../views/Today";
 import { MobileSettings } from "./MobileSettings";
+import { MobileFocus } from "./MobileFocus";
+import { Time } from "../views/Time";
+import { Reminders } from "../views/Reminders";
 import { useNativeSync } from "./useNativeSync";
 import { createTask } from "../db";
 import { isTaskLate, lateByProject, relativeDay, taskBucket, toIsoDay } from "../projects";
 
 /**
  * Application Android : une seule fenêtre plein écran, des onglets en bas et un bouton « + » à portée de pouce.
+ * Rappels et Réglages s'ouvrent depuis l'en-tête (cloche, roue dentée), avec un retour.
  */
 const TABS = [
   { id: "today", label: "Aujourd'hui", icon: Sun },
   { id: "tasks", label: "Tâches", icon: ListChecks },
   { id: "projects", label: "Projets", icon: FolderKanban },
+  { id: "focus", label: "Focus", icon: Target },
   { id: "ai", label: "IA", icon: BotIcon },
-  { id: "settings", label: "Réglages", icon: Settings2 },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
+type Page = TabId | "reminders" | "settings";
+const PAGE_TITLE: Record<Page, string> = {
+  today: "Aujourd'hui",
+  tasks: "Tâches",
+  projects: "Projets",
+  focus: "Focus",
+  ai: "IA",
+  reminders: "Rappels",
+  settings: "Réglages",
+};
+
+function useNow(intervalMs = 30_000) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), intervalMs);
+    return () => window.clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
 
 export function MobileApp() {
   const data = useData();
   useTheme(data.settings);
   useNativeSync();
+  const now = useNow();
   const [tab, setTab] = useState<TabId>("today");
+  // Page ouverte par-dessus les onglets (Rappels, Réglages), sinon l'onglet courant.
+  const [sub, setSub] = useState<"reminders" | "settings" | null>(null);
+  const [focusView, setFocusView] = useState<"focus" | "time">("focus");
   const [adding, setAdding] = useState(false);
-  const showFab = tab === "today" || tab === "tasks";
+  const page: Page = sub ?? tab;
+  const showFab = !sub && (tab === "today" || tab === "tasks");
+  const remindersToday = data.reminders.filter((r) => !r.done && new Date(r.due_at).toDateString() === now.toDateString()).length;
 
   return (
     <div className="m-shell">
       <header className="m-head">
-        <span className="m-title">{TABS.find((t) => t.id === tab)!.label}</span>
-        <Bot mood="idle" size={28} />
+        {sub && (
+          <button className="m-back" onClick={() => setSub(null)} aria-label="Retour">
+            <ChevronLeft size={24} />
+          </button>
+        )}
+        <span className="m-title">{PAGE_TITLE[page]}</span>
+        <div className="m-head-actions">
+          <button
+            className={sub === "reminders" ? "m-head-btn active" : "m-head-btn"}
+            onClick={() => setSub(sub === "reminders" ? null : "reminders")}
+            aria-label="Rappels"
+          >
+            <Bell size={21} />
+            {remindersToday > 0 && <span className="m-badge">{remindersToday}</span>}
+          </button>
+          <button
+            className={sub === "settings" ? "m-head-btn active" : "m-head-btn"}
+            onClick={() => setSub(sub === "settings" ? null : "settings")}
+            aria-label="Réglages"
+          >
+            <Settings2 size={21} />
+          </button>
+        </div>
       </header>
 
       <main className="m-content">
         <AnimatePresence mode="wait">
           <motion.div
-            key={tab}
+            key={page}
             className="m-page"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, transition: { duration: 0.08 } }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
-            {tab === "today" && <TodayPage {...data} />}
-            {tab === "tasks" && <TasksPage {...data} />}
-            {tab === "projects" && <Projects {...data} />}
-            {tab === "settings" && <MobileSettings {...data} />}
-            {tab === "ai" && <Soon />}
+            {page === "today" && <TodayPage {...data} />}
+            {page === "tasks" && <TasksPage {...data} />}
+            {page === "projects" && <Projects {...data} />}
+            {page === "focus" && (
+              <>
+                <div className="segmented m-segmented">
+                  {(["focus", "time"] as const).map((v) => (
+                    <button key={v} className={focusView === v ? "seg active" : "seg"} onClick={() => setFocusView(v)}>
+                      <span className="tab-label">{v === "focus" ? "Focus" : "Temps"}</span>
+                    </button>
+                  ))}
+                </div>
+                {focusView === "focus" ? <MobileFocus {...data} /> : <Time {...data} now={now} />}
+              </>
+            )}
+            {page === "ai" && <Soon />}
+            {page === "reminders" && <Reminders {...data} now={now} />}
+            {page === "settings" && <MobileSettings {...data} />}
           </motion.div>
         </AnimatePresence>
       </main>
@@ -78,15 +141,26 @@ export function MobileApp() {
       <AddTaskSheet open={adding} onClose={() => setAdding(false)} projects={data.projects} plannedToday={tab === "today"} />
 
       <nav className="m-tabs" aria-label="Sections">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button key={id} className={id === tab ? "m-tab active" : "m-tab"} onClick={() => setTab(id)} aria-current={id === tab ? "page" : undefined}>
-            <span className="m-tab-icon">
-              {id === tab && <motion.span layoutId="m-tab-pill" className="m-tab-pill" transition={{ type: "spring", stiffness: 500, damping: 36 }} />}
-              <Icon size={21} strokeWidth={id === tab ? 2.4 : 2} />
-            </span>
-            <span className="m-tab-label">{label}</span>
-          </button>
-        ))}
+        {TABS.map(({ id, label, icon: Icon }) => {
+          const on = !sub && id === tab;
+          return (
+            <button
+              key={id}
+              className={on ? "m-tab active" : "m-tab"}
+              onClick={() => {
+                setTab(id);
+                setSub(null);
+              }}
+              aria-current={on ? "page" : undefined}
+            >
+              <span className="m-tab-icon">
+                {on && <motion.span layoutId="m-tab-pill" className="m-tab-pill" transition={{ type: "spring", stiffness: 500, damping: 36 }} />}
+                <Icon size={21} strokeWidth={on ? 2.4 : 2} />
+              </span>
+              <span className="m-tab-label">{label}</span>
+            </button>
+          );
+        })}
       </nav>
     </div>
   );

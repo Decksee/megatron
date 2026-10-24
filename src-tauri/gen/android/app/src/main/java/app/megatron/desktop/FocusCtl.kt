@@ -1,0 +1,145 @@
+package app.megatron.desktop
+
+import android.app.AlarmManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+
+/**
+ * Focus sur téléphone : compte à rebours affiché par Android dans une notification (aucun code ne tourne),
+ * alarme à l'heure de fin (session enregistrée même appli fermée), et liste des applis à bloquer
+ * que le service d'accessibilité consulte quand une appli s'ouvre.
+ */
+object FocusCtl {
+  private const val PREFS = "megatron"
+  private const val CH_FOCUS = "focus"
+  private const val ID_FOCUS = 3
+
+  private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+  /** Fin du focus en cours (ms), ou 0. */
+  fun endsAt(context: Context): Long = prefs(context).getLong("focus_until", 0)
+  fun blocking(context: Context): Boolean = prefs(context).getBoolean("focus_block", false)
+  fun blocked(context: Context): Set<String> = prefs(context).getStringSet("focus_apps", emptySet()) ?: emptySet()
+  fun active(context: Context) = endsAt(context) > System.currentTimeMillis()
+
+  private fun endIntent(context: Context): PendingIntent =
+    PendingIntent.getBroadcast(
+      context, 40, Intent(context, FocusReceiver::class.java).setAction(FocusReceiver.END),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+  fun start(context: Context, sessionId: Long, endsAt: Long, block: Boolean, apps: Set<String>) {
+    prefs(context).edit()
+      .putLong("focus_session", sessionId)
+      .putLong("focus_until", endsAt)
+      .putBoolean("focus_block", block)
+      .putStringSet("focus_apps", apps)
+      .apply()
+    val am = context.getSystemService(AlarmManager::class.java)
+    if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
+      am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endsAt, endIntent(context))
+    } else {
+      am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endsAt, endIntent(context))
+    }
+    showNotification(context, endsAt)
+  }
+
+  /** Arrêt (ou pause) : plus d'alarme, plus de blocage, plus de notification. */
+  fun stop(context: Context) {
+    prefs(context).edit().putLong("focus_until", 0).apply()
+    context.getSystemService(AlarmManager::class.java).cancel(endIntent(context))
+    NotificationManagerCompat.from(context).cancel(ID_FOCUS)
+  }
+
+  /** L'heure de fin est arrivée : session enregistrée comme réussie, petite notification de bravo. */
+  fun finish(context: Context) {
+    val id = prefs(context).getLong("focus_session", -1)
+    stop(context)
+    if (id >= 0) {
+      Store.withDb(context, Unit) { db ->
+        db.execSQL(
+          "UPDATE focus_sessions SET ended_at = ?, completed = 1 WHERE id = ? AND ended_at IS NULL",
+          arrayOf(Store.toIso(System.currentTimeMillis()), id),
+        )
+      }
+    }
+    channel(context)
+    val n = NotificationCompat.Builder(context, CH_FOCUS)
+      .setSmallIcon(R.mipmap.ic_launcher)
+      .setContentTitle("Session de focus terminée 🎯")
+      .setContentText("Bravo ! Prends une petite pause.")
+      .setAutoCancel(true)
+      .build()
+    try {
+      NotificationManagerCompat.from(context).notify(ID_FOCUS + 1, n)
+    } catch (e: SecurityException) {
+    }
+  }
+
+  private fun channel(context: Context) {
+    if (Build.VERSION.SDK_INT < 26) return
+    context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+      NotificationChannel(CH_FOCUS, "Focus", NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) },
+    )
+  }
+
+  private fun showNotification(context: Context, endsAt: Long) {
+    channel(context)
+    val open = PendingIntent.getActivity(
+      context, 41, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+    val n = NotificationCompat.Builder(context, CH_FOCUS)
+      .setSmallIcon(R.mipmap.ic_launcher)
+      .setContentTitle("🎯 Focus en cours")
+      .setContentText(if (blocking(context)) "Applis distrayantes bloquées" else "Reste concentré")
+      // Le compte à rebours est affiché par Android lui-même : aucun code ne tourne pendant le focus.
+      .setWhen(endsAt)
+      .setShowWhen(true)
+      .setUsesChronometer(true)
+      .setChronometerCountDown(true)
+      .setOngoing(true)
+      .setSilent(true)
+      .setContentIntent(open)
+      .build()
+    try {
+      NotificationManagerCompat.from(context).notify(ID_FOCUS, n)
+    } catch (e: SecurityException) {
+    }
+  }
+
+  /** Le service de blocage est-il activé dans les réglages d'accessibilité d'Android ? */
+  fun accessibilityEnabled(context: Context): Boolean {
+    val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+    val me = ComponentName(context, FocusBlockService::class.java).flattenToString()
+    return enabled.split(':').any { it.equals(me, ignoreCase = true) }
+  }
+}
+
+/** Alarme de fin de focus. */
+class FocusReceiver : BroadcastReceiver() {
+  companion object {
+    const val END = "app.megatron.FOCUS_END"
+  }
+
+  override fun onReceive(context: Context, intent: Intent) {
+    if (intent.action != END) return
+    val pending = goAsync()
+    Thread {
+      try {
+        FocusCtl.finish(context)
+      } finally {
+        pending.finish()
+      }
+    }.start()
+  }
+}

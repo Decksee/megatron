@@ -1,0 +1,252 @@
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { Check, Pause, Play, ShieldCheck, Square, X } from "lucide-react";
+import { endFocus, pauseFocus, resumeFocus, setSetting, startFocus, listFocusSessions, type FocusSession } from "../db";
+import { activeFocus, focusElapsedMs } from "../focus";
+import { ProgressRing } from "../views/Today";
+import { Switch } from "../components/Switch";
+import { native } from "./native";
+import type { Data } from "../useData";
+
+const DURATIONS = [15, 25, 50, 90];
+const isTauri = "__TAURI_INTERNALS__" in window;
+
+interface App {
+  package: string;
+  label: string;
+}
+
+const blockedApps = (s: Data["settings"]): string[] => {
+  try {
+    return JSON.parse(s.m_block_apps || "[]");
+  } catch {
+    return [];
+  }
+};
+
+/** Fin du focus (ms) d'après la session : début + durée prévue + pauses. */
+const endsAt = (s: FocusSession, now = new Date()) => now.getTime() + s.planned_minutes * 60_000 - focusElapsedMs(s, now);
+
+/** Prévient Android : alarme de fin, compte à rebours en notification, blocage des applis choisies. */
+async function armNative(session: FocusSession, settings: Data["settings"]) {
+  if (!isTauri) return;
+  await native("focusStart", {
+    sessionId: session.id,
+    endsAt: Math.round(endsAt(session)),
+    block: settings.m_block !== "0",
+    apps: blockedApps(settings),
+  }).catch(console.error);
+}
+
+function useTick(active: boolean) {
+  const [, setT] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const id = window.setInterval(() => setT((t) => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [active]);
+}
+
+export function MobileFocus({ focusSessions, settings }: Data) {
+  const session = activeFocus(focusSessions);
+  const [minutes, setMinutes] = useState(Number(settings.focus_duration) || 25);
+  const [picking, setPicking] = useState(false);
+  const [blocker, setBlocker] = useState<boolean | null>(null);
+  useTick(!!session && !session.paused_at);
+  const block = settings.m_block !== "0";
+  const apps = blockedApps(settings);
+
+  // Le service de blocage est-il autorisé ? (revérifié au retour des réglages d'Android)
+  useEffect(() => {
+    if (!isTauri) return;
+    const check = () => native<{ enabled: boolean }>("blockerStatus").then((r) => setBlocker(r.enabled)).catch(() => setBlocker(null));
+    check();
+    const onVisible = () => document.visibilityState === "visible" && check();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  const start = async () => {
+    await startFocus({ projectId: null, plannedMinutes: minutes, budgetMinutes: 0, mode: block ? "block" : "alert" });
+    const fresh = activeFocus(await listFocusSessions());
+    if (fresh) await armNative(fresh, settings);
+  };
+  const stop = async () => {
+    if (!session) return;
+    await endFocus(session, false);
+    if (isTauri) await native("focusStop").catch(console.error);
+  };
+  const togglePause = async () => {
+    if (!session) return;
+    if (session.paused_at) {
+      await resumeFocus(session);
+      const fresh = activeFocus(await listFocusSessions());
+      if (fresh) await armNative(fresh, settings);
+    } else {
+      await pauseFocus(session);
+      if (isTauri) await native("focusStop").catch(console.error);
+    }
+  };
+
+  // Compte à rebours terminé appli ouverte : session réussie (l'alarme Android le fait aussi appli fermée).
+  const done = !!session && !session.paused_at && focusElapsedMs(session, new Date()) >= session.planned_minutes * 60_000;
+  useEffect(() => {
+    if (done && session) void endFocus(session, true);
+  }, [done]);
+
+  if (session) {
+    const now = new Date();
+    const total = session.planned_minutes * 60_000;
+    const left = Math.max(0, total - focusElapsedMs(session, now));
+    const mm = Math.floor(left / 60_000);
+    const ss = Math.floor((left % 60_000) / 1000);
+    return (
+      <div className="m-focus">
+        <div className="m-focus-ring">
+          <ProgressRing ratio={1 - left / total} size={230} stroke={12}>
+            <div className="m-focus-time">
+              <b>
+                {String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
+              </b>
+              <span className="muted">{session.paused_at ? "En pause" : "Reste concentré"}</span>
+            </div>
+          </ProgressRing>
+        </div>
+        {session.mode === "block" && apps.length > 0 && (
+          <p className="m-focus-note">
+            <ShieldCheck size={15} /> {apps.length} appli{apps.length > 1 ? "s" : ""} bloquée{apps.length > 1 ? "s" : ""} jusqu'à la fin
+          </p>
+        )}
+        <div className="m-focus-actions">
+          <button className="btn ghost m-big" onClick={togglePause}>
+            {session.paused_at ? <Play size={18} /> : <Pause size={18} />} {session.paused_at ? "Reprendre" : "Pause"}
+          </button>
+          <button className="btn danger m-big" onClick={stop}>
+            <Square size={16} /> Arrêter
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="m-focus">
+      <section className="m-card">
+        <b className="m-card-title">Durée</b>
+        <div className="m-durations">
+          {DURATIONS.map((d) => (
+            <button
+              key={d}
+              className={d === minutes ? "m-duration active" : "m-duration"}
+              onClick={() => {
+                setMinutes(d);
+                void setSetting("focus_duration", String(d));
+              }}
+            >
+              <b>{d}</b>
+              <span>min</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="m-card">
+        <div className="m-card-row">
+          <div>
+            <b className="m-card-title">Bloquer les applis distrayantes</b>
+            <span className="muted small">Pendant le focus, elles te ramènent à l'écran d'accueil.</span>
+          </div>
+          <Switch label="Bloquer" checked={block} onChange={(v) => setSetting("m_block", v ? "1" : "0")} />
+        </div>
+        {block && blocker === false && (
+          <button className="btn primary m-wide" onClick={() => native("openBlockerSettings")}>
+            Autoriser le blocage (Accessibilité)
+          </button>
+        )}
+        {block && blocker === false && (
+          <span className="muted small">
+            Dans Accessibilité → Applis installées → « Mégatron · blocage pendant le focus », active-le. Il ne lit rien à l'écran.
+          </span>
+        )}
+        {block && (
+          <button className="btn ghost m-wide" onClick={() => setPicking(true)}>
+            {apps.length ? `${apps.length} appli${apps.length > 1 ? "s" : ""} à bloquer · modifier` : "Choisir les applis à bloquer"}
+          </button>
+        )}
+      </section>
+
+      <button className="m-start" onClick={start}>
+        <Play size={20} /> Lancer {minutes} min de focus
+      </button>
+
+      <AppPicker open={picking} selected={apps} onClose={() => setPicking(false)} />
+    </div>
+  );
+}
+
+/** Liste des applis du téléphone, à cocher. */
+function AppPicker({ open, selected, onClose }: { open: boolean; selected: string[]; onClose: () => void }) {
+  const [apps, setApps] = useState<App[] | null>(null);
+  const [chosen, setChosen] = useState<Set<string>>(new Set(selected));
+
+  useEffect(() => {
+    if (!open) return;
+    setChosen(new Set(selected));
+    if (!apps && isTauri) native<{ apps: App[] }>("listApps").then((r) => setApps(r.apps)).catch(() => setApps([]));
+    if (!isTauri) setApps([]);
+  }, [open]);
+
+  const save = async () => {
+    await setSetting("m_block_apps", JSON.stringify([...chosen]));
+    onClose();
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div className="m-sheet-backdrop" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+          <motion.div
+            className="m-sheet m-sheet-tall"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%", transition: { type: "tween", duration: 0.22 } }}
+            transition={{ type: "spring", stiffness: 300, damping: 34 }}
+          >
+            <div className="m-sheet-head">
+              <b>Applis à bloquer</b>
+              <button type="button" className="icon-round" onClick={onClose} aria-label="Fermer">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="m-app-list">
+              {apps == null && <span className="muted small">Chargement…</span>}
+              {apps?.length === 0 && <span className="muted small">Aucune appli trouvée.</span>}
+              {apps?.map((a) => {
+                const on = chosen.has(a.package);
+                return (
+                  <button
+                    key={a.package}
+                    className={on ? "m-app on" : "m-app"}
+                    onClick={() => {
+                      const next = new Set(chosen);
+                      if (on) next.delete(a.package);
+                      else next.add(a.package);
+                      setChosen(next);
+                    }}
+                  >
+                    <span className="m-app-check">{on && <Check size={14} strokeWidth={3} />}</span>
+                    <span className="m-app-name">{a.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button className="m-start" onClick={save}>
+              Enregistrer ({chosen.size})
+            </button>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}

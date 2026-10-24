@@ -166,3 +166,65 @@ html[data-window="mobile"] #root {
 .m-sheet-handle { display: flex; justify-content: center; padding: 6px 0 4px; margin: -8px -16px 0; touch-action: none; cursor: grab; }
 .m-sheet-head { touch-action: none; }
 .m-sheet-backdrop { backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+
+/* ---------- En-tête : retour, cloche (rappels), roue (réglages) ---------- */
+.m-head { gap: 6px; }
+.m-head .m-title { flex: 1; min-width: 0; }
+.m-back { width: 40px; height: 40px; margin-left: -10px; border: 0; background: none; color: var(--text); display: grid; place-items: center; cursor: pointer; }
+.m-head-actions { display: flex; gap: 6px; }
+.m-head-btn {
+  position: relative; width: 42px; height: 42px; border-radius: 14px; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: rgb(var(--fg-rgb) / 0.06); color: var(--text);
+}
+.m-head-btn.active { background: rgb(var(--accent-rgb) / 0.18); color: var(--accent); }
+.m-badge {
+  position: absolute; top: 4px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 800; display: grid; place-items: center;
+}
+
+/* ---------- Focus ---------- */
+.m-focus { display: flex; flex-direction: column; gap: 12px; }
+.m-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: var(--tile); }
+.m-card-title { font-size: 15px; }
+.m-card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.m-card-row > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.m-durations { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.m-duration {
+  display: flex; flex-direction: column; align-items: center; padding: 12px 0; border-radius: 16px; cursor: pointer;
+  border: 1px solid rgb(var(--fg-rgb) / 0.08); background: rgb(var(--fg-rgb) / 0.04); color: var(--text); font: inherit;
+}
+.m-duration b { font-size: 22px; font-weight: 800; }
+.m-duration span { font-size: 11px; color: var(--muted); }
+.m-duration.active { border-color: rgb(var(--accent-rgb) / 0.6); background: rgb(var(--accent-rgb) / 0.14); color: var(--accent); }
+.m-wide { width: 100%; justify-content: center; }
+.m-start {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; border-radius: 18px; border: 0; cursor: pointer;
+  background: var(--accent); color: var(--on-accent); font: inherit; font-size: 16px; font-weight: 800;
+}
+.m-focus-ring { display: grid; place-items: center; padding: 18px 0 6px; }
+.m-focus-time { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.m-focus-time b { font-size: 46px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.m-focus-note { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--accent); font-size: 13px; margin: 0; }
+.m-focus-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.m-big { min-height: 52px; justify-content: center; font-size: 15px; border-radius: 16px; }
+.m-sheet-tall { max-height: 82%; }
+.m-app-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 120px; max-height: 55vh; }
+.m-app { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 6px; border: 0; background: none; color: var(--text); font: inherit; font-size: 15px; text-align: left; cursor: pointer; border-radius: 12px; }
+.m-app.on { background: rgb(var(--accent-rgb) / 0.08); }
+.m-app-check { width: 22px; height: 22px; border-radius: 7px; border: 1.5px solid rgb(var(--fg-rgb) / 0.3); display: grid; place-items: center; flex-shrink: 0; }
+.m-app.on .m-app-check { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.m-app-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Temps et Rappels (écrans du PC, en une colonne) ---------- */
+[data-window="mobile"] .split { display: flex; flex-direction: column; gap: 12px; overflow: visible; }
+[data-window="mobile"] .split > .view, [data-window="mobile"] .split > .side { overflow: visible; min-height: 0; width: auto; }
+[data-window="mobile"] .composer-meta { flex-wrap: wrap; }
+[data-window="mobile"] .reminder { border-radius: 16px; }
+[data-window="mobile"] .time-grid { display: flex; flex-direction: column; gap: 12px; flex: none; }
+[data-window="mobile"] .chart-tile { height: 260px; flex: none; }
+[data-window="mobile"] .breakdown { overflow: visible; }
+/* Rappels : la pastille du projet passe sous le titre pour lui laisser toute la largeur. */
+[data-window="mobile"] .reminder { flex-wrap: wrap; row-gap: 4px; padding: 12px; }
+[data-window="mobile"] .reminder-time { width: 54px; flex-shrink: 0; }
+[data-window="mobile"] .reminder .tag-pill { order: 10; margin-left: 66px; max-width: calc(100% - 66px); }
+[data-window="mobile"] .reminder-title { font-size: 15px; }

@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">"Mégatron"</string>
     <string name="main_activity_title">"Mégatron"</string>
+    <string name="focus_block_label">Mégatron · blocage pendant le focus</string>
+    <string name="focus_block_description">Pendant une session de focus, Mégatron te ramène à l'écran d'accueil si tu ouvres une appli que tu as choisi de bloquer. Il ne lit rien à l'écran et ne fait rien en dehors des sessions de focus.</string>
 </resources>

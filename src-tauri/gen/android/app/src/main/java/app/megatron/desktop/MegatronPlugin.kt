@@ -14,6 +14,14 @@ import app.tauri.plugin.Plugin
 import java.io.File
 
 @InvokeArg
+class FocusArgs {
+  var sessionId: Long = 0
+  var endsAt: Long = 0
+  var block: Boolean = false
+  var apps: Array<String> = arrayOf()
+}
+
+@InvokeArg
 class PathArgs {
   lateinit var path: String
 }
@@ -56,6 +64,58 @@ class MegatronPlugin(private val activity: Activity) : Plugin(activity) {
       Widget.refreshAll(context)
     }.start()
     invoke.resolve()
+  }
+
+  // ---------- Focus ----------
+
+  @Command
+  fun focusStart(invoke: Invoke) {
+    val a = invoke.parseArgs(FocusArgs::class.java)
+    FocusCtl.start(activity.applicationContext, a.sessionId, a.endsAt, a.block, a.apps.toSet())
+    invoke.resolve()
+  }
+
+  @Command
+  fun focusStop(invoke: Invoke) {
+    FocusCtl.stop(activity.applicationContext)
+    invoke.resolve()
+  }
+
+  /** Le blocage d'applis est-il activé (service d'accessibilité) ? */
+  @Command
+  fun blockerStatus(invoke: Invoke) {
+    val res = JSObject()
+    res.put("enabled", FocusCtl.accessibilityEnabled(activity))
+    invoke.resolve(res)
+  }
+
+  /** Ouvre les réglages d'accessibilité d'Android pour activer le blocage. */
+  @Command
+  fun openBlockerSettings(invoke: Invoke) {
+    activity.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    invoke.resolve()
+  }
+
+  /** Applis installées (celles qu'on peut lancer), pour choisir lesquelles bloquer pendant un focus. */
+  @Command
+  fun listApps(invoke: Invoke) {
+    val pm = activity.packageManager
+    val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    val apps = app.tauri.plugin.JSArray()
+    pm.queryIntentActivities(launcher, 0)
+      .map { it.activityInfo.packageName to it.loadLabel(pm).toString() }
+      .filter { it.first != activity.packageName }
+      .distinctBy { it.first }
+      .sortedBy { it.second.lowercase() }
+      .forEach { (pkg, label) ->
+        val o = JSObject()
+        o.put("package", pkg)
+        o.put("label", label)
+        apps.put(o)
+      }
+    val res = JSObject()
+    res.put("apps", apps)
+    invoke.resolve(res)
   }
 
   /** Ouvre le sélecteur de fichiers Android et renvoie le contenu texte du fichier choisi (sauvegarde). */
