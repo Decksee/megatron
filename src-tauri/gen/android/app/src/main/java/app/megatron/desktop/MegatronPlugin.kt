@@ -69,6 +69,13 @@ class MegatronPlugin(private val activity: Activity) : Plugin(activity) {
 
   // ---------- Focus ----------
 
+  /** L'interface est prête : fin de l'écran de démarrage. */
+  @Command
+  fun appReady(invoke: Invoke) {
+    MainActivity.ready = true
+    invoke.resolve()
+  }
+
   /** Action demandée en ouvrant l'appli (bouton « + » du widget), lue une seule fois. */
   @Command
   fun takeLaunchAction(invoke: Invoke) {
@@ -98,6 +105,30 @@ class MegatronPlugin(private val activity: Activity) : Plugin(activity) {
     val res = JSObject()
     res.put("enabled", FocusCtl.accessibilityEnabled(activity))
     invoke.resolve(res)
+  }
+
+  /** Guide « arrière-plan » : marque du téléphone et autorisations déjà accordées. */
+  @Command
+  fun backgroundStatus(invoke: Invoke) {
+    val res = JSObject()
+    for ((k, v) in Background.status(activity)) res.put(k, v)
+    invoke.resolve(res)
+  }
+
+  @InvokeArg
+  class SettingsArgs {
+    var which: String = "app"
+  }
+
+  /** Ouvre le bon écran de réglages : batterie, notifications, ou réglages propres à la marque. */
+  @Command
+  fun openBackgroundSettings(invoke: Invoke) {
+    when (invoke.parseArgs(SettingsArgs::class.java).which) {
+      "battery" -> Background.openBattery(activity)
+      "notifications" -> Background.openNotifications(activity)
+      else -> Background.openBrandSettings(activity)
+    }
+    invoke.resolve()
   }
 
   /** Ouvre les réglages d'accessibilité d'Android pour activer le blocage. */

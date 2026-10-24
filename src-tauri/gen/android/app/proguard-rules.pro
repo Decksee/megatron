@@ -19,3 +19,10 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# Mégatron : le plugin natif est appelé par son nom depuis l'interface (commandes, arguments lus par réflexion).
+-keep @app.tauri.annotation.TauriPlugin class * { *; }
+-keep @app.tauri.annotation.InvokeArg class * { *; }
+-keepclassmembers class * {
+    @app.tauri.annotation.Command public <methods>;
+    @app.tauri.annotation.ActivityCallback <methods>;
+}

@@ -12,6 +12,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import org.json.JSONArray
 
 /**
  * Focus sur téléphone : compte à rebours affiché par Android dans une notification (aucun code ne tourne),
@@ -51,13 +52,38 @@ object FocusCtl {
       am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endsAt, endIntent(context))
     }
     showNotification(context, endsAt)
+    refreshWidgets(context)
   }
+
+  /** Lancé depuis le widget : durée et blocage repris des réglages de l'appli. */
+  fun startFromWidget(context: Context, minutes: Int?) {
+    val m = minutes ?: Store.setting(context, "focus_duration")?.toIntOrNull() ?: 25
+    val block = Store.setting(context, "m_block") != "0"
+    val apps = try {
+      val arr = JSONArray(Store.setting(context, "m_block_apps") ?: "[]")
+      (0 until arr.length()).map { arr.getString(it) }.toSet()
+    } catch (e: Exception) {
+      emptySet()
+    }
+    val id = Store.startFocus(context, m, if (block) "block" else "alert")
+    if (id < 0) return
+    start(context, id, System.currentTimeMillis() + m * 60_000L, block, apps)
+  }
+
+  /** Arrêté depuis le widget : session close (non réussie), plus de blocage. */
+  fun stopFromWidget(context: Context) {
+    Store.openFocus(context)?.let { Store.stopFocus(context, it.id) }
+    stop(context)
+  }
+
+  private fun refreshWidgets(context: Context) = Thread { Widget.refreshAll(context) }.start()
 
   /** Arrêt (ou pause) : plus d'alarme, plus de blocage, plus de notification. */
   fun stop(context: Context) {
     prefs(context).edit().putLong("focus_until", 0).apply()
     context.getSystemService(AlarmManager::class.java).cancel(endIntent(context))
     NotificationManagerCompat.from(context).cancel(ID_FOCUS)
+    refreshWidgets(context)
   }
 
   /** L'heure de fin est arrivée : session enregistrée comme réussie, petite notification de bravo. */
@@ -129,14 +155,21 @@ object FocusCtl {
 class FocusReceiver : BroadcastReceiver() {
   companion object {
     const val END = "app.megatron.FOCUS_END"
+    const val START = "app.megatron.FOCUS_START"
+    const val STOP = "app.megatron.FOCUS_STOP"
   }
 
   override fun onReceive(context: Context, intent: Intent) {
-    if (intent.action != END) return
+    val action = intent.action
+    if (action != END && action != START && action != STOP) return
     val pending = goAsync()
     Thread {
       try {
-        FocusCtl.finish(context)
+        when (action) {
+          END -> FocusCtl.finish(context)
+          START -> FocusCtl.startFromWidget(context, intent.getIntExtra("minutes", 0).takeIf { it > 0 })
+          STOP -> FocusCtl.stopFromWidget(context)
+        }
       } finally {
         pending.finish()
       }

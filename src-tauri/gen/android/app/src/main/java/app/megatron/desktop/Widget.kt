@@ -26,9 +26,12 @@ object Widget {
   fun refreshAll(context: Context) {
     val manager = AppWidgetManager.getInstance(context)
     val ids = manager.getAppWidgetIds(ComponentName(context, WidgetProvider::class.java))
-    if (ids.isEmpty()) return
-    val tasks = Store.todayTasks(context)
-    for (id in ids) manager.updateAppWidget(id, build(context, tasks, manager.getAppWidgetOptions(id)))
+    if (ids.isNotEmpty()) {
+      val tasks = Store.todayTasks(context)
+      for (id in ids) manager.updateAppWidget(id, build(context, tasks, manager.getAppWidgetOptions(id)))
+    }
+    FocusWidget.refreshAll(context)
+    ReminderWidget.refreshAll(context)
   }
 
   fun refreshOne(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
@@ -36,7 +39,7 @@ object Widget {
   }
 
   /** Taille réelle en dp (portrait : largeur minimale et hauteur maximale proposées par le lanceur). */
-  private fun size(options: Bundle): Pair<Int, Int> {
+  fun size(options: Bundle): Pair<Int, Int> {
     val w = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250)
     val h = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 180)
     return w to h
@@ -47,7 +50,7 @@ object Widget {
     return if (w < 150 || h < 110) small(context, tasks, w, h) else list(context, tasks, h)
   }
 
-  private fun openApp(context: Context, action: String?, request: Int): PendingIntent =
+  fun openApp(context: Context, action: String?, request: Int): PendingIntent =
     PendingIntent.getActivity(
       context, request,
       Intent(context, MainActivity::class.java)

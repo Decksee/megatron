@@ -37,6 +37,11 @@ $env:TEMP = $tmp
 $env:TMP = $tmp
 $env:JAVA_TOOL_OPTIONS = "-Djava.io.tmpdir=$tmp -Djdk.net.unixdomain.tmpdir=$tmp"
 
+# Version publiée : signée avec la clé personnelle (créée une fois par scripts\android-key.ps1).
+if ($Release -and -not (Test-Path (Join-Path $env:USERPROFILE ".megatron\keystore.properties"))) {
+  throw "Clé de signature absente : lance d'abord scripts\android-key.ps1."
+}
+
 $buildArgs = @("tauri", "android", "build", "--apk", "--target", "aarch64")
 if (-not $Release) { $buildArgs += "--debug" }
 npx @buildArgs
@@ -44,3 +49,13 @@ if ($LASTEXITCODE -ne 0) { throw "La compilation Android a échoué." }
 
 $apk = Get-ChildItem "src-tauri\gen\android\app\build\outputs\apk" -Recurse -Filter *.apk | Sort-Object LastWriteTime | Select-Object -Last 1
 Write-Host "APK : $($apk.FullName)"
+
+# Version publiée : copie avec un nom clair, prête à envoyer sur le téléphone.
+if ($Release) {
+  $version = (Get-Content (Join-Path $project "src-tauri\tauri.conf.json") -Raw | ConvertFrom-Json).version
+  $outDir = Join-Path $project "android-release"
+  New-Item -ItemType Directory -Force $outDir | Out-Null
+  $final = Join-Path $outDir "Megatron-$version.apk"
+  Copy-Item $apk.FullName $final -Force
+  Write-Host "APK signé : $final"
+}

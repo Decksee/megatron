@@ -153,4 +153,45 @@ object Store {
     }.timeInMillis
     return pendingReminders(context).filter { it.dueAt in now..end }.minByOrNull { it.dueAt }
   }
+
+  /** Prochain rappel (même s'il est déjà passé et pas encore traité). */
+  fun nextReminder(context: Context): Reminder? = pendingReminders(context).minByOrNull { it.dueAt }
+
+  // ---------- Focus (widget) ----------
+
+  data class Focus(val id: Long, val startedAt: Long, val plannedMinutes: Int, val pausedAt: Long?, val pausedMs: Long)
+
+  /** Session de focus ouverte (en cours ou en pause), ou null. */
+  fun openFocus(context: Context): Focus? = withDb(context, null) { db ->
+    db.rawQuery(
+      "SELECT id, started_at, planned_minutes, paused_at, paused_ms FROM focus_sessions WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
+      null,
+    ).use { c ->
+      if (!c.moveToFirst()) return@use null
+      val started = parseIso(c.getString(1)) ?: return@use null
+      Focus(c.getLong(0), started, c.getInt(2), if (c.isNull(3)) null else parseIso(c.getString(3)), c.getLong(4))
+    }
+  }
+
+  /** Nouvelle session (mêmes règles que l'interface : une session ouverte à la fois). */
+  fun startFocus(context: Context, minutes: Int, mode: String): Long = withDb(context, -1L) { db ->
+    val now = toIso(System.currentTimeMillis())
+    db.execSQL("UPDATE focus_sessions SET ended_at = ? WHERE ended_at IS NULL", arrayOf(now))
+    db.compileStatement(
+      "INSERT INTO focus_sessions (project_id, started_at, planned_minutes, budget_minutes, mode) VALUES (NULL, ?, ?, 0, ?)",
+    ).use { st ->
+      st.bindString(1, now)
+      st.bindLong(2, minutes.toLong())
+      st.bindString(3, mode)
+      st.executeInsert()
+    }
+  }
+
+  /** Arrêt avant la fin : la session n'est pas comptée comme réussie. */
+  fun stopFocus(context: Context, id: Long) = withDb(context, Unit) { db ->
+    db.execSQL(
+      "UPDATE focus_sessions SET ended_at = ?, completed = 0 WHERE id = ? AND ended_at IS NULL",
+      arrayOf<Any>(toIso(System.currentTimeMillis()), id),
+    )
+  }
 }

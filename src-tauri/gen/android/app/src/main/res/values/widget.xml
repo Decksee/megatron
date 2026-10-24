@@ -11,4 +11,7 @@
     <string name="widget_empty">"Rien de prévu aujourd'hui 🎉"</string>
     <string name="widget_done">"Marquer comme fait"</string>
     <string name="widget_description">"Tes tâches du jour, à cocher depuis l'écran d'accueil."</string>
+    <string name="widget_reminder_label">"⏰ Prochain rappel"</string>
+    <string name="widget_focus_description">"Lance un focus d'un toucher et suis le compte à rebours."</string>
+    <string name="widget_reminder_description">"Ton prochain rappel, avec Fait et +10 min."</string>
 </resources>

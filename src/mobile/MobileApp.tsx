@@ -13,6 +13,7 @@ import { MobileFocus } from "./MobileFocus";
 import { MobileChat } from "./MobileChat";
 import { useBack } from "./useBack";
 import { MobileSheets, openAddTask } from "./sheets";
+import { FirstRunGuide } from "./MobileGuide";
 import { native } from "./native";
 import { Time } from "../views/Time";
 import { Reminders } from "../views/Reminders";
@@ -60,16 +61,33 @@ export function MobileApp() {
   // Page ouverte par-dessus les onglets (Rappels, Réglages), sinon l'onglet courant.
   const [sub, setSub] = useState<"reminders" | "settings" | null>(null);
   const [focusView, setFocusView] = useState<"focus" | "time">("focus");
-  // Bouton « + » du widget : l'appli s'ouvre directement sur le panneau d'ajout.
+  // Écran de démarrage d'Android : il part dès que les vraies données sont affichées.
+  const firstSettings = useRef(data.settings);
+  const announced = useRef(false);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (announced.current || data.settings === firstSettings.current || !("__TAURI_INTERNALS__" in window)) return;
+    announced.current = true;
+    setLoaded(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => void native("appReady").catch(() => {})));
+  }, [data.settings]);
+  // Widgets : « + » ouvre l'ajout de tâche, Focus et Prochain rappel ouvrent leur page.
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return;
     const check = () =>
       native<{ action: string | null }>("takeLaunchAction")
         .then((r) => {
-          if (r.action !== "add") return;
-          setSub(null);
-          setTab("today");
-          openAddTask({ plannedToday: true });
+          if (r.action === "add") {
+            setSub(null);
+            setTab("today");
+            openAddTask({ plannedToday: true });
+          } else if (r.action === "focus") {
+            setSub(null);
+            setTab("focus");
+            setFocusView("focus");
+          } else if (r.action === "reminders") {
+            setSub("reminders");
+          }
         })
         .catch(() => {});
     check();
@@ -165,6 +183,7 @@ export function MobileApp() {
         )}
       </AnimatePresence>
       <MobileSheets tasks={data.tasks} projects={data.projects} />
+      <FirstRunGuide settings={data.settings} ready={loaded} />
 
       <nav className="m-tabs" aria-label="Sections">
         {TABS.map(({ id, label, icon: Icon }) => {

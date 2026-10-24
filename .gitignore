@@ -6,3 +6,6 @@ src-tauri/gen/schemas
 .env.*
 *.log
 *.key
+
+# APK Android signés
+android-release/

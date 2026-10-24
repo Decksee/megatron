@@ -10,9 +10,12 @@ import { Select } from "../components/Select";
 import { Switch } from "../components/Switch";
 import { briefingOn } from "../wellbeing";
 import type { Data } from "../useData";
+import { BackgroundSteps, guideRemaining, useBackgroundStatus } from "./MobileGuide";
 
 /** Réglages du téléphone : les mêmes blocs que sur le PC, sans ce qui n'existe pas sur mobile (encoche, Windows). */
 export function MobileSettings({ settings, memories }: Data) {
+  const background = useBackgroundStatus();
+  const left = guideRemaining(background, settings);
   const [editingAi, setEditingAi] = useState(false);
   const config = aiConfig(settings);
   const usage = usageOf(settings);
@@ -60,6 +63,9 @@ export function MobileSettings({ settings, memories }: Data) {
           <Switch label="Point du matin" checked={briefingOn(settings)} onChange={(v) => setSetting("briefing", v ? "1" : "0")} />
         </section>
       </div>
+
+      <h2 className="m-section-title">Appli fermée {left > 0 && <span className="m-section-badge">{left} à faire</span>}</h2>
+      <BackgroundSteps status={background} settings={settings} />
 
       <h2 className="m-section-title">IA</h2>
       {!config || editingAi ? (

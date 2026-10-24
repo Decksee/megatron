@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- Petite vibration au toucher. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Guide : demander de ne pas mettre Mégatron en veille (rappels et widgets appli fermée). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Liste des applis installées (choisir celles à bloquer pendant un focus). -->
     <queries>
@@ -34,6 +36,7 @@
             android:launchMode="singleTask"
             android:label="@string/main_activity_title"
             android:name=".MainActivity"
+            android:theme="@style/Theme.megatron.Starting"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -68,6 +71,18 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info" />
+        </receiver>
+        <receiver android:name=".FocusWidgetProvider" android:exported="true" android:label="Mégatron · Focus">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_focus_info" />
+        </receiver>
+        <receiver android:name=".ReminderWidgetProvider" android:exported="true" android:label="Mégatron · Prochain rappel">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_reminder_info" />
         </receiver>
 
         <provider
