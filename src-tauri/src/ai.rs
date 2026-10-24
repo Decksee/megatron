@@ -1,4 +1,4 @@
-//! Assistant IA : clés API (Gestionnaire d'identification Windows) et appels aux fournisseurs.
+//! Assistant IA : clés API (Gestionnaire d'identification Windows, ou fichier privé sur téléphone) et appels aux fournisseurs.
 //! Les requêtes partent d'ici (et non de la page) pour que la clé ne quitte jamais le côté Rust.
 
 use base64::Engine;
@@ -12,6 +12,7 @@ const GEMINI_URL: &str = "https://generativelanguage.googleapis.com/v1beta";
 
 // ---------- Clés : Gestionnaire d'identification Windows ----------
 
+#[cfg(windows)]
 fn target(slot: &str) -> Vec<u16> {
     format!("megatron:{slot}").encode_utf16().chain(Some(0)).collect()
 }
@@ -60,6 +61,57 @@ fn delete_key(slot: &str) {
     use windows_sys::Win32::Security::Credentials::{CredDeleteW, CRED_TYPE_GENERIC};
     unsafe {
         CredDeleteW(target(slot).as_ptr(), CRED_TYPE_GENERIC, 0);
+    }
+}
+
+// ---------- Clés : téléphone (fichier dans l'espace privé de l'appli) ----------
+// Android interdit aux autres applis de lire ce dossier. Le coffre matériel (Keystore) viendra plus tard.
+
+#[cfg(not(windows))]
+static KEY_FILE: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// À appeler au lancement sur téléphone : indique où ranger les clés.
+#[cfg(not(windows))]
+pub fn init_key_store<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    use tauri::Manager;
+    if let Ok(dir) = app.path().app_data_dir() {
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = KEY_FILE.set(dir.join("keys.json"));
+    }
+}
+
+#[cfg(not(windows))]
+fn load_keys() -> serde_json::Map<String, Value> {
+    KEY_FILE
+        .get()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+#[cfg(not(windows))]
+fn save_keys(keys: &serde_json::Map<String, Value>) -> Result<(), String> {
+    let path = KEY_FILE.get().ok_or("Stockage des clés indisponible.")?;
+    std::fs::write(path, Value::Object(keys.clone()).to_string()).map_err(|e| e.to_string())
+}
+
+#[cfg(not(windows))]
+pub(crate) fn read_key(slot: &str) -> Option<String> {
+    load_keys().get(slot).and_then(|v| v.as_str()).filter(|k| !k.is_empty()).map(str::to_string)
+}
+
+#[cfg(not(windows))]
+fn write_key(slot: &str, key: &str) -> Result<(), String> {
+    let mut keys = load_keys();
+    keys.insert(slot.to_string(), Value::String(key.to_string()));
+    save_keys(&keys)
+}
+
+#[cfg(not(windows))]
+fn delete_key(slot: &str) {
+    let mut keys = load_keys();
+    if keys.remove(slot).is_some() {
+        let _ = save_keys(&keys);
     }
 }
 

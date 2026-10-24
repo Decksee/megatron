@@ -67,7 +67,7 @@ fn fire(app: &AppHandle) {
         }
         *last = Some(Instant::now());
     }
-    if let Some(win) = crate::notch_under_cursor(app) {
+    if let Some(win) = crate::desktop::notch_under_cursor(app) {
         let _ = app.emit_to(win.label(), "wake-word", ());
     }
 }

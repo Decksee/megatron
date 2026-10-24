@@ -1,0 +1,65 @@
+/* ---------- Application Android : plein écran, onglets en bas, à portée de pouce ---------- */
+/* Tout est limité à la fenêtre mobile : l'encoche et la fenêtre du PC ne changent pas. */
+
+html[data-window="mobile"],
+html[data-window="mobile"] body,
+html[data-window="mobile"] #root {
+  height: 100%;
+  margin: 0;
+  background: var(--notch-bg);
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  /* Zones réservées par Android (barre d'état en haut, barre de navigation en bas). */
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.m-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px 8px;
+  flex-shrink: 0;
+}
+.m-title { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+
+.m-content { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.m-page { padding: 6px 14px 24px; min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; }
+
+/* Les listes prennent leur hauteur naturelle et défilent avec la page. */
+.m-page .task-list, .m-page .tasks { flex: none; overflow: visible; }
+/* Au doigt, des tâches bien séparées : plus faciles à lire et à toucher. */
+.m-page .tasks, .m-page .tasks.compact { gap: 8px; }
+.m-page .task { padding: 11px 12px; font-size: 15px; }
+.m-page .task .check { width: 22px; height: 22px; }
+.m-page .todo-add input { font-size: 16px; } /* 16 px : Android ne zoome pas sur le champ. */
+
+.m-today { display: flex; flex-direction: column; gap: 12px; }
+.m-greeting { display: flex; flex-direction: column; gap: 2px; padding: 4px 2px; }
+.m-greeting b { font-size: 18px; }
+.m-date { color: var(--muted); font-size: 13px; text-transform: capitalize; }
+.m-late { margin: 0; padding: 10px 12px; font-size: 13px; }
+
+.m-soon { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 40px 0; }
+
+.m-tabs {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgb(var(--fg-rgb) / 0.08);
+  background: var(--notch-bg);
+}
+.m-tab {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  min-height: 52px; justify-content: center;
+  border: 0; background: none; color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.m-tab.active { color: var(--accent); }
+.m-tab:active { opacity: 0.7; }

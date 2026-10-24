@@ -12,23 +12,31 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-sql = { version = "2.5.0", features = ["sqlite"] }
 tauri-plugin-dialog = "2.8.2"
-windows-sys = { version = "0.61.2", features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_System_SystemInformation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_Foundation", "Win32_UI_Shell", "Win32_System_Shutdown", "Win32_Security_Credentials"] }
 tauri-plugin-notification = "2.6.0"
 reqwest = { version = "0.13.5", features = ["json", "multipart"] }
 base64 = "0.23.1"
-tauri-plugin-global-shortcut = "2.4.1"
-windows = { version = "0.62", features = ["Media_Control", "Foundation", "Storage_Streams", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Media", "Media_SpeechRecognition", "Foundation_Collections", "Globalization"] }
-tauri-plugin-autostart = "2.7.0"
-windows-collections = "0.3"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+
+# Ordinateur seulement : icône de la zone de notification, raccourci global, démarrage auto,
+# instance unique, mises à jour automatiques.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2.4.1"
+tauri-plugin-autostart = "2.7.0"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+
+# Windows seulement : encoche, voix, son, applis, Gestionnaire d'identification.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_System_SystemInformation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_Foundation", "Win32_UI_Shell", "Win32_System_Shutdown", "Win32_Security_Credentials"] }
+windows = { version = "0.62", features = ["Media_Control", "Foundation", "Storage_Streams", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Media", "Media_SpeechRecognition", "Foundation_Collections", "Globalization"] }
+windows-collections = "0.3"
 
 # Compilations de développement plus légères : pas d'informations de débogage (on ne s'en sert pas),
 # et les dépendances sans symboles. Le dossier target/debug grossit beaucoup moins vite.

@@ -1,7 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions des fenêtres d'encoche",
+  "description": "Permissions des fenêtres d'encoche (ordinateur)",
+  "platforms": ["windows", "macOS", "linux"],
   "windows": [
     "notch-*",
     "settings"

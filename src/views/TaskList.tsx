@@ -19,6 +19,8 @@ interface Props {
   extraId?: number | null;
   /** Version compacte (tâches d'un extra) : pas de titres « À faire / Terminées » ni d'écran vide. */
   compact?: boolean;
+  /** Sans jour choisi, une nouvelle tâche est prévue pour aujourd'hui (liste « Aujourd'hui »). */
+  plannedToday?: boolean;
 }
 
 const PLAN_ICON = <CalendarDays size={12} className="select-chevron" aria-hidden="true" />;
@@ -125,7 +127,7 @@ function TaskTitle({ task, editing, onEditing }: { task: Task; editing: boolean;
   );
 }
 
-export function TaskList({ tasks, projects, projectId, showProject, placeholder, extraId = null, compact = false }: Props) {
+export function TaskList({ tasks, projects, projectId, showProject, placeholder, extraId = null, compact = false, plannedToday = false }: Props) {
   const [title, setTitle] = useState("");
   const [due, setDue] = useState<Date | null>(null);
   const [planned, setPlanned] = useState<Date | null>(null);
@@ -151,7 +153,8 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder,
     setTitle("");
     setDue(null);
     setPlanned(null);
-    await createTask(t, projectId, due ? toIsoDay(due) : null, extraId, planned ? toIsoDay(planned) : null);
+    const day = planned ? toIsoDay(planned) : plannedToday ? toIsoDay(new Date()) : null;
+    await createTask(t, projectId, due ? toIsoDay(due) : null, extraId, day);
   };
 
   const row = (task: Task) => {
