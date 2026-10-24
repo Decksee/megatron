@@ -1,14 +1,21 @@
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { Check, Pause, Play, ShieldCheck, Square, X } from "lucide-react";
+import { motion } from "motion/react";
+import { Check, Minus, Pause, Play, Plus, ShieldCheck, Square } from "lucide-react";
 import { endFocus, pauseFocus, resumeFocus, setSetting, startFocus, listFocusSessions, type FocusSession } from "../db";
 import { activeFocus, focusElapsedMs } from "../focus";
 import { ProgressRing } from "../views/Today";
 import { Switch } from "../components/Switch";
 import { native } from "./native";
+import { Sheet } from "./sheets";
 import type { Data } from "../useData";
 
-const DURATIONS = [15, 25, 50, 90];
+const DURATIONS = [15, 25, 45, 60, 90];
+const STEP = 5;
+const MIN = 5;
+const MAX = 240;
+
+const formatMinutes = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${String(m % 60).padStart(2, "0")}` : ""}`);
+const endLabel = (m: number) => new Date(Date.now() + m * 60_000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 const isTauri = "__TAURI_INTERNALS__" in window;
 
 interface App {
@@ -54,6 +61,12 @@ export function MobileFocus({ focusSessions, settings }: Data) {
   const [blocker, setBlocker] = useState<boolean | null>(null);
   useTick(!!session && !session.paused_at);
   const block = settings.m_block !== "0";
+  // Durée libre : par pas de 5 min, de 5 min à 4 h ; retenue pour la prochaine fois.
+  const choose = (m: number) => {
+    const v = Math.min(MAX, Math.max(MIN, m));
+    setMinutes(v);
+    void setSetting("focus_duration", String(v));
+  };
   const apps = blockedApps(settings);
 
   // Le service de blocage est-il autorisé ? (revérifié au retour des réglages d'Android)
@@ -131,20 +144,36 @@ export function MobileFocus({ focusSessions, settings }: Data) {
 
   return (
     <div className="m-focus">
-      <section className="m-card">
+      <section className="m-card m-duration-card">
         <b className="m-card-title">Durée</b>
+        <div className="m-stepper">
+          <motion.button
+            className="m-step"
+            whileTap={{ scale: 0.88 }}
+            onClick={() => choose(minutes - STEP)}
+            disabled={minutes <= MIN}
+            aria-label="5 minutes de moins"
+          >
+            <Minus size={22} strokeWidth={2.6} />
+          </motion.button>
+          <div className="m-step-value">
+            <b>{formatMinutes(minutes)}</b>
+            <span className="muted small">fin vers {endLabel(minutes)}</span>
+          </div>
+          <motion.button
+            className="m-step"
+            whileTap={{ scale: 0.88 }}
+            onClick={() => choose(minutes + STEP)}
+            disabled={minutes >= MAX}
+            aria-label="5 minutes de plus"
+          >
+            <Plus size={22} strokeWidth={2.6} />
+          </motion.button>
+        </div>
         <div className="m-durations">
           {DURATIONS.map((d) => (
-            <button
-              key={d}
-              className={d === minutes ? "m-duration active" : "m-duration"}
-              onClick={() => {
-                setMinutes(d);
-                void setSetting("focus_duration", String(d));
-              }}
-            >
-              <b>{d}</b>
-              <span>min</span>
+            <button key={d} className={d === minutes ? "m-duration active" : "m-duration"} onClick={() => choose(d)}>
+              {formatMinutes(d)}
             </button>
           ))}
         </div>
@@ -176,7 +205,7 @@ export function MobileFocus({ focusSessions, settings }: Data) {
       </section>
 
       <button className="m-start" onClick={start}>
-        <Play size={20} /> Lancer {minutes} min de focus
+        <Play size={20} /> Lancer {formatMinutes(minutes)} de focus
       </button>
 
       <AppPicker open={picking} selected={apps} onClose={() => setPicking(false)} />
@@ -202,51 +231,32 @@ function AppPicker({ open, selected, onClose }: { open: boolean; selected: strin
   };
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div className="m-sheet-backdrop" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-          <motion.div
-            className="m-sheet m-sheet-tall"
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%", transition: { type: "tween", duration: 0.22 } }}
-            transition={{ type: "spring", stiffness: 300, damping: 34 }}
-          >
-            <div className="m-sheet-head">
-              <b>Applis à bloquer</b>
-              <button type="button" className="icon-round" onClick={onClose} aria-label="Fermer">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="m-app-list">
-              {apps == null && <span className="muted small">Chargement…</span>}
-              {apps?.length === 0 && <span className="muted small">Aucune appli trouvée.</span>}
-              {apps?.map((a) => {
-                const on = chosen.has(a.package);
-                return (
-                  <button
-                    key={a.package}
-                    className={on ? "m-app on" : "m-app"}
-                    onClick={() => {
-                      const next = new Set(chosen);
-                      if (on) next.delete(a.package);
-                      else next.add(a.package);
-                      setChosen(next);
-                    }}
-                  >
-                    <span className="m-app-check">{on && <Check size={14} strokeWidth={3} />}</span>
-                    <span className="m-app-name">{a.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <button className="m-start" onClick={save}>
-              Enregistrer ({chosen.size})
+    <Sheet open={open} onClose={onClose} title="Applis à bloquer" className="m-sheet-tall">
+      <div className="m-app-list">
+        {apps == null && <span className="muted small">Chargement…</span>}
+        {apps?.length === 0 && <span className="muted small">Aucune appli trouvée.</span>}
+        {apps?.map((a) => {
+          const on = chosen.has(a.package);
+          return (
+            <button
+              key={a.package}
+              className={on ? "m-app on" : "m-app"}
+              onClick={() => {
+                const next = new Set(chosen);
+                if (on) next.delete(a.package);
+                else next.add(a.package);
+                setChosen(next);
+              }}
+            >
+              <span className="m-app-check">{on && <Check size={14} strokeWidth={3} />}</span>
+              <span className="m-app-name">{a.label}</span>
             </button>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+          );
+        })}
+      </div>
+      <button className="m-start" onClick={save}>
+        Enregistrer ({chosen.size})
+      </button>
+    </Sheet>
   );
 }

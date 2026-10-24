@@ -7,6 +7,7 @@ import { SettingsApp } from "./SettingsApp";
 import { WispGallery } from "./dev/WispGallery";
 import { MobileApp } from "./mobile/MobileApp";
 import "./mobile/mobile.css";
+import { installHaptics } from "./mobile/haptics";
 import "./styles.css";
 
 const params = new URLSearchParams(location.search);
@@ -15,6 +16,7 @@ const isSettings = params.get("window") === "settings";
 const isMobile = params.get("window") === "mobile";
 const showGallery = import.meta.env.DEV && params.has("wisp");
 document.documentElement.dataset.window = isMobile ? "mobile" : isSettings ? "settings" : "notch";
+if (isMobile) installHaptics();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>{showGallery ? <WispGallery /> : isMobile ? <MobileApp /> : isSettings ? <SettingsApp /> : <App />}</StrictMode>,

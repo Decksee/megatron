@@ -15,6 +15,7 @@ import { WAKE_SENSITIVITY, wakeSensitivity, wakeThreshold } from "../wakeword";
 import { ErrorNote } from "../components/ErrorNote";
 import { USAGES, usageOf, type Usage } from "../projects";
 import { isMobileApp, pickTextFile, shareFile } from "../mobile/native";
+import { confirmSheet } from "../mobile/sheets";
 import { BREAK_OPTIONS, briefingOn } from "../wellbeing";
 import { boostOn } from "../boost";
 import {
@@ -221,7 +222,18 @@ export function DataSettings() {
             </button>
           </div>
         ) : (
-          <button className="btn ghost" onClick={() => setConfirmImport(true)}>
+          <button
+            className="btn ghost"
+            onClick={async () => {
+              if (!isMobileApp()) return setConfirmImport(true);
+              const ok = await confirmSheet({
+                title: "Remplacer toutes tes données ?",
+                detail: "Les projets, tâches, temps et rappels actuels seront remplacés par ceux du fichier.",
+                action: "Importer",
+              });
+              if (ok) doImport();
+            }}
+          >
             Importer…
           </button>
         )}
@@ -597,7 +609,18 @@ export function MemorySetting({ settings, memories }: Pick<Data, "settings" | "m
                   Tout oublier ?
                 </button>
               ) : (
-                <button className="btn ghost" onClick={() => setConfirmClear(true)}>
+                <button
+                  className="btn ghost"
+                  onClick={async () => {
+                    if (!isMobileApp()) return setConfirmClear(true);
+                    const ok = await confirmSheet({
+                      title: "Tout oublier ?",
+                      detail: "Mégatron oubliera tout ce qu'il a appris sur toi.",
+                      action: "Tout oublier",
+                    });
+                    if (ok) clearMemories();
+                  }}
+                >
                   Tout oublier
                 </button>
               ))}
@@ -612,7 +635,13 @@ export function MemorySetting({ settings, memories }: Pick<Data, "settings" | "m
               {memories.map((m) => (
                 <li key={m.id} className="memory">
                   <span>{m.text}</span>
-                  <button className="icon-btn" onClick={() => deleteMemory(m.id)} aria-label="Oublier">
+                  <button
+                    className="icon-btn"
+                    onClick={async () => {
+                      if (!isMobileApp() || (await confirmSheet({ title: "Oublier ceci ?", detail: m.text, action: "Oublier" }))) deleteMemory(m.id);
+                    }}
+                    aria-label="Oublier"
+                  >
                     ×
                   </button>
                 </li>

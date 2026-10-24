@@ -1,6 +1,7 @@
 package app.megatron.desktop
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import androidx.activity.result.ActivityResult
 import androidx.core.content.FileProvider
@@ -67,6 +68,16 @@ class MegatronPlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   // ---------- Focus ----------
+
+  /** Action demandée en ouvrant l'appli (bouton « + » du widget), lue une seule fois. */
+  @Command
+  fun takeLaunchAction(invoke: Invoke) {
+    val prefs = activity.getSharedPreferences("megatron", Context.MODE_PRIVATE)
+    val res = JSObject()
+    res.put("action", prefs.getString("launch_action", null))
+    prefs.edit().remove("launch_action").apply()
+    invoke.resolve(res)
+  }
 
   @Command
   fun focusStart(invoke: Invoke) {

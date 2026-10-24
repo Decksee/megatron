@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { ConfirmDelete } from "../components/ConfirmDelete";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, CalendarDays, Check, Flag, Pencil, Plus } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, Eye, Flag, Pencil, Plus } from "lucide-react";
 import { createTask, deleteTask, renameTask, setTaskDue, setTaskPlanned, toggleTask, type Project, type Task } from "../db";
 import { EmptyState } from "../components/EmptyState";
 import { DatePicker } from "../components/DatePicker";
 import { fromIsoDay, isOverdue, isTaskLate, relativeDay, taskBucket, toIsoDay } from "../projects";
+import { isMobileApp } from "../mobile/native";
+import { openAddTask, openTask } from "../mobile/sheets";
 
 interface Props {
   tasks: Task[];
@@ -157,7 +159,63 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder,
     await createTask(t, projectId, due ? toIsoDay(due) : null, extraId, day);
   };
 
+  const mobile = isMobileApp();
+
+  /** Téléphone : toucher la tâche ouvre sa fiche ; le rond la coche ; les dates restent touchables. */
+  const mobileRow = (task: Task) => {
+    const project = task.project_id != null ? byId.get(task.project_id) : undefined;
+    return (
+      <motion.li
+        key={task.id}
+        layout
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, x: 20, transition: { duration: 0.12 } }}
+        transition={{ type: "spring", stiffness: 420, damping: 34 }}
+        className={`m-task ${task.done ? "task done" : isTaskLate(task) ? "task late" : "task"}`}
+        onClick={() => openTask(task)}
+      >
+        <motion.button
+          className="check"
+          whileTap={{ scale: 0.85 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            void toggleTask(task);
+          }}
+          aria-label={task.done ? "Marquer à faire" : "Marquer faite"}
+        >
+          {task.done ? <Check size={13} strokeWidth={3} /> : null}
+        </motion.button>
+        <span className="m-task-body">
+          <span className="task-title">{task.title}</span>
+          <span className="m-task-meta" onClick={(e) => e.stopPropagation()}>
+            {showProject && project && (
+              <span className="tag-pill" title={project.name}>
+                <i style={{ background: project.color }} />
+                <span className="tag-pill-name">{project.name}</span>
+              </span>
+            )}
+            {(!task.done || task.planned_date) && <PlanChip task={task} />}
+            {(!task.done || task.due_date) && <DueChip task={task} />}
+          </span>
+        </span>
+        <button
+          type="button"
+          className="m-task-open"
+          onClick={(e) => {
+            e.stopPropagation();
+            openTask(task);
+          }}
+          aria-label="Voir la tâche"
+        >
+          <Eye size={17} />
+        </button>
+      </motion.li>
+    );
+  };
+
   const row = (task: Task) => {
+    if (mobile) return mobileRow(task);
     const project = task.project_id != null ? byId.get(task.project_id) : undefined;
     return (
       <motion.li
@@ -209,41 +267,47 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder,
 
   return (
     <div className="task-list">
-      <form
-        className="todo-add"
-        onSubmit={(e) => {
-          e.preventDefault();
-          add();
-        }}
-      >
-        <Plus size={14} className="tile-icon" />
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={placeholder ?? "Nouvelle tâche…"} />
-        <DatePicker
-          variant="chip"
-          clearable
-          icon={PLAN_ICON}
-          title="Jour prévu : quand tu comptes la faire"
-          value={planned}
-          onChange={setPlanned}
-          chipLabel={planned ? relativeDay(toIsoDay(planned)) : undefined}
-          chipClassName="plan"
-          ariaLabel="Jour prévu de la nouvelle tâche"
-        />
-        <DatePicker
-          variant="chip"
-          clearable
-          icon={DUE_ICON}
-          title="Échéance : date limite"
-          value={due}
-          onChange={setDue}
-          chipLabel={due ? relativeDay(toIsoDay(due)) : undefined}
-          chipClassName="due"
-          ariaLabel="Échéance de la nouvelle tâche"
-        />
-        <button type="submit" className="todo-send" disabled={!title.trim()} aria-label="Ajouter la tâche">
-          <ArrowRight size={14} strokeWidth={2.5} />
+      {mobile ? (
+        <button type="button" className="m-task-add" onClick={() => openAddTask({ projectId, extraId, plannedToday })}>
+          <Plus size={18} /> Ajouter une tâche
         </button>
-      </form>
+      ) : (
+        <form
+          className="todo-add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            add();
+          }}
+        >
+          <Plus size={14} className="tile-icon" />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={placeholder ?? "Nouvelle tâche…"} />
+          <DatePicker
+            variant="chip"
+            clearable
+            icon={PLAN_ICON}
+            title="Jour prévu : quand tu comptes la faire"
+            value={planned}
+            onChange={setPlanned}
+            chipLabel={planned ? relativeDay(toIsoDay(planned)) : undefined}
+            chipClassName="plan"
+            ariaLabel="Jour prévu de la nouvelle tâche"
+          />
+          <DatePicker
+            variant="chip"
+            clearable
+            icon={DUE_ICON}
+            title="Échéance : date limite"
+            value={due}
+            onChange={setDue}
+            chipLabel={due ? relativeDay(toIsoDay(due)) : undefined}
+            chipClassName="due"
+            ariaLabel="Échéance de la nouvelle tâche"
+          />
+          <button type="submit" className="todo-send" disabled={!title.trim()} aria-label="Ajouter la tâche">
+            <ArrowRight size={14} strokeWidth={2.5} />
+          </button>
+        </form>
+      )}
 
       {compact ? (
         <ul className="tasks compact">

@@ -228,3 +228,323 @@ html[data-window="mobile"] #root {
 [data-window="mobile"] .reminder-time { width: 54px; flex-shrink: 0; }
 [data-window="mobile"] .reminder .tag-pill { order: 10; margin-left: 66px; max-width: calc(100% - 66px); }
 [data-window="mobile"] .reminder-title { font-size: 15px; }
+
+/* ---------- IA : discussion plein écran ---------- */
+.m-page-chat { padding: 0; gap: 0; }
+.m-page-chat:has(.m-chat) { height: 100%; }
+.m-chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.m-chat-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 16px 8px; }
+.m-chat-model, .m-chat-new {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 0; cursor: pointer;
+  background: rgb(var(--fg-rgb) / 0.06); color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600;
+}
+.m-chat-new { color: var(--muted); }
+.m-chat-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px rgb(var(--success-rgb) / 0.18); }
+.m-chat-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 14px 12px; display: flex; flex-direction: column; }
+.m-chat-list .messages { flex: none; overflow: visible; padding: 0; margin-top: auto; gap: 6px; }
+.m-chat-list .msg { font-size: 15.5px; line-height: 1.45; max-width: 84%; padding: 10px 14px; border-radius: 20px; }
+.m-chat-list .msg.user { border-bottom-right-radius: 6px; }
+.m-chat-list .msg.assistant { border-bottom-left-radius: 6px; }
+.m-chat-list .msg.action, .m-chat-list .msg.error { max-width: 100%; font-size: 13.5px; border-radius: 14px; }
+.m-chat-list .msg-time { font-size: 11.5px; padding: 10px 0 4px; }
+
+.m-chat-empty { margin: auto 0; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 12px 6px; }
+.m-chat-empty > b { font-size: 20px; margin-top: 6px; }
+.m-chat-suggestions { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.m-suggestion {
+  width: 100%; min-height: 50px; padding: 12px 16px; border-radius: 16px; cursor: pointer; text-align: left;
+  border: 1px solid rgb(var(--fg-rgb) / 0.08); background: rgb(var(--fg-rgb) / 0.04); color: var(--text); font: inherit; font-size: 14.5px;
+}
+
+.m-composer {
+  display: flex; align-items: flex-end; gap: 8px; margin: 0 12px 10px; padding: 6px 6px 6px 16px;
+  border-radius: 26px; background: var(--tile); border: 1px solid rgb(var(--fg-rgb) / 0.08);
+}
+.m-composer:focus-within { border-color: rgb(var(--accent-rgb) / 0.45); }
+.m-composer textarea {
+  flex: 1; min-width: 0; resize: none; border: 0; outline: 0; background: none; color: var(--text);
+  font: inherit; font-size: 16px; line-height: 1.4; padding: 9px 0; max-height: 132px;
+}
+.m-send {
+  position: relative; flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: var(--accent); color: var(--on-accent);
+}
+.m-send.mic { background: rgb(var(--fg-rgb) / 0.08); color: var(--text); }
+.m-send.mic.recording, .m-send.stop { background: var(--danger); color: #fff; }
+.m-mic-ring { position: absolute; inset: 0; border-radius: 50%; background: var(--danger); z-index: -1; }
+.m-chat-hint { text-align: center; padding: 0 24px 10px; margin-top: -4px; }
+
+.m-chat-setup { padding: 6px 16px 24px; display: flex; flex-direction: column; gap: 14px; }
+.m-chat-intro { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 8px 8px 4px; }
+.m-chat-intro b { font-size: 19px; }
+
+/* Clavier ouvert dans la discussion : la barre d'onglets s'efface, comme dans une messagerie. */
+.m-shell:has(.m-composer textarea:focus) .m-tabs { display: none; }
+[data-window="mobile"] .m-composer textarea { background: none; border: 0; box-shadow: none; border-radius: 0; padding: 9px 0; }
+/* Les réponses de l'assistant se copient (appui long). */
+.m-chat-list .msg { -webkit-user-select: text; user-select: text; }
+
+/* Retour visuel à l'appui (pas de survol au doigt). */
+[data-window="mobile"] :is(.btn, .chip, .m-suggestion, .m-duration, .m-app, .m-head-btn, .m-chat-model, .m-chat-new, .m-start, .project-card, .provider-card) {
+  transition: transform 0.12s ease, background-color 0.15s ease;
+}
+[data-window="mobile"] :is(.btn, .chip, .m-suggestion, .m-duration, .m-app, .m-head-btn, .m-chat-model, .m-chat-new, .m-start, .project-card, .provider-card):active {
+  transform: scale(0.97);
+}
+.m-page .task:active { background: rgb(var(--fg-rgb) / 0.06); }
+.m-tab:active .m-tab-icon { transform: scale(0.88); }
+.m-tab-icon { transition: transform 0.12s ease; }
+
+/* ---------- Tâches (v2) : la ligne entière ouvre la fiche, dates toujours visibles ---------- */
+.m-page .task.m-task {
+  gap: 12px; padding: 14px 14px 14px 12px; border-radius: 18px; cursor: pointer;
+  background: var(--tile); border: 1px solid rgb(var(--fg-rgb) / 0.05);
+}
+.m-page .task.m-task.late { background: rgb(var(--danger-rgb) / 0.08); border-color: rgb(var(--danger-rgb) / 0.22); }
+.m-page .task.m-task .check { width: 26px; height: 26px; margin-top: 0; border-width: 2px; position: relative; }
+/* Rond plus facile à toucher que sa taille visible. */
+.m-page .task.m-task .check::after { content: ""; position: absolute; inset: -10px; }
+.m-task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.m-page .m-task .task-title { cursor: pointer; font-size: 16px; font-weight: 500; line-height: 1.35; padding-top: 2px; }
+.m-page .task.m-task.done .task-title { color: var(--muted); }
+.m-task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.m-task-meta:empty { display: none; }
+.m-task-meta .tag-pill { max-width: 60%; min-height: 28px; padding: 0 10px; font-size: 12.5px; }
+.m-task-meta .date-chip { min-height: 28px; padding: 0 10px; font-size: 12.5px; border-radius: 999px; background: rgb(var(--fg-rgb) / 0.06); }
+.m-page .m-task-meta .date-chip:not(.set) { opacity: 0.75; }
+
+.m-task-add {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; width: 100%;
+  border-radius: 16px; border: 1.5px dashed rgb(var(--accent-rgb) / 0.4); background: rgb(var(--accent-rgb) / 0.06);
+  color: var(--accent); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.m-today .m-task-add, .m-tasks .m-task-add { display: none; }
+
+/* ---------- Panneaux (v2) : champs, choix de dates, actions ---------- */
+.m-sheet { max-height: calc(100% - 40px); overflow-y: auto; gap: 14px; }
+.m-sheet-tall { min-height: 0; }
+.m-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.m-field-label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.m-day-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.m-day-options .chip, .m-day-options .date-chip {
+  min-height: 40px; padding: 0 14px; border-radius: 999px; font-size: 14px; opacity: 1;
+  background: rgb(var(--fg-rgb) / 0.06); border: 1px solid transparent; color: var(--text);
+}
+.m-day-options .chip.active, .m-day-options .date-chip.active {
+  background: rgb(var(--accent-rgb) / 0.16); border-color: rgb(var(--accent-rgb) / 0.5); color: var(--accent);
+}
+.m-sheet .m-sheet-input { font-size: 18px; font-weight: 600; max-height: 160px; }
+.m-sheet .m-start:disabled { opacity: 0.4; }
+.m-sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.m-action {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 54px; border-radius: 16px;
+  border: 0; cursor: pointer; font: inherit; font-size: 15px; font-weight: 700;
+  background: rgb(var(--fg-rgb) / 0.07); color: var(--text);
+}
+.m-action.primary { background: var(--accent); color: var(--on-accent); }
+.m-action.danger { color: var(--danger); background: rgb(var(--danger-rgb) / 0.12); }
+.m-action.danger.solid { background: var(--danger); color: #fff; }
+.m-confirm { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 4px 4px 0; }
+.m-confirm > b { font-size: 18px; margin-top: 6px; }
+.m-confirm > .muted:not(.small) { font-size: 15px; overflow-wrap: anywhere; }
+.m-confirm .m-sheet-actions { width: 100%; margin-top: 14px; }
+.m-confirm-icon { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; color: var(--danger); background: rgb(var(--danger-rgb) / 0.12); }
+.m-day-options { flex-wrap: nowrap; }
+.m-day-options > * { flex: 1 1 0; min-width: 0; justify-content: center; white-space: nowrap; }
+.m-field-clear { margin-left: auto; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; text-transform: none; letter-spacing: 0; cursor: pointer; padding: 4px 2px; }
+.m-task-meta .tag-pill { max-width: 100%; }
+
+/* ---------- Projets (v2) ---------- */
+/* Filtres : les statuts défilent, « Clients » reste au bout de la même ligne. */
+[data-window="mobile"] .list-toolbar { flex-wrap: nowrap; gap: 8px; align-items: center; }
+[data-window="mobile"] .list-toolbar .scroll-chips { flex: 1 1 auto; flex-basis: auto; min-width: 0; }
+[data-window="mobile"] .clients-btn { flex-shrink: 0; min-height: 36px; border-radius: 999px; padding: 0 12px; font-size: 13.5px; }
+[data-window="mobile"] .project-card .card-name { font-size: 16px; }
+
+/* Fiche : barre d'actions, carte d'infos, onglets pleine largeur. */
+[data-window="mobile"] .view-head { flex-wrap: nowrap; gap: 8px; }
+[data-window="mobile"] .view-head > .btn:first-child { min-width: 0; max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; }
+[data-window="mobile"] .view-head .row { gap: 6px; flex-shrink: 0; }
+[data-window="mobile"] .detail-info { gap: 12px; padding: 16px; border-radius: 22px; }
+[data-window="mobile"] .detail-title { font-size: 20px; font-weight: 800; gap: 10px; align-items: center; }
+[data-window="mobile"] .detail-title .chip-dot { width: 12px; height: 12px; }
+[data-window="mobile"] .status-select { min-height: 42px; border-radius: 14px; }
+/* Infos sur deux colonnes : libellé discret au-dessus de la valeur. */
+[data-window="mobile"] .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+[data-window="mobile"] .facts dt { display: none; }
+[data-window="mobile"] .facts dd {
+  margin: 0; padding: 10px 12px; border-radius: 14px; background: rgb(var(--fg-rgb) / 0.05);
+  font-size: 15px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+[data-window="mobile"] .facts dd::before {
+  content: attr(data-label); display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); margin-bottom: 2px;
+}
+[data-window="mobile"] .detail-info > .btn.primary { min-height: 50px; font-size: 15px; border-radius: 16px; }
+[data-window="mobile"] .detail-info .notes { font-size: 14.5px; line-height: 1.5; }
+[data-window="mobile"] .detail-tasks { padding: 12px; border-radius: 22px; gap: 12px; }
+[data-window="mobile"] .detail-tabs { width: 100%; }
+[data-window="mobile"] .detail-tabs .seg { flex: 1; min-height: 40px; font-size: 13.5px; }
+[data-window="mobile"] .detail-tasks .task.m-task { background: rgb(var(--fg-rgb) / 0.04); }
+
+/* Formulaire : une colonne, champs hauts, en-tête retour / enregistrer. */
+[data-window="mobile"] .project-form { display: flex; flex-direction: column; gap: 12px; overflow: visible; }
+[data-window="mobile"] .form-head { position: sticky; top: -6px; z-index: 3; padding: 6px 0; background: var(--notch-bg); gap: 8px; }
+[data-window="mobile"] .form-head .form-title { display: none; }
+[data-window="mobile"] .form-head .btn { min-height: 42px; }
+[data-window="mobile"] .form-head .btn.ghost { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-window="mobile"] .form-head .btn.primary { margin-left: auto; padding: 0 18px; }
+[data-window="mobile"] .form-columns { display: flex; flex-direction: column; gap: 12px; overflow: visible; }
+[data-window="mobile"] .form-fields, [data-window="mobile"] .form-side, [data-window="mobile"] .form-side > .tile { gap: 14px; padding: 16px; border-radius: 22px; }
+[data-window="mobile"] .form-side { padding: 0; display: flex; flex-direction: column; gap: 12px; }
+[data-window="mobile"] .field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+[data-window="mobile"] .field-row .field.currency { min-width: 0; }
+[data-window="mobile"] .field-row:has(.currency) .field.grow:last-child { grid-column: 1 / -1; }
+[data-window="mobile"] .project-form input,
+[data-window="mobile"] .project-form .select,
+[data-window="mobile"] .project-form .date-trigger { min-height: 46px; font-size: 16px; border-radius: 14px; width: 100%; box-sizing: border-box; }
+[data-window="mobile"] .project-form .field-label { font-size: 12.5px; }
+[data-window="mobile"] .swatches { gap: 12px; flex-wrap: wrap; }
+[data-window="mobile"] .swatch { width: 34px; height: 34px; }
+[data-window="mobile"] .notes-field textarea { min-height: 120px; font-size: 16px; }
+
+/* Extras : nom sur toute la largeur, puis prix + Ajouter. */
+[data-window="mobile"] .extra-add {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px; border-radius: 16px; border-style: solid;
+}
+[data-window="mobile"] .extra-add > svg { display: none; }
+[data-window="mobile"] .extra-add > input:first-of-type { grid-column: 1 / -1; }
+[data-window="mobile"] .extra-add input, [data-window="mobile"] .payment-add input {
+  min-height: 46px; font-size: 16px; border-radius: 12px; background: rgb(var(--fg-rgb) / 0.06); padding: 0 12px; width: 100%; box-sizing: border-box;
+}
+[data-window="mobile"] .extra-add .btn, [data-window="mobile"] .payment-add .btn { min-height: 46px; padding: 0 18px; border-radius: 12px; font-size: 15px; }
+[data-window="mobile"] .extra { padding: 12px; border-radius: 16px; }
+[data-window="mobile"] .extra-name { font-size: 15.5px; }
+[data-window="mobile"] .extra-price { font-size: 15.5px; }
+[data-window="mobile"] .extra-actions, [data-window="mobile"] .extra .icon-btn { opacity: 1; }
+[data-window="mobile"] .extra .icon-btn { min-width: 36px; min-height: 36px; }
+
+/* Paiements : montant + date, puis note, puis Encaisser. */
+[data-window="mobile"] .payment-add { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+[data-window="mobile"] .payment-add > input:not(.amount-input) { grid-column: 1 / -1; order: 3; }
+[data-window="mobile"] .payment-add .date-trigger { order: 2; min-height: 46px; border-radius: 12px; }
+[data-window="mobile"] .payment-add .amount-input { order: 1; }
+[data-window="mobile"] .payment-add .btn { grid-column: 1 / -1; order: 4; }
+[data-window="mobile"] .payment { padding: 12px; border-radius: 14px; gap: 10px; font-size: 14.5px; }
+[data-window="mobile"] .payment .icon-btn { opacity: 1; min-width: 36px; min-height: 36px; }
+/* Icône « voir » : ouvre la fiche de la tâche en bas. */
+.m-task-open {
+  flex-shrink: 0; width: 38px; height: 38px; margin: -6px -6px 0 0; border-radius: 12px; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: rgb(var(--fg-rgb) / 0.06); color: var(--muted);
+}
+.m-task-open:active { background: rgb(var(--accent-rgb) / 0.18); color: var(--accent); }
+[data-window="mobile"] .detail-info > .row { padding: 8px 8px 8px 12px; border-radius: 14px; background: rgb(var(--fg-rgb) / 0.05); gap: 8px; }
+[data-window="mobile"] .detail-info > .row > .row { margin-left: auto; }
+[data-window="mobile"] .detail-info > .row .btn.icon { min-width: 42px; min-height: 42px; border-radius: 12px; justify-content: center; }
+[data-window="mobile"] .extra-add .amount-input, [data-window="mobile"] .payment-add .amount-input { text-align: left; }
+[data-window="mobile"] .payment-date { white-space: nowrap; }
+
+/* ---------- Focus : durée libre ---------- */
+.m-stepper { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; }
+.m-step {
+  width: 56px; height: 56px; border-radius: 18px; border: 0; cursor: pointer; flex-shrink: 0;
+  display: grid; place-items: center; background: rgb(var(--fg-rgb) / 0.07); color: var(--text);
+}
+.m-step:disabled { opacity: 0.3; }
+.m-step-value { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.m-step-value b { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.m-duration-card .m-durations { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.m-duration-card .m-duration {
+  flex: 1 0 auto; flex-direction: row; justify-content: center; padding: 0 14px; min-height: 40px; border-radius: 999px; font-size: 14px; font-weight: 700;
+}
+.m-duration-card .m-durations { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); overflow: visible; gap: 6px; }
+.m-duration-card .m-duration { padding: 0 4px; font-size: 13px; white-space: nowrap; }
+.m-segmented { min-height: 46px; padding: 4px; border-radius: 16px; }
+.m-segmented .seg { min-height: 38px; border-radius: 12px; }
+.m-segmented .seg .tab-label { font-size: 14.5px; font-weight: 700; }
+
+/* Paiement : intitulé en gras, date dessous, montant à droite. */
+[data-window="mobile"] .payment {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 10px; row-gap: 2px; align-items: center;
+  padding: 12px 8px 12px 14px; border-radius: 16px; background: rgb(var(--fg-rgb) / 0.05);
+}
+[data-window="mobile"] .payment-note { grid-row: 1; grid-column: 1; font-size: 15.5px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-window="mobile"] .payment-date { grid-row: 2; grid-column: 1; font-size: 12.5px; color: var(--muted); }
+[data-window="mobile"] .payment-amount { grid-row: 1 / 3; grid-column: 2; font-size: 16px; }
+[data-window="mobile"] .payment .confirm-delete { grid-row: 1 / 3; grid-column: 3; }
+[data-window="mobile"] .payments { display: flex; flex-direction: column; gap: 8px; }
+
+/* Extra : coche, nom et sous-tâches, puis prix et actions sur une seule ligne. */
+[data-window="mobile"] .extra { padding: 12px 8px 12px 12px; background: rgb(var(--fg-rgb) / 0.05); }
+[data-window="mobile"] .extra-head { display: flex; align-items: center; gap: 12px; }
+[data-window="mobile"] .extra .check { width: 24px; height: 24px; flex-shrink: 0; }
+[data-window="mobile"] .extra-title { flex: 1; min-width: 0; text-align: left; }
+[data-window="mobile"] .extra-side { display: flex; flex-direction: row; align-items: center; gap: 2px; flex-shrink: 0; }
+[data-window="mobile"] .extra-price { margin-right: 4px; font-weight: 800; }
+[data-window="mobile"] .extra-actions { display: flex; gap: 0; }
+[data-window="mobile"] .extras { display: flex; flex-direction: column; gap: 8px; }
+[data-window="mobile"] .extra-head { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 2px; align-items: center; }
+[data-window="mobile"] .extra-head > .check { grid-row: 1 / 3; }
+[data-window="mobile"] .extra-title { grid-column: 2; grid-row: 1 / 3; }
+[data-window="mobile"] .extra-side { display: contents; }
+[data-window="mobile"] .extra-price { grid-column: 3; grid-row: 1; justify-self: end; margin: 0 8px 0 0; }
+[data-window="mobile"] .extra-actions { grid-column: 3; grid-row: 2; justify-self: end; }
+[data-window="mobile"] .extra-sub { white-space: nowrap; }
+
+/* ---------- Rappels (v2) ---------- */
+[data-window="mobile"] .split > .side { order: -1; display: flex; flex-direction: column; gap: 10px; }
+[data-window="mobile"] .side-list { display: none; }
+[data-window="mobile"] .next-reminder {
+  padding: 16px; border-radius: 22px; gap: 4px;
+  background: linear-gradient(135deg, rgb(var(--accent-rgb) / 0.16), rgb(var(--accent-rgb) / 0.04));
+  border: 1px solid rgb(var(--accent-rgb) / 0.18);
+}
+[data-window="mobile"] .next-title { font-size: 17px; font-weight: 800; }
+[data-window="mobile"] .next-in { font-size: 26px; }
+[data-window="mobile"] .reminder-form { padding: 14px; border-radius: 22px; gap: 12px; }
+[data-window="mobile"] .composer-line { min-height: 48px; padding: 0 6px 0 12px; border-radius: 14px; background: rgb(var(--fg-rgb) / 0.06); gap: 10px; }
+[data-window="mobile"] .composer-line input { font-size: 16px; min-width: 0; flex: 1; background: none; border: 0; }
+[data-window="mobile"] .composer-line .todo-send { width: 38px; height: 38px; border-radius: 12px; }
+[data-window="mobile"] .composer-meta { gap: 8px; }
+[data-window="mobile"] .composer-meta.wrap { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -14px; padding: 0 14px; }
+[data-window="mobile"] .composer-meta.wrap::-webkit-scrollbar { display: none; }
+[data-window="mobile"] .composer-meta .chip, [data-window="mobile"] .composer-meta .date-trigger { flex-shrink: 0; min-height: 38px; padding: 0 14px; font-size: 13.5px; border-radius: 999px; white-space: nowrap; }
+[data-window="mobile"] .composer-meta:not(.wrap) > * { flex: 1; min-width: 0; }
+[data-window="mobile"] .composer-meta .select { min-height: 40px; width: 100%; border-radius: 12px; font-size: 14px; }
+[data-window="mobile"] .reminders { gap: 8px; display: flex; flex-direction: column; }
+[data-window="mobile"] .reminder { background: var(--tile); border-radius: 18px; align-items: center; }
+[data-window="mobile"] .reminder .icon-btn { opacity: 1; min-width: 36px; min-height: 36px; }
+[data-window="mobile"] .rt-hour { font-size: 16px; font-weight: 800; }
+[data-window="mobile"] .done-toggle .link { padding: 10px 4px; font-size: 14px; }
+[data-window="mobile"] .composer-meta.wrap > * { flex: 0 0 auto; width: auto; max-width: none; }
+
+/* ---------- IA (v2) ---------- */
+/* Installation : grandes cartes, une compétence par demi-ligne. */
+[data-window="mobile"] .ai-setup { gap: 12px; display: flex; flex-direction: column; }
+[data-window="mobile"] .provider-card { min-height: 96px; padding: 14px; border-radius: 18px; gap: 6px; }
+[data-window="mobile"] .provider-name { font-size: 15.5px; }
+[data-window="mobile"] .setup-step { padding: 16px; border-radius: 20px; gap: 10px; }
+[data-window="mobile"] .setup-step input { min-height: 48px; font-size: 16px; border-radius: 14px; }
+[data-window="mobile"] .setup-step .btn { min-height: 48px; font-size: 15px; border-radius: 14px; justify-content: center; }
+[data-window="mobile"] .step-title { font-size: 16px; }
+[data-window="mobile"] .skills { padding: 16px; border-radius: 20px; }
+[data-window="mobile"] .skills-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+[data-window="mobile"] .skill-label { font-size: 14px; }
+[data-window="mobile"] .setup-foot { flex-direction: column; align-items: stretch; gap: 10px; }
+[data-window="mobile"] .setup-foot .btn { min-height: 46px; justify-content: center; }
+.m-chat-intro { padding: 16px 8px 8px; }
+.m-chat-intro b { font-size: 21px; margin-top: 8px; }
+.m-chat-intro .muted { font-size: 15px; line-height: 1.45; max-width: 300px; }
+
+/* Discussion : petit avatar Mégatron au début de chaque réponse. */
+.m-chat-list .msg.with-avatar { position: relative; margin-left: 36px; }
+.m-chat-list .msg:not(.user):not(.with-avatar):not(.msg-time) { margin-left: 36px; }
+.m-chat-list .msg-avatar {
+  display: grid; place-items: center; position: absolute; left: -36px; bottom: 0;
+  width: 28px; height: 28px; border-radius: 50%; background: var(--tile); border: 1px solid rgb(var(--fg-rgb) / 0.08);
+}
+.m-chat-list .msg.assistant { background: var(--tile); border: 1px solid rgb(var(--fg-rgb) / 0.06); }
+.m-chat-list .msg.user + .msg:not(.user) { margin-top: 8px; }
+.m-chat-list .msg:not(.user) + .msg.user { margin-top: 8px; }
+.m-chat-bar { padding-bottom: 10px; }
+.m-chat-empty > b { font-size: 22px; }
+.m-suggestion { display: flex; align-items: center; gap: 10px; }

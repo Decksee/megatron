@@ -1,25 +1,27 @@
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useDragControls } from "motion/react";
-import { AlertTriangle, ArrowUp, Bell, Bot as BotIcon, CalendarDays, ChevronLeft, Flag, FolderKanban, ListChecks, Plus, Settings2, Sun, Target, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { AlarmClock, AlertTriangle, Bot as BotIcon, ChevronLeft, FolderKanban, ListChecks, Plus, Settings2, Sun, Target } from "lucide-react";
 import { useData, type Data } from "../useData";
 import { useTheme } from "../theme";
 import { Bot } from "../components/Bot";
 import { ScrollChips } from "../components/ScrollChips";
-import { DatePicker } from "../components/DatePicker";
 import { TaskList } from "../views/TaskList";
 import { Projects } from "../views/Projects";
 import { ProgressRing } from "../views/Today";
 import { MobileSettings } from "./MobileSettings";
 import { MobileFocus } from "./MobileFocus";
+import { MobileChat } from "./MobileChat";
+import { useBack } from "./useBack";
+import { MobileSheets, openAddTask } from "./sheets";
+import { native } from "./native";
 import { Time } from "../views/Time";
 import { Reminders } from "../views/Reminders";
 import { useNativeSync } from "./useNativeSync";
-import { createTask } from "../db";
-import { isTaskLate, lateByProject, relativeDay, taskBucket, toIsoDay } from "../projects";
+import { isTaskLate, lateByProject, taskBucket } from "../projects";
 
 /**
  * Application Android : une seule fenêtre plein écran, des onglets en bas et un bouton « + » à portée de pouce.
- * Rappels et Réglages s'ouvrent depuis l'en-tête (cloche, roue dentée), avec un retour.
+ * Rappels et Réglages s'ouvrent depuis l'en-tête (réveil, réglages), avec un retour.
  */
 const TABS = [
   { id: "today", label: "Aujourd'hui", icon: Sun },
@@ -58,8 +60,32 @@ export function MobileApp() {
   // Page ouverte par-dessus les onglets (Rappels, Réglages), sinon l'onglet courant.
   const [sub, setSub] = useState<"reminders" | "settings" | null>(null);
   const [focusView, setFocusView] = useState<"focus" | "time">("focus");
-  const [adding, setAdding] = useState(false);
+  // Bouton « + » du widget : l'appli s'ouvre directement sur le panneau d'ajout.
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    const check = () =>
+      native<{ action: string | null }>("takeLaunchAction")
+        .then((r) => {
+          if (r.action !== "add") return;
+          setSub(null);
+          setTab("today");
+          openAddTask({ plannedToday: true });
+        })
+        .catch(() => {});
+    check();
+    const onVisible = () => document.visibilityState === "visible" && check();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+  // Retour Android : ferme la page ouverte, puis revient à Aujourd'hui, puis quitte l'appli.
+  useBack(tab !== "today", () => setTab("today"));
+  useBack(sub !== null, () => setSub(null));
   const page: Page = sub ?? tab;
+  // Chaque page s'ouvre en haut (la zone de défilement est partagée entre les onglets).
+  const contentRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    contentRef.current?.scrollTo(0, 0);
+  }, [page]);
   const showFab = !sub && (tab === "today" || tab === "tasks");
   const remindersToday = data.reminders.filter((r) => !r.done && new Date(r.due_at).toDateString() === now.toDateString()).length;
 
@@ -78,7 +104,7 @@ export function MobileApp() {
             onClick={() => setSub(sub === "reminders" ? null : "reminders")}
             aria-label="Rappels"
           >
-            <Bell size={21} />
+            <AlarmClock size={21} />
             {remindersToday > 0 && <span className="m-badge">{remindersToday}</span>}
           </button>
           <button
@@ -91,11 +117,11 @@ export function MobileApp() {
         </div>
       </header>
 
-      <main className="m-content">
+      <main className="m-content" ref={contentRef}>
         <AnimatePresence mode="wait">
           <motion.div
             key={page}
-            className="m-page"
+            className={page === "ai" ? "m-page m-page-chat" : "m-page"}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, transition: { duration: 0.08 } }}
@@ -116,7 +142,7 @@ export function MobileApp() {
                 {focusView === "focus" ? <MobileFocus {...data} /> : <Time {...data} now={now} />}
               </>
             )}
-            {page === "ai" && <Soon />}
+            {page === "ai" && <MobileChat {...data} />}
             {page === "reminders" && <Reminders {...data} now={now} />}
             {page === "settings" && <MobileSettings {...data} />}
           </motion.div>
@@ -124,10 +150,10 @@ export function MobileApp() {
       </main>
 
       <AnimatePresence>
-        {showFab && !adding && (
+        {showFab && (
           <motion.button
             className="m-fab"
-            onClick={() => setAdding(true)}
+            onClick={() => openAddTask({ plannedToday: tab === "today" })}
             aria-label="Ajouter une tâche"
             initial={{ scale: 0.6, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -138,7 +164,7 @@ export function MobileApp() {
           </motion.button>
         )}
       </AnimatePresence>
-      <AddTaskSheet open={adding} onClose={() => setAdding(false)} projects={data.projects} plannedToday={tab === "today"} />
+      <MobileSheets tasks={data.tasks} projects={data.projects} />
 
       <nav className="m-tabs" aria-label="Sections">
         {TABS.map(({ id, label, icon: Icon }) => {
@@ -211,7 +237,7 @@ function TodayPage({ tasks, projects }: Data) {
             <span className="m-late-detail">
               {late.groups
                 .slice(0, 3)
-                .map(([id, n]) => `${id == null ? "sans projet" : nameOf.get(id)} ${n}`)
+                .map(([id, n]) => `${id == null ? "Sans projet" : nameOf.get(id)}${late.groups.length > 1 ? ` (${n})` : ""}`)
                 .join(" · ")}
             </span>
           </span>
@@ -252,153 +278,6 @@ function TasksPage({ tasks, projects }: Data) {
         {active.map((p) => chip(p.id, p.name, p.color))}
       </ScrollChips>
       <TaskList tasks={visible} projects={projects} projectId={typeof filter === "number" ? filter : null} showProject={filter === "all"} />
-    </div>
-  );
-}
-
-/** Panneau qui glisse depuis le bas pour ajouter une tâche : intitulé, projet, jour prévu, échéance. */
-function AddTaskSheet({
-  open,
-  onClose,
-  projects,
-  plannedToday,
-}: {
-  open: boolean;
-  onClose: () => void;
-  projects: Data["projects"];
-  plannedToday: boolean;
-}) {
-  const [title, setTitle] = useState("");
-  const [projectId, setProjectId] = useState<number | null>(null);
-  const [planned, setPlanned] = useState<Date | null>(null);
-  const [due, setDue] = useState<Date | null>(null);
-  const input = useRef<HTMLTextAreaElement>(null);
-  // Le panneau se saisit par sa poignée (ou son titre) : la zone de saisie et les projets restent utilisables.
-  const drag = useDragControls();
-
-  useEffect(() => {
-    if (!open) return;
-    setTitle("");
-    setProjectId(null);
-    setDue(null);
-    setPlanned(plannedToday ? new Date() : null);
-    requestAnimationFrame(() => input.current?.focus());
-  }, [open, plannedToday]);
-
-  const save = async () => {
-    const t = title.trim();
-    if (!t) return;
-    await createTask(t, projectId, due ? toIsoDay(due) : null, null, planned ? toIsoDay(planned) : null);
-    onClose();
-  };
-  const active = projects.filter((p) => p.status === "active");
-
-  return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            className="m-sheet-backdrop"
-            onClick={onClose}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-          />
-          <motion.form
-            className="m-sheet"
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%", transition: { type: "tween", duration: 0.22, ease: [0.4, 0, 1, 1] } }}
-            transition={{ type: "spring", stiffness: 300, damping: 34, mass: 0.9 }}
-            drag="y"
-            dragControls={drag}
-            dragListener={false}
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0, bottom: 0.9 }}
-            onDragEnd={(_, info) => {
-              // Tiré assez loin ou assez vite vers le bas : on ferme ; sinon il revient en place.
-              if (info.offset.y > 110 || info.velocity.y > 600) onClose();
-            }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              void save();
-            }}
-          >
-            <div className="m-sheet-handle" onPointerDown={(e) => drag.start(e)}>
-              <div className="m-sheet-grip" />
-            </div>
-            <div className="m-sheet-head" onPointerDown={(e) => drag.start(e)}>
-              <b>Nouvelle tâche</b>
-              <button type="button" className="icon-round" onClick={onClose} aria-label="Fermer">
-                <X size={16} />
-              </button>
-            </div>
-            <textarea
-              ref={input}
-              className="m-sheet-input"
-              rows={2}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Que dois-tu faire ?"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void save();
-                }
-              }}
-            />
-            {active.length > 0 && (
-              <ScrollChips>
-                <button type="button" className={projectId == null ? "chip active" : "chip"} onClick={() => setProjectId(null)}>
-                  Sans projet
-                </button>
-                {active.map((p) => (
-                  <button type="button" key={p.id} className={projectId === p.id ? "chip active" : "chip"} onClick={() => setProjectId(p.id)}>
-                    <span className="chip-dot" style={{ background: p.color }} />
-                    {p.name}
-                  </button>
-                ))}
-              </ScrollChips>
-            )}
-            <div className="m-sheet-dates">
-              <DatePicker
-                variant="chip"
-                clearable
-                icon={<CalendarDays size={14} className="select-chevron" aria-hidden="true" />}
-                value={planned}
-                onChange={setPlanned}
-                chipLabel={planned ? relativeDay(toIsoDay(planned)) : "Jour prévu"}
-                chipClassName="plan"
-                ariaLabel="Jour prévu"
-              />
-              <DatePicker
-                variant="chip"
-                clearable
-                icon={<Flag size={13} className="select-chevron" aria-hidden="true" />}
-                value={due}
-                onChange={setDue}
-                chipLabel={due ? relativeDay(toIsoDay(due)) : "Échéance"}
-                chipClassName="due"
-                ariaLabel="Échéance"
-              />
-              <button type="submit" className="m-sheet-send" disabled={!title.trim()} aria-label="Ajouter">
-                <ArrowUp size={20} strokeWidth={2.6} />
-              </button>
-            </div>
-          </motion.form>
-        </>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function Soon() {
-  return (
-    <div className="m-empty">
-      <Bot mood="happy" size={56} />
-      <b>Bientôt ici</b>
-      <span className="muted small">Cet onglet arrive dans une prochaine étape.</span>
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { executeTool, MEMORY_TOOLS, TOOLS } from "./tools";
 import { startRecording, stopRecording, type RecordingOptions, type StopReason } from "./voice";
 import { isSpeaking, speakReply, stopSpeaking } from "./speech";
 import { filesNote, readPaths, type Attachment } from "./attachments";
+import { isMobileApp } from "../mobile/native";
 
 /** Emplacements des clés dans le Gestionnaire d'identification Windows. */
 export const MAIN_SLOT = "main";
@@ -83,6 +84,13 @@ Règles :
 - Si une action est impossible avec tes outils, dis-le simplement.
 - L'utilisateur peut te joindre des fichiers (images, PDF, Word, Excel, texte, code) : lis-les et sers-t'en (créer un projet à partir d'un brief, des tâches à partir d'une liste, résumer un document…). S'il veut t'envoyer un fichier qu'il n'a pas encore joint, utilise « demander_fichier ».`;
 
+/** Sur téléphone : pas d'encoche ni de PC à piloter, et pas de fichiers joints. */
+const PHONE_RULES = `
+Important : ici, tu tournes dans l'application Mégatron sur le téléphone Android de l'utilisateur (pas sur son PC). Tu ne peux ni ouvrir d'applis ou de dossiers, ni contrôler la musique ou le PC, ni recevoir de fichiers ; tu peux ouvrir un site ou lancer une recherche. Réponds court : l'écran est petit.`;
+
+/** Outils sans objet sur téléphone (ils pilotent Windows ou attendent un fichier). */
+const DESKTOP_ONLY = ["capture_ecran", "ouvrir_app", "ouvrir_dossier", "controle_media", "verrouiller_pc", "demander_fichier"];
+
 const MEMORY_RULES = `
 Apprentissage :
 - Quand l'utilisateur te donne une information durable sur lui (prénom, métier, clients habituels, préférences, façon de travailler, horaires…), retiens-la avec l'outil « retenir », discrètement, sans l'annoncer à chaque fois. Une phrase courte par information.
@@ -103,7 +111,7 @@ Profil : projets personnels, sans client ni prix. Un projet fini passe au statut
 };
 
 async function systemPrompt(config: AiConfig) {
-  let prompt = SYSTEM + USAGE_RULES[config.usage];
+  let prompt = SYSTEM + USAGE_RULES[config.usage] + (isMobileApp() ? PHONE_RULES : "");
   if (config.memory) {
     const memories = await listMemories().catch(() => []);
     prompt += MEMORY_RULES;
@@ -460,7 +468,10 @@ export async function ask(
   const context = before.slice(-MAX_TURNS).flat();
   set({ busy: true });
   const tools = TOOLS.filter(
-    (t) => (config.memory || !MEMORY_TOOLS.includes(t.name)) && (state.conversing || t.name !== "terminer_conversation"),
+    (t) =>
+      (config.memory || !MEMORY_TOOLS.includes(t.name)) &&
+      (state.conversing || t.name !== "terminer_conversation") &&
+      !(isMobileApp() && DESKTOP_ONLY.includes(t.name)),
   );
 
   try {

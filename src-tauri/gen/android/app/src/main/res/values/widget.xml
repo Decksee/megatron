@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Couleurs du widget (thème clair) ; le thème sombre est dans values-night. -->
+<resources>
+    <color name="widget_bg">#F7F7F7F9</color>
+    <color name="widget_text">#FF141418</color>
+    <color name="widget_muted">#FF61636C</color>
+    <color name="widget_accent">#FF15803D</color>
+    <color name="widget_danger">#FFD6342B</color>
+    <color name="widget_line">#0F141418</color>
+    <string name="widget_title">"Aujourd'hui"</string>
+    <string name="widget_empty">"Rien de prévu aujourd'hui 🎉"</string>
+    <string name="widget_done">"Marquer comme fait"</string>
+    <string name="widget_description">"Tes tâches du jour, à cocher depuis l'écran d'accueil."</string>
+</resources>

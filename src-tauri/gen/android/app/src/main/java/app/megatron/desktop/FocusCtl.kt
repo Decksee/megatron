@@ -68,7 +68,7 @@ object FocusCtl {
       Store.withDb(context, Unit) { db ->
         db.execSQL(
           "UPDATE focus_sessions SET ended_at = ?, completed = 1 WHERE id = ? AND ended_at IS NULL",
-          arrayOf(Store.toIso(System.currentTimeMillis()), id),
+          arrayOf<Any>(Store.toIso(System.currentTimeMillis()), id),
         )
       }
     }

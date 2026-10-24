@@ -7,6 +7,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Rappels à la minute près (application de rappels). -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Parler à l'assistant (le micro n'est ouvert que pendant la dictée). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Petite vibration au toucher. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Liste des applis installées (choisir celles à bloquer pendant un focus). -->
     <queries>
@@ -56,6 +61,13 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
+        </receiver>
+        <!-- Widget « Aujourd'hui » de l'écran d'accueil. -->
+        <receiver android:name=".WidgetProvider" android:exported="true" android:label="Mégatron · Aujourd'hui">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info" />
         </receiver>
 
         <provider

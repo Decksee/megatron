@@ -17,6 +17,7 @@ import { ArrowRight, BellRing, Check, Pencil, Repeat, X } from "lucide-react";
 import { ConfirmDelete } from "../components/ConfirmDelete";
 import { EmptyState } from "../components/EmptyState";
 import { projectOptions } from "../options";
+import { isMobileApp } from "../mobile/native";
 
 function at(hour: number, dayOffset = 0) {
   const d = new Date();
@@ -193,7 +194,7 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && editing && reset()}
-            placeholder="Me rappeler de… (ex : relancer le client)"
+            placeholder={isMobileApp() ? "Me rappeler de…" : "Me rappeler de… (ex : relancer le client)"}
           />
           <button type="submit" className="todo-send" disabled={!valid} aria-label={editing ? "Enregistrer le rappel" : "Ajouter le rappel"}>
             {editing ? <Check size={14} strokeWidth={2.6} /> : <ArrowRight size={14} strokeWidth={2.5} />}

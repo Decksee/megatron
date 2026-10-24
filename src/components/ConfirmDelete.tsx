@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Trash2, X } from "lucide-react";
+import { isMobileApp } from "../mobile/native";
+import { confirmSheet } from "../mobile/sheets";
 
 const DISARM_MS = 3500;
 
@@ -23,6 +25,8 @@ export function ConfirmDelete({
 }) {
   const [armed, setArmed] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
+  // Téléphone : pas de double appui à deviner, un panneau de confirmation s'ouvre en bas.
+  const mobile = isMobileApp();
 
   useEffect(() => {
     if (!armed) return;
@@ -63,7 +67,10 @@ export function ConfirmDelete({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={() => setArmed(true)}
+          onClick={async () => {
+            if (!mobile) return setArmed(true);
+            if (await confirmSheet({ title: `${ariaLabel} ?` })) void onConfirm();
+          }}
           aria-label={ariaLabel}
         >
           {variant === "icon" ? (

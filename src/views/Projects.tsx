@@ -22,6 +22,8 @@ import { ClientInput } from "../components/ClientInput";
 import { Briefcase, CalendarClock, ChevronLeft, ChevronRight, GraduationCap, Pencil, Play, Plus, Sparkles, Trash2, Users } from "lucide-react";
 import { DatePicker } from "../components/DatePicker";
 import { ExtrasPanel, PaidBar, PaymentsPanel } from "./ProjectMoney";
+import { useBack } from "../mobile/useBack";
+import { isMobileApp } from "../mobile/native";
 import {
   awaitingPayment,
   changeStatus,
@@ -96,6 +98,17 @@ export function Projects(data: Data) {
   const project =
     (mode.kind === "detail" || mode.kind === "edit") && mode.id != null ? data.projects.find((p) => p.id === mode.id) : undefined;
   const goBack = (back: Back) => setMode(back.kind === "client" ? { kind: "client", name: back.name } : { kind: "list" });
+  // Téléphone : le retour d'Android remonte d'un niveau (modification → fiche → liste).
+  useBack(
+    isMobileApp() && mode.kind !== "list",
+    () => {
+      if (mode.kind === "edit" && mode.id != null) setMode({ kind: "detail", id: mode.id, back: mode.back });
+      else if (mode.kind === "edit" || mode.kind === "detail") goBack(mode.back);
+      else if (mode.kind === "client") setMode({ kind: "clients" });
+      else setMode({ kind: "list" });
+    },
+    mode.kind === "list" ? null : `${mode.kind}:${"id" in mode ? mode.id : "name" in mode ? mode.name : ""}`,
+  );
 
   return (
     <AnimatePresence mode="wait" initial={false}>
@@ -638,37 +651,37 @@ function ProjectDetail({
             {profile.clientLabel && (
               <>
                 <dt>{profile.clientLabel}</dt>
-                <dd>{p.client || "—"}</dd>
+                <dd data-label={profile.clientLabel}>{p.client || "—"}</dd>
               </>
             )}
             {profile.money && (
               <>
                 <dt>Prix</dt>
-                <dd>{formatPrice(p)}</dd>
+                <dd data-label="Prix">{formatPrice(p)}</dd>
                 {money.extras > 0 && (
                   <>
                     <dt>Extras</dt>
-                    <dd>+ {formatMoney(money.extras, p.currency)}</dd>
+                    <dd data-label="Extras">+ {formatMoney(money.extras, p.currency)}</dd>
                     <dt>Total</dt>
-                    <dd>{formatMoney(money.total, p.currency)}</dd>
+                    <dd data-label="Total">{formatMoney(money.total, p.currency)}</dd>
                   </>
                 )}
               </>
             )}
             <dt>Début</dt>
-            <dd>{p.start_date ? formatDay(p.start_date) : "—"}</dd>
+            <dd data-label="Début">{p.start_date ? formatDay(p.start_date) : "—"}</dd>
             <dt>{profile.deadlineLabel}</dt>
-            <dd className={p.deadline && isOpen(p) && isOverdue(p.deadline) ? "deadline-late" : undefined}>
+            <dd data-label={profile.deadlineLabel} className={p.deadline && isOpen(p) && isOverdue(p.deadline) ? "deadline-late" : undefined}>
               {p.deadline ? `${formatDay(p.deadline)}${isOpen(p) && isOverdue(p.deadline) ? " · dépassée" : ""}` : "—"}
             </dd>
             {profile.money && p.paid_at && (
               <>
                 <dt>Payé le</dt>
-                <dd>{formatDay(p.paid_at.slice(0, 10))}</dd>
+                <dd data-label="Payé le">{formatDay(p.paid_at.slice(0, 10))}</dd>
               </>
             )}
             <dt>Temps</dt>
-            <dd>{formatDuration(spent)}</dd>
+            <dd data-label="Temps">{formatDuration(spent)}</dd>
           </dl>
           {profile.money && <PaidBar project={p} ledger={ledger} />}
           {timer ? (

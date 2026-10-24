@@ -53,6 +53,7 @@ import {
 import type { Data } from "../useData";
 import { formatSize, pickPaths, type Attachment } from "../ai/attachments";
 import { holdOpen } from "../hold";
+import { isMobileApp } from "../mobile/native";
 
 const PROVIDER_ICON = { gemini: Sparkles, anthropic: MessageSquareText, openai: Zap, compatible: Server } as const;
 const PROVIDER_TAGLINE: Record<ProviderId, string> = {
@@ -71,6 +72,11 @@ const SKILLS = [
   { icon: Sparkles, label: "Tes stats", example: "combien j'ai bossé ?" },
 ];
 
+/** Sur téléphone, pas d'applis ni de musique à piloter. */
+const PHONE_SKILLS = SKILLS.filter((s) => s.icon !== Music2).map((s) =>
+  s.icon === AppWindow ? { ...s, label: "Sites et recherches", example: "cherche une pizzeria" } : s,
+);
+
 const SUGGESTIONS = [
   "Ajoute « relancer le client » à mes tâches",
   "Combien j'ai bossé cette semaine ?",
@@ -82,7 +88,7 @@ const SUGGESTIONS = [
 
 const errorText = (e: unknown) => String((e as Error)?.message ?? e);
 
-async function fetchModels(provider: ProviderId, slot: string, baseUrl: string | null) {
+export async function fetchModels(provider: ProviderId, slot: string, baseUrl: string | null) {
   const all = await invoke<string[]>("ai_list_models", { provider, slot, baseUrl });
   // Du moins cher au plus cher : le premier de la liste est aussi celui choisi par défaut.
   return sortByCost(provider, all.filter(PROVIDERS[provider].filter));
@@ -207,11 +213,17 @@ export function AiSetup({ settings, onDone, canCancel }: Pick<Data, "settings"> 
         <div className="tile setup-step">
           <span className="step-num">3</span>
           <span className="step-title">Parle-lui</span>
-          <span className="tile-caption">Écris dans cet onglet, ou maintiens</span>
-          <span className="kbd-group">
-            <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Espace</kbd>
-          </span>
-          <span className="tile-caption">pour lui parler de n'importe où.</span>
+          {isMobileApp() ? (
+            <span className="tile-caption">Écris-lui dans l'onglet IA, ou touche le micro pour lui parler.</span>
+          ) : (
+            <>
+              <span className="tile-caption">Écris dans cet onglet, ou maintiens</span>
+              <span className="kbd-group">
+                <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Espace</kbd>
+              </span>
+              <span className="tile-caption">pour lui parler de n'importe où.</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -221,7 +233,7 @@ export function AiSetup({ settings, onDone, canCancel }: Pick<Data, "settings"> 
       <div className="tile skills">
         <span className="tile-title">Ce que je sais faire</span>
         <div className="skills-grid">
-          {SKILLS.map(({ icon: Icon, label, example }) => (
+          {(isMobileApp() ? PHONE_SKILLS : SKILLS).map(({ icon: Icon, label, example }) => (
             <div key={label} className="skill">
               <Icon size={15} />
               <div>
@@ -237,7 +249,8 @@ export function AiSetup({ settings, onDone, canCancel }: Pick<Data, "settings"> 
 
       <div className="setup-foot">
         <span className="muted small with-icon">
-          <Lock size={11} /> Clé gardée dans le Gestionnaire d'identification Windows, jamais exportée.
+          <Lock size={11} />{" "}
+          {isMobileApp() ? "Clé gardée sur ce téléphone, jamais exportée." : "Clé gardée dans le Gestionnaire d'identification Windows, jamais exportée."}
         </span>
         {canCancel && (
           <button className="btn ghost" onClick={onDone}>
@@ -591,7 +604,7 @@ function FileIcon({ kind }: { kind: Attachment["kind"] }) {
 const messageTime = (m: UiMessage) => (m.id > 1e15 ? new Date(Math.floor(m.id / 1000)) : null);
 
 /** Séparateur « Aujourd'hui 14:05 » au début de la conversation et après une pause de plus de 20 min. */
-function timeSeparator(m: UiMessage, prev?: UiMessage) {
+export function timeSeparator(m: UiMessage, prev?: UiMessage) {
   const t = messageTime(m);
   if (!t) return null;
   const p = prev && messageTime(prev);
@@ -608,7 +621,7 @@ function timeSeparator(m: UiMessage, prev?: UiMessage) {
 
 const PHONE_BADGE = "📱 ";
 
-function Bubble({ message: m, avatar = false }: { message: UiMessage; avatar?: boolean }) {
+export function Bubble({ message: m, avatar = false }: { message: UiMessage; avatar?: boolean }) {
   // Message envoyé depuis Telegram : petite étiquette plutôt que l'émoji dans le texte.
   const fromPhone = m.role === "user" && m.text.startsWith(PHONE_BADGE);
   const text = fromPhone ? m.text.slice(PHONE_BADGE.length) : m.text;
