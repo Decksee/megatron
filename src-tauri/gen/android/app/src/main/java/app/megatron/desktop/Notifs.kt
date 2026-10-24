@@ -78,7 +78,7 @@ object Notifs {
     }
     val title = (if (current.late) "⚠ " else "") + current.title
     val builder = NotificationCompat.Builder(context, CH_TASK)
-      .setSmallIcon(R.mipmap.ic_launcher)
+      .setSmallIcon(R.drawable.ic_stat_megatron)
       .setSubText(current.project ?: header)
       .setContentTitle(title)
       .setContentText(nextLine ?: header)
@@ -103,7 +103,7 @@ object Notifs {
     if (!canNotify(context)) return
     val id = (1000 + r.id).toInt()
     val n = NotificationCompat.Builder(context, CH_REMINDER)
-      .setSmallIcon(R.mipmap.ic_launcher)
+      .setSmallIcon(R.drawable.ic_stat_megatron)
       .setContentTitle("🔔 ${r.title}")
       .setContentText(if (r.repeat == "none") "Rappel Mégatron" else "Rappel répété")
       .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -137,7 +137,7 @@ object Notifs {
     if (reminder != null) parts.add("rappel à ${hhmm.format(Date(reminder.dueAt))} : ${reminder.title}")
     val text = if (parts.isEmpty()) "Rien de prévu aujourd'hui. Bonne journée !" else parts.joinToString(" · ")
     val n = NotificationCompat.Builder(context, CH_DAY)
-      .setSmallIcon(R.mipmap.ic_launcher)
+      .setSmallIcon(R.drawable.ic_stat_megatron)
       .setContentTitle("☀️ Ta journée")
       .setContentText(text)
       .setStyle(NotificationCompat.BigTextStyle().bigText(text))

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Notifications (tâche en cours, rappels, point du matin). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -14,6 +15,11 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Guide : demander de ne pas mettre Mégatron en veille (rappels et widgets appli fermée). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Blocage d'applis pendant un focus : voir l'appli ouverte et poser l'écran « Focus en cours » devant. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Liste des applis installées (choisir celles à bloquer pendant un focus). -->
     <queries>
@@ -49,16 +55,22 @@
         <receiver android:name=".ActionReceiver" android:exported="false" />
         <receiver android:name=".AlarmReceiver" android:exported="false" />
         <receiver android:name=".FocusReceiver" android:exported="false" />
+        <!-- Blocage d'applis pendant un focus (seulement pendant le focus, avec la notification du compte à rebours). -->
         <service
-            android:name=".FocusBlockService"
+            android:name=".FocusWatchService"
             android:exported="false"
-            android:label="@string/focus_block_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data android:name="android.accessibilityservice" android:resource="@xml/focus_block" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Blocage des applis choisies par l'utilisateur pendant une session de focus" />
         </service>
+        <activity
+            android:name=".BlockActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="app.megatron.block"
+            android:theme="@style/Theme.megatron" />
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

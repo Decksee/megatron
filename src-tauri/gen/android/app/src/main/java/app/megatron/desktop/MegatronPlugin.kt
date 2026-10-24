@@ -99,14 +99,6 @@ class MegatronPlugin(private val activity: Activity) : Plugin(activity) {
     invoke.resolve()
   }
 
-  /** Le blocage d'applis est-il activé (service d'accessibilité) ? */
-  @Command
-  fun blockerStatus(invoke: Invoke) {
-    val res = JSObject()
-    res.put("enabled", FocusCtl.accessibilityEnabled(activity))
-    invoke.resolve(res)
-  }
-
   /** Guide « arrière-plan » : marque du téléphone et autorisations déjà accordées. */
   @Command
   fun backgroundStatus(invoke: Invoke) {
@@ -131,10 +123,26 @@ class MegatronPlugin(private val activity: Activity) : Plugin(activity) {
     invoke.resolve()
   }
 
-  /** Ouvre les réglages d'accessibilité d'Android pour activer le blocage. */
+  /** Blocage d'applis : accès à l'utilisation et affichage par-dessus les autres applis. */
+  @Command
+  fun blockerStatus(invoke: Invoke) {
+    val res = JSObject()
+    res.put("usage", FocusWatchService.usageAccess(activity))
+    res.put("overlay", FocusWatchService.overlay(activity))
+    res.put("enabled", FocusWatchService.allowed(activity))
+    invoke.resolve(res)
+  }
+
+  /** Ouvre le réglage d'Android qui manque (« usage » ou « overlay »). */
   @Command
   fun openBlockerSettings(invoke: Invoke) {
-    activity.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    val which = invoke.parseArgs(SettingsArgs::class.java).which
+    val intent = if (which == "overlay") FocusWatchService.overlaySettings(activity) else FocusWatchService.usageSettings(activity)
+    try {
+      activity.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (e: Exception) {
+      activity.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
     invoke.resolve()
   }
 

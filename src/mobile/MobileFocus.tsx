@@ -58,7 +58,7 @@ export function MobileFocus({ focusSessions, settings }: Data) {
   const session = activeFocus(focusSessions);
   const [minutes, setMinutes] = useState(Number(settings.focus_duration) || 25);
   const [picking, setPicking] = useState(false);
-  const [blocker, setBlocker] = useState<boolean | null>(null);
+  const [blocker, setBlocker] = useState<{ usage: boolean; overlay: boolean; enabled: boolean } | null>(null);
   useTick(!!session && !session.paused_at);
   const block = settings.m_block !== "0";
   // Durée libre : par pas de 5 min, de 5 min à 4 h ; retenue pour la prochaine fois.
@@ -72,7 +72,7 @@ export function MobileFocus({ focusSessions, settings }: Data) {
   // Le service de blocage est-il autorisé ? (revérifié au retour des réglages d'Android)
   useEffect(() => {
     if (!isTauri) return;
-    const check = () => native<{ enabled: boolean }>("blockerStatus").then((r) => setBlocker(r.enabled)).catch(() => setBlocker(null));
+    const check = () => native<{ usage: boolean; overlay: boolean; enabled: boolean }>("blockerStatus").then(setBlocker).catch(() => setBlocker(null));
     check();
     const onVisible = () => document.visibilityState === "visible" && check();
     document.addEventListener("visibilitychange", onVisible);
@@ -183,19 +183,37 @@ export function MobileFocus({ focusSessions, settings }: Data) {
         <div className="m-card-row">
           <div>
             <b className="m-card-title">Bloquer les applis distrayantes</b>
-            <span className="muted small">Pendant le focus, elles te ramènent à l'écran d'accueil.</span>
+            <span className="muted small">Pendant le focus, un écran « Focus en cours » passe devant.</span>
           </div>
           <Switch label="Bloquer" checked={block} onChange={(v) => setSetting("m_block", v ? "1" : "0")} />
         </div>
-        {block && blocker === false && (
-          <button className="btn primary m-wide" onClick={() => native("openBlockerSettings")}>
-            Autoriser le blocage (Accessibilité)
-          </button>
-        )}
-        {block && blocker === false && (
-          <span className="muted small">
-            Dans Accessibilité → Applis installées → « Mégatron · blocage pendant le focus », active-le. Il ne lit rien à l'écran.
-          </span>
+        {/* Deux autorisations d'Android, données une seule fois ; Mégatron ne s'en sert que pendant un focus. */}
+        {block && blocker && !blocker.enabled && (
+          <div className="m-blocker-steps">
+            <span className="muted small">Pour bloquer, Android demande deux autorisations (utilisées seulement pendant un focus) :</span>
+            <button
+              className={blocker.usage ? "m-blocker-step done" : "m-blocker-step"}
+              disabled={blocker.usage}
+              onClick={() => native("openBlockerSettings", { which: "usage" })}
+            >
+              <span className="m-blocker-num">{blocker.usage ? <Check size={14} strokeWidth={3} /> : 1}</span>
+              <span>
+                <b>Accès aux données d'utilisation</b>
+                <span className="muted small">Pour voir quelle appli s'ouvre. Active Mégatron dans la liste.</span>
+              </span>
+            </button>
+            <button
+              className={blocker.overlay ? "m-blocker-step done" : "m-blocker-step"}
+              disabled={blocker.overlay}
+              onClick={() => native("openBlockerSettings", { which: "overlay" })}
+            >
+              <span className="m-blocker-num">{blocker.overlay ? <Check size={14} strokeWidth={3} /> : 2}</span>
+              <span>
+                <b>Affichage par-dessus les autres applis</b>
+                <span className="muted small">Pour poser l'écran « Focus en cours » devant l'appli bloquée.</span>
+              </span>
+            </button>
+          </div>
         )}
         {block && (
           <button className="btn ghost m-wide" onClick={() => setPicking(true)}>

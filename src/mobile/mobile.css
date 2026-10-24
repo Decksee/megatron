@@ -566,3 +566,15 @@ html[data-window="mobile"] #root {
 .m-guide-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .m-guide-actions .btn { min-height: 40px; border-radius: 12px; }
 .m-section-badge { margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: rgb(var(--danger-rgb) / 0.15); color: var(--danger); letter-spacing: 0; }
+.m-blocker-steps { display: flex; flex-direction: column; gap: 8px; }
+.m-blocker-step {
+  display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; text-align: left; cursor: pointer;
+  border: 1px solid rgb(var(--accent-rgb) / 0.35); background: rgb(var(--accent-rgb) / 0.08); color: var(--text); font: inherit;
+}
+.m-blocker-step > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.m-blocker-step b { font-size: 14.5px; }
+.m-blocker-step.done { border-color: transparent; background: rgb(var(--fg-rgb) / 0.04); opacity: 0.7; }
+.m-blocker-num {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 14px;
+}
