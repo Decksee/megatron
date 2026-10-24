@@ -1,4 +1,4 @@
-/* ---------- Application Android : plein écran, onglets en bas, à portée de pouce ---------- */
+/* ---------- Application Android : plein écran, pensée pour le pouce ---------- */
 /* Tout est limité à la fenêtre mobile : l'encoche et la fenêtre du PC ne changent pas. */
 
 html[data-window="mobile"],
@@ -9,57 +9,156 @@ html[data-window="mobile"] #root {
   background: var(--notch-bg);
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
+[data-window="mobile"] input, [data-window="mobile"] textarea { -webkit-user-select: text; user-select: text; }
 
 .m-shell {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
   color: var(--text);
-  /* Zones réservées par Android (barre d'état en haut, barre de navigation en bas). */
   padding-top: env(safe-area-inset-top, 0px);
 }
 
+/* En-tête : grand titre, mascotte à droite. */
 .m-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 18px 8px;
+  justify-content: space-between;
+  padding: 14px 20px 6px;
   flex-shrink: 0;
 }
-.m-title { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+.m-title { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
 
-.m-content { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.m-page { padding: 6px 14px 24px; min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; }
+.m-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* Marge en bas : le bouton « + » ne cache jamais la dernière tâche. */
+.m-page { padding: 6px 16px 96px; min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; }
 
-/* Les listes prennent leur hauteur naturelle et défilent avec la page. */
-.m-page .task-list, .m-page .tasks { flex: none; overflow: visible; }
-/* Au doigt, des tâches bien séparées : plus faciles à lire et à toucher. */
-.m-page .tasks, .m-page .tasks.compact { gap: 8px; }
-.m-page .task { padding: 11px 12px; font-size: 15px; }
-.m-page .task .check { width: 22px; height: 22px; }
-.m-page .todo-add input { font-size: 16px; } /* 16 px : Android ne zoome pas sur le champ. */
-
-.m-today { display: flex; flex-direction: column; gap: 12px; }
-.m-greeting { display: flex; flex-direction: column; gap: 2px; padding: 4px 2px; }
-.m-greeting b { font-size: 18px; }
+/* ---------- Aujourd'hui ---------- */
+.m-today, .m-tasks { display: flex; flex-direction: column; gap: 12px; }
+.m-hero {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 18px; border-radius: 22px;
+  background: linear-gradient(135deg, rgb(var(--accent-rgb) / 0.16), rgb(var(--accent-rgb) / 0.04));
+  border: 1px solid rgb(var(--accent-rgb) / 0.18);
+}
+.m-hero-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.m-hello { font-size: 14px; font-weight: 600; color: var(--muted); }
 .m-date { color: var(--muted); font-size: 13px; text-transform: capitalize; }
-.m-late { margin: 0; padding: 10px 12px; font-size: 13px; }
+.m-hero-count { font-size: 21px; font-weight: 800; margin-top: 6px; }
+.m-ring-label { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
-.m-soon { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 40px 0; }
+.m-late {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 16px;
+  color: var(--danger); background: rgb(var(--danger-rgb) / 0.12); font-size: 14px;
+}
+.m-late > svg { flex-shrink: 0; margin-top: 2px; }
+.m-late > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.m-late-detail { font-size: 12.5px; opacity: 0.85; }
 
+.m-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 48px 0; }
+
+/* ---------- Tâches au doigt ---------- */
+.m-page .task-list, .m-page .tasks { flex: none; overflow: visible; }
+.m-page .tasks, .m-page .tasks.compact { gap: 8px; }
+.m-page .task { padding: 13px 12px; font-size: 15.5px; border-radius: 16px; }
+.m-page .task .check { width: 24px; height: 24px; }
+.m-page .task-title { font-size: 15.5px; line-height: 1.4; }
+.m-page .list-label { padding: 10px 4px 2px; font-size: 12px; }
+.m-page .todo-add { min-height: 48px; }
+.m-page .todo-add input { font-size: 16px; } /* 16 px : Android ne zoome pas sur le champ. */
+/* Pas de survol au doigt : dates vides, crayon et croix restent visibles (en discret). */
+.m-page .date-chip { opacity: 1; min-height: 30px; padding: 0 9px; }
+.m-page .date-chip:not(.set) { opacity: 0.55; }
+.m-page .task .icon-btn { opacity: 0.6; min-width: 36px; min-height: 36px; display: grid; place-items: center; }
+.m-page .task .confirm-delete.armed { opacity: 1; }
+.m-page .chip { min-height: 36px; padding: 0 14px; font-size: 13.5px; }
+
+/* ---------- Bouton « + » flottant et panneau d'ajout ---------- */
+.m-fab {
+  position: absolute; right: 18px; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 5;
+  width: 58px; height: 58px; border-radius: 20px; border: 0; cursor: pointer;
+  display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 10px 28px rgb(var(--accent-rgb) / 0.35), 0 2px 8px rgb(0 0 0 / 0.3);
+}
+.m-sheet-backdrop { position: absolute; inset: 0; z-index: 9; background: rgb(0 0 0 / 0.5); }
+.m-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 10;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-radius: 24px 24px 0 0;
+  background: var(--popover); border-top: 1px solid rgb(var(--fg-rgb) / 0.08);
+}
+.m-sheet-grip { width: 40px; height: 4px; border-radius: 999px; background: rgb(var(--fg-rgb) / 0.2); align-self: center; }
+.m-sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.m-sheet-head b { font-size: 17px; }
+.m-sheet-input {
+  resize: none; border: 0; outline: none; padding: 12px 14px; border-radius: 14px;
+  font: inherit; font-size: 17px; line-height: 1.4; color: var(--text); background: rgb(var(--fg-rgb) / 0.06);
+}
+.m-sheet .chip { min-height: 36px; padding: 0 14px; }
+.m-sheet-dates { display: flex; align-items: center; gap: 8px; }
+.m-sheet-dates .date-chip { opacity: 1; min-height: 38px; padding: 0 12px; font-size: 13px; background: rgb(var(--fg-rgb) / 0.07); }
+.m-sheet-send {
+  margin-left: auto; width: 46px; height: 46px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: var(--accent); color: var(--on-accent);
+}
+.m-sheet-send:disabled { opacity: 0.35; }
+
+/* ---------- Barre d'onglets ---------- */
 .m-tabs {
   flex-shrink: 0;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid rgb(var(--fg-rgb) / 0.08);
+  padding: 6px 6px calc(8px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgb(var(--fg-rgb) / 0.07);
   background: var(--notch-bg);
 }
 .m-tab {
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  min-height: 52px; justify-content: center;
-  border: 0; background: none; color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  min-height: 58px; justify-content: center;
+  border: 0; background: none; color: var(--muted); font: inherit; cursor: pointer;
 }
+.m-tab-icon { position: relative; width: 56px; height: 30px; display: grid; place-items: center; }
+.m-tab-icon > svg { position: relative; }
+.m-tab-pill { position: absolute; inset: 0; border-radius: 999px; background: rgb(var(--accent-rgb) / 0.18); }
+.m-tab-label { font-size: 11px; font-weight: 600; }
 .m-tab.active { color: var(--accent); }
-.m-tab:active { opacity: 0.7; }
+.m-tab:active .m-tab-icon { transform: scale(0.92); }
+
+/* ---------- Projets sur téléphone : une colonne, indicateurs sur deux colonnes ---------- */
+[data-window="mobile"] .stat-strip,
+[data-window="mobile"] .stat-strip.money { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+[data-window="mobile"] .strip-tile { min-width: 0; padding: 12px; border-radius: 18px; }
+[data-window="mobile"] .strip-new { grid-column: 1 / -1; flex-direction: row; min-height: 50px; padding: 10px; gap: 8px; border-radius: 16px; }
+[data-window="mobile"] .strip-new span { font-size: 15px; }
+[data-window="mobile"] .project-grid { grid-template-columns: 1fr; overflow: visible; flex: none; }
+[data-window="mobile"] .project-grid .empty { grid-column: auto; }
+[data-window="mobile"] .project-card { border-radius: 18px; padding: 14px; }
+[data-window="mobile"] .list-toolbar { flex-wrap: wrap; }
+[data-window="mobile"] .list-toolbar .scroll-chips { flex-basis: 100%; }
+/* Fiche projet : infos puis tâches / extras / paiements, l'une sous l'autre. */
+[data-window="mobile"] .detail-grid { grid-template-columns: 1fr; overflow: visible; flex: none; }
+[data-window="mobile"] .detail-info, [data-window="mobile"] .detail-tasks { overflow: visible; min-height: 0; }
+[data-window="mobile"] .btn { min-height: 40px; }
+
+/* ---------- Réglages ---------- */
+.m-settings { display: flex; flex-direction: column; gap: 10px; }
+.m-section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 2px 0; }
+.m-settings .settings { display: flex; flex-direction: column; gap: 8px; }
+.m-settings .setting { flex-wrap: wrap; gap: 10px; border-radius: 18px; }
+.m-settings .setting:not(.column) > div:first-child { flex: 1 1 200px; min-width: 0; }
+.m-segmented { width: 100%; }
+.m-segmented .seg { flex: 1; min-height: 38px; }
+.m-hint { margin: 0 2px; line-height: 1.45; }
+
+/* Connexion de l'IA : fournisseurs sur deux colonnes, étapes l'une sous l'autre. */
+[data-window="mobile"] .setup-steps { grid-template-columns: 1fr; }
+[data-window="mobile"] .ai-setup { overflow: visible; }
+[data-window="mobile"] .provider-cards { grid-template-columns: repeat(2, 1fr); }
+/* Aujourd'hui et Tâches : on ajoute avec le bouton « + » (le champ en haut ferait doublon). */
+.m-today .todo-add, .m-tasks .todo-add { display: none; }

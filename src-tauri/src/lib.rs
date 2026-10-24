@@ -7,6 +7,8 @@ mod desktop;
 mod files;
 #[cfg(windows)]
 mod media;
+#[cfg(mobile)]
+mod mobile;
 mod telegram;
 #[cfg(windows)]
 mod wake;
@@ -337,7 +339,10 @@ pub fn run() {
 
     #[cfg(mobile)]
     let builder = builder
+        .plugin(mobile::init())
         .invoke_handler(tauri::generate_handler![
+            mobile::native_call,
+            mobile::open_url,
             write_text_file,
             read_text_file,
             idle_seconds,

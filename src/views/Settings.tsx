@@ -14,6 +14,7 @@ import { holdOpen } from "../hold";
 import { WAKE_SENSITIVITY, wakeSensitivity, wakeThreshold } from "../wakeword";
 import { ErrorNote } from "../components/ErrorNote";
 import { USAGES, usageOf, type Usage } from "../projects";
+import { isMobileApp, pickTextFile, shareFile } from "../mobile/native";
 import { BREAK_OPTIONS, briefingOn } from "../wellbeing";
 import { boostOn } from "../boost";
 import {
@@ -171,6 +172,12 @@ export function DataSettings() {
   const doExport = () =>
     run(async () => {
       const day = new Date().toISOString().slice(0, 10);
+      // Téléphone : le menu de partage Android (Drive, mail, WhatsApp…) plutôt qu'un chemin de fichier.
+      if (isMobileApp()) {
+        const backup = await exportBackup();
+        await shareFile(`megatron-${day}.json`, JSON.stringify(backup, null, 2));
+        return `Prêt à partager : ${backup.projects.length} projets, ${backup.tasks.length} tâches.`;
+      }
       const path = await save({ defaultPath: `megatron-${day}.json`, filters: FILTERS });
       if (!path) return null;
       const backup = await exportBackup();
@@ -181,9 +188,14 @@ export function DataSettings() {
   const doImport = () =>
     run(async () => {
       setConfirmImport(false);
-      const path = await open({ multiple: false, filters: FILTERS });
-      if (!path) return null;
-      const text = await invoke<string>("read_text_file", { path });
+      let text: string | null;
+      if (isMobileApp()) {
+        text = await pickTextFile();
+      } else {
+        const path = await open({ multiple: false, filters: FILTERS });
+        text = path ? await invoke<string>("read_text_file", { path }) : null;
+      }
+      if (!text) return null;
       const res = await importBackup(JSON.parse(text));
       return `Importé : ${res.projects} projets, ${res.tasks} tâches, ${res.entries} sessions.`;
     });
