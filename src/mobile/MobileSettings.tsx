@@ -9,7 +9,6 @@ import { DataSettings, MemorySetting, SpeechSetting } from "../views/Settings";
 import { Select } from "../components/Select";
 import { Switch } from "../components/Switch";
 import { briefingOn } from "../wellbeing";
-import { boostOn } from "../boost";
 import type { Data } from "../useData";
 
 /** Réglages du téléphone : les mêmes blocs que sur le PC, sans ce qui n'existe pas sur mobile (encoche, Windows). */
@@ -48,17 +47,17 @@ export function MobileSettings({ settings, memories }: Data) {
         </section>
         <section className="setting">
           <div>
-            <div className="setting-title">Point du matin</div>
-            <div className="muted small">Une notification avec ce que tu as à faire aujourd'hui.</div>
+            <div className="setting-title">Tâche en cours dans les notifications</div>
+            <div className="muted small">Toujours visible dans le volet, avec Fait et Replanifier, même appli fermée.</div>
           </div>
-          <Switch label="Point du matin" checked={briefingOn(settings)} onChange={(v) => setSetting("briefing", v ? "1" : "0")} />
+          <Switch label="Tâche en cours" checked={settings.pin_task !== "0"} onChange={(v) => setSetting("pin_task", v ? "1" : "0")} />
         </section>
         <section className="setting">
           <div>
-            <div className="setting-title">Boost</div>
-            <div className="muted small">Des conseils quand des tâches glissent, de la motivation quand tu enchaînes.</div>
+            <div className="setting-title">Point du matin</div>
+            <div className="muted small">À 8 h, une notification avec ce que tu as à faire aujourd'hui.</div>
           </div>
-          <Switch label="Boost" checked={boostOn(settings)} onChange={(v) => setSetting("boost", v ? "1" : "0")} />
+          <Switch label="Point du matin" checked={briefingOn(settings)} onChange={(v) => setSetting("briefing", v ? "1" : "0")} />
         </section>
       </div>
 

@@ -15,6 +15,16 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             #[cfg(target_os = "android")]
             {
                 let handle = api.register_android_plugin("app.megatron.desktop", "MegatronPlugin")?;
+                // Le plugin Kotlin lit la base appli fermée (notifications, alarmes) : on lui donne son chemin.
+                // Hors du fil principal, pour ne pas bloquer le lancement.
+                if let Ok(dir) = app.path().app_config_dir() {
+                    let path = dir.join("megatron.db").to_string_lossy().to_string();
+                    let h = handle.clone();
+                    std::thread::spawn(move || {
+                        let _ = h.run_mobile_plugin::<Value>("setDbPath", serde_json::json!({ "path": path }));
+                        let _ = h.run_mobile_plugin::<Value>("refresh", Value::Null);
+                    });
+                }
                 app.manage(Native(handle));
             }
             #[cfg(not(target_os = "android"))]

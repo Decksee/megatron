@@ -162,3 +162,7 @@ html[data-window="mobile"] #root {
 [data-window="mobile"] .provider-cards { grid-template-columns: repeat(2, 1fr); }
 /* Aujourd'hui et Tâches : on ajoute avec le bouton « + » (le champ en haut ferait doublon). */
 .m-today .todo-add, .m-tasks .todo-add { display: none; }
+/* Poignée du panneau : large zone à saisir pour le glisser vers le bas. */
+.m-sheet-handle { display: flex; justify-content: center; padding: 6px 0 4px; margin: -8px -16px 0; touch-action: none; cursor: grab; }
+.m-sheet-head { touch-action: none; }
+.m-sheet-backdrop { backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { AlertTriangle, ArrowUp, Bot as BotIcon, CalendarDays, Flag, FolderKanban, ListChecks, Plus, Settings2, Sun, X } from "lucide-react";
 import { useData, type Data } from "../useData";
 import { useTheme } from "../theme";
@@ -10,6 +10,7 @@ import { TaskList } from "../views/TaskList";
 import { Projects } from "../views/Projects";
 import { ProgressRing } from "../views/Today";
 import { MobileSettings } from "./MobileSettings";
+import { useNativeSync } from "./useNativeSync";
 import { createTask } from "../db";
 import { isTaskLate, lateByProject, relativeDay, taskBucket, toIsoDay } from "../projects";
 
@@ -28,6 +29,7 @@ type TabId = (typeof TABS)[number]["id"];
 export function MobileApp() {
   const data = useData();
   useTheme(data.settings);
+  useNativeSync();
   const [tab, setTab] = useState<TabId>("today");
   const [adding, setAdding] = useState(false);
   const showFab = tab === "today" || tab === "tasks";
@@ -197,6 +199,8 @@ function AddTaskSheet({
   const [planned, setPlanned] = useState<Date | null>(null);
   const [due, setDue] = useState<Date | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  // Le panneau se saisit par sa poignée (ou son titre) : la zone de saisie et les projets restent utilisables.
+  const drag = useDragControls();
 
   useEffect(() => {
     if (!open) return;
@@ -219,20 +223,38 @@ function AddTaskSheet({
     <AnimatePresence>
       {open && (
         <>
-          <motion.div className="m-sheet-backdrop" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+          <motion.div
+            className="m-sheet-backdrop"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+          />
           <motion.form
             className="m-sheet"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", stiffness: 420, damping: 40 }}
+            exit={{ y: "100%", transition: { type: "tween", duration: 0.22, ease: [0.4, 0, 1, 1] } }}
+            transition={{ type: "spring", stiffness: 300, damping: 34, mass: 0.9 }}
+            drag="y"
+            dragControls={drag}
+            dragListener={false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.9 }}
+            onDragEnd={(_, info) => {
+              // Tiré assez loin ou assez vite vers le bas : on ferme ; sinon il revient en place.
+              if (info.offset.y > 110 || info.velocity.y > 600) onClose();
+            }}
             onSubmit={(e) => {
               e.preventDefault();
               void save();
             }}
           >
-            <div className="m-sheet-grip" />
-            <div className="m-sheet-head">
+            <div className="m-sheet-handle" onPointerDown={(e) => drag.start(e)}>
+              <div className="m-sheet-grip" />
+            </div>
+            <div className="m-sheet-head" onPointerDown={(e) => drag.start(e)}>
               <b>Nouvelle tâche</b>
               <button type="button" className="icon-round" onClick={onClose} aria-label="Fermer">
                 <X size={16} />

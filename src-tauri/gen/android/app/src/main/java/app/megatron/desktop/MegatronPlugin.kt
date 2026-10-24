@@ -14,6 +14,11 @@ import app.tauri.plugin.Plugin
 import java.io.File
 
 @InvokeArg
+class PathArgs {
+  lateinit var path: String
+}
+
+@InvokeArg
 class UrlArgs {
   lateinit var url: String
 }
@@ -32,6 +37,26 @@ class ShareArgs {
  */
 @TauriPlugin
 class MegatronPlugin(private val activity: Activity) : Plugin(activity) {
+
+  /** Chemin de la base SQLite (donné par Rust au lancement) : notifications et alarmes la lisent appli fermée. */
+  @Command
+  fun setDbPath(invoke: Invoke) {
+    val args = invoke.parseArgs(PathArgs::class.java)
+    Store.setDbPath(activity, args.path)
+    invoke.resolve()
+  }
+
+  /** Les données ont changé : notification « tâche en cours », alarmes et widget sont remis à jour. */
+  @Command
+  fun refresh(invoke: Invoke) {
+    val context = activity.applicationContext
+    Thread {
+      Alarms.scheduleAll(context)
+      Notifs.refreshTask(context)
+      Widget.refreshAll(context)
+    }.start()
+    invoke.resolve()
+  }
 
   /** Ouvre le sélecteur de fichiers Android et renvoie le contenu texte du fichier choisi (sauvegarde). */
   @Command
