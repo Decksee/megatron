@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { BatteryCharging, Bell, Check, ChevronRight, Rocket } from "lucide-react";
 import { setSetting } from "../db";
 import { native } from "./native";
-import { Sheet } from "./sheets";
 import type { Data } from "../useData";
 
 const isTauri = "__TAURI_INTERNALS__" in window;
@@ -111,30 +110,5 @@ export function BackgroundSteps({ status, settings }: { status: Status | null; s
         </button>,
       )}
     </div>
-  );
-}
-
-/** Premier lancement : le guide s'ouvre une fois, après l'écran de démarrage. */
-export function FirstRunGuide({ settings, ready }: { settings: Data["settings"]; ready: boolean }) {
-  const status = useBackgroundStatus();
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (ready && isTauri && settings.m_guide_seen !== "1") setOpen(true);
-  }, [ready]);
-  const close = () => {
-    setOpen(false);
-    void setSetting("m_guide_seen", "1");
-  };
-  const left = guideRemaining(status, settings);
-  return (
-    <Sheet open={open} onClose={close} title="Pour que tout marche appli fermée" className="m-sheet-tall">
-      <span className="muted m-guide-intro">
-        Trois réglages, une seule fois. Ensuite, rappels, notifications et widgets fonctionnent même quand Mégatron est fermé.
-      </span>
-      <BackgroundSteps status={status} settings={settings} />
-      <button type="button" className="m-start" onClick={close}>
-        {left === 0 ? "C'est tout bon 🎉" : "Plus tard"}
-      </button>
-    </Sheet>
   );
 }

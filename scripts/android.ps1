@@ -5,7 +5,8 @@
 #
 # Prérequis : Android Studio (Java fourni), SDK et NDK Android, cibles Rust Android (rustup target add …).
 
-param([switch]$Release)
+# -Target x86_64 : pour l'émulateur Android du PC (par défaut : téléphones, aarch64).
+param([switch]$Release, [string]$Target = "aarch64")
 
 $ErrorActionPreference = "Stop"
 $project = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -42,7 +43,7 @@ if ($Release -and -not (Test-Path (Join-Path $env:USERPROFILE ".megatron\keystor
   throw "Clé de signature absente : lance d'abord scripts\android-key.ps1."
 }
 
-$buildArgs = @("tauri", "android", "build", "--apk", "--target", "aarch64")
+$buildArgs = @("tauri", "android", "build", "--apk", "--target", $Target)
 if (-not $Release) { $buildArgs += "--debug" }
 npx @buildArgs
 if ($LASTEXITCODE -ne 0) { throw "La compilation Android a échoué." }

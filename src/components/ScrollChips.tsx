@@ -12,7 +12,10 @@ export function ScrollChips({ children, className = "" }: { children: ReactNode;
   const measure = useCallback(() => {
     const el = ref.current;
     if (!el) return;
-    setEdges({ left: el.scrollLeft > 2, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2 });
+    const left = el.scrollLeft > 2;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    // Même état qu'avant : on garde l'objet, sinon chaque mesure relance un rendu (boucle sans fin).
+    setEdges((e) => (e.left === left && e.right === right ? e : { left, right }));
   }, []);
 
   useEffect(() => {

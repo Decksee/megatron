@@ -13,7 +13,7 @@ import { MobileFocus } from "./MobileFocus";
 import { MobileChat } from "./MobileChat";
 import { useBack } from "./useBack";
 import { MobileSheets, openAddTask } from "./sheets";
-import { FirstRunGuide } from "./MobileGuide";
+import { MobileOnboarding, needsOnboarding } from "./MobileOnboarding";
 import { native } from "./native";
 import { Time } from "../views/Time";
 import { Reminders } from "../views/Reminders";
@@ -64,12 +64,16 @@ export function MobileApp() {
   // Écran de démarrage d'Android : il part dès que les vraies données sont affichées.
   const firstSettings = useRef(data.settings);
   const announced = useRef(false);
-  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     if (announced.current || data.settings === firstSettings.current || !("__TAURI_INTERNALS__" in window)) return;
     announced.current = true;
-    setLoaded(true);
     requestAnimationFrame(() => requestAnimationFrame(() => void native("appReady").catch(() => {})));
+  }, [data.settings]);
+  // Présentation au premier lancement, décidée une fois les réglages lus.
+  const [onboarding, setOnboarding] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (onboarding !== null || data.settings === firstSettings.current) return;
+    setOnboarding(needsOnboarding(data.settings));
   }, [data.settings]);
   // Widgets : « + » ouvre l'ajout de tâche, Focus et Prochain rappel ouvrent leur page.
   useEffect(() => {
@@ -183,7 +187,9 @@ export function MobileApp() {
         )}
       </AnimatePresence>
       <MobileSheets tasks={data.tasks} projects={data.projects} />
-      <FirstRunGuide settings={data.settings} ready={loaded} />
+      <AnimatePresence>
+        {onboarding && <MobileOnboarding key="onboarding" settings={data.settings} onDone={() => setOnboarding(false)} />}
+      </AnimatePresence>
 
       <nav className="m-tabs" aria-label="Sections">
         {TABS.map(({ id, label, icon: Icon }) => {
