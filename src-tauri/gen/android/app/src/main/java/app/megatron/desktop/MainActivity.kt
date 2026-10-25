@@ -5,9 +5,12 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
+import android.view.ViewGroup
+import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
@@ -50,5 +53,30 @@ class MainActivity : TauriActivity() {
     val action = intent?.getStringExtra("megatron_action") ?: return
     getSharedPreferences("megatron", Context.MODE_PRIVATE).edit().putString("launch_action", action).apply()
     intent.removeExtra("megatron_action")
+  }
+
+  /** Icônes de la barre d'état et de navigation : sombres en thème clair, claires en thème sombre. */
+  fun setLightBars(light: Boolean) = runOnUiThread {
+    // Fond derrière les barres (zone sous les boutons de navigation) : celui du thème de l'appli.
+    window.decorView.setBackgroundColor(if (light) 0xFFF7F7F9.toInt() else 0xFF000000.toInt())
+    WindowCompat.getInsetsController(window, window.decorView).apply {
+      isAppearanceLightStatusBars = light
+      isAppearanceLightNavigationBars = light
+    }
+  }
+
+  /**
+   * Retour au premier plan sans pause (volet des notifications refermé, après « Fait » ou « Replanifier ») :
+   * on prévient l'interface pour qu'elle relise la base, sans avoir à fermer et rouvrir l'appli.
+   */
+  override fun onWindowFocusChanged(hasFocus: Boolean) {
+    super.onWindowFocusChanged(hasFocus)
+    if (hasFocus) findWebView(window.decorView)?.evaluateJavascript("window.dispatchEvent(new Event('megatron-resync'))", null)
+  }
+
+  private fun findWebView(view: View): WebView? {
+    if (view is WebView) return view
+    if (view is ViewGroup) for (i in 0 until view.childCount) findWebView(view.getChildAt(i))?.let { return it }
+    return null
   }
 }

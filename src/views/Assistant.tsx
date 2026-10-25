@@ -66,10 +66,10 @@ const PROVIDER_TAGLINE: Record<ProviderId, string> = {
 const SKILLS = [
   { icon: ListChecks, label: "Tâches et projets", example: "ajoute relancer Paul" },
   { icon: Clock3, label: "Temps et focus", example: "lance 50 min de focus" },
-  { icon: Bell, label: "Rappels", example: "rappelle-moi demain à 9 h" },
+  { icon: Bell, label: "Rappels", example: "rappelle-moi demain à 9 h" },
   { icon: AppWindow, label: "Apps et sites", example: "ouvre Spotify" },
   { icon: Music2, label: "Musique et son", example: "piste suivante" },
-  { icon: Sparkles, label: "Tes stats", example: "combien j'ai bossé ?" },
+  { icon: Sparkles, label: "Tes stats", example: "combien j'ai bossé ?" },
 ];
 
 /** Sur téléphone, pas d'applis ni de musique à piloter. */
@@ -238,7 +238,7 @@ export function AiSetup({ settings, onDone, canCancel }: Pick<Data, "settings"> 
               <Icon size={15} />
               <div>
                 <div className="skill-label">{label}</div>
-                <div className="tile-caption">« {example} »</div>
+                <div className="tile-caption">{`« ${example} »`}</div>
               </div>
             </div>
           ))}

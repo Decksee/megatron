@@ -81,6 +81,7 @@ class BootReceiver : BroadcastReceiver() {
       try {
         Alarms.scheduleAll(context)
         Notifs.refreshTask(context)
+        TimerNotif.refresh(context)
         Widget.refreshAll(context)
       } finally {
         pending.finish()

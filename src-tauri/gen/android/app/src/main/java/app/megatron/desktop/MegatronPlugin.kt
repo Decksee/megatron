@@ -62,12 +62,25 @@ class MegatronPlugin(private val activity: Activity) : Plugin(activity) {
     Thread {
       Alarms.scheduleAll(context)
       Notifs.refreshTask(context)
+      TimerNotif.refresh(context)
       Widget.refreshAll(context)
     }.start()
     invoke.resolve()
   }
 
   // ---------- Focus ----------
+
+  @InvokeArg
+  class BarsArgs {
+    var light: Boolean = false
+  }
+
+  /** Thème de l'interface (clair / sombre) : couleur des icônes des barres système. */
+  @Command
+  fun setSystemBars(invoke: Invoke) {
+    (activity as? MainActivity)?.setLightBars(invoke.parseArgs(BarsArgs::class.java).light)
+    invoke.resolve()
+  }
 
   /** L'interface est prête : fin de l'écran de démarrage. */
   @Command

@@ -625,11 +625,58 @@ html[data-window="mobile"] #root {
 [data-window="mobile"] .usage-options { display: flex; flex-direction: column; gap: 10px; }
 [data-window="mobile"] .usage-option { flex-direction: row; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; text-align: left; min-height: 64px; }
 [data-window="mobile"] .usage-option b { font-size: 16px; min-width: 70px; }
-/* Message d'erreur (écriture impossible) : au-dessus de tout, touché pour le fermer. */
-.m-toast {
-  position: absolute; left: 12px; right: 12px; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); z-index: 40;
-  display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; border-radius: 16px;
-  background: #3a1513; color: #ffb4ae; font-size: 14px; line-height: 1.4; box-shadow: 0 10px 30px rgb(0 0 0 / 0.4);
-  overflow-wrap: anywhere;
+/* Messages rapides : pastille de confirmation (verte) ou bandeau d'erreur (rouge), au-dessus des onglets. */
+.m-toast-wrap {
+  position: absolute; left: 12px; right: 12px; bottom: calc(158px + env(safe-area-inset-bottom, 0px)); z-index: 40;
+  display: flex; justify-content: center; pointer-events: none;
 }
-.m-toast > svg { flex-shrink: 0; margin-top: 1px; }
+.m-toast {
+  pointer-events: auto; max-width: 100%; box-sizing: border-box;
+  display: flex; align-items: center; gap: 8px; padding: 11px 18px 11px 14px; border-radius: 999px;
+  background: var(--text); color: var(--notch-bg); font-size: 14.5px; font-weight: 700;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+}
+.m-toast > svg { flex-shrink: 0; color: var(--accent); }
+.m-toast.error {
+  width: 100%; align-items: flex-start;
+  border-radius: 16px; padding: 14px 16px; background: #3a1513; color: #ffb4ae; font-weight: 500; line-height: 1.4; overflow-wrap: anywhere;
+}
+.m-toast.error > svg { color: inherit; margin-top: 1px; }
+/* Retours à la ligne plus équilibrés (pas de mot ou de signe seul sur la dernière ligne). */
+[data-window="mobile"] :is(p, .muted, .tile-caption, .m-guide-body, .m-ob-feature) { text-wrap: pretty; }
+/* Sélecteur Focus / Temps (et onglets d'une fiche projet) : l'onglet actif a un fond net. */
+.m-segmented .seg { position: relative; background: none; }
+.m-segmented .seg .tab-label { position: relative; z-index: 1; color: var(--muted); }
+.m-segmented .seg.active .tab-label { color: var(--accent); }
+.m-seg-pill {
+  position: absolute; inset: 0; border-radius: 12px;
+  background: rgb(var(--accent-rgb) / 0.16); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.35);
+}
+[data-window="mobile"] .detail-tabs .seg-pill { background: rgb(var(--accent-rgb) / 0.16); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.35); }
+[data-window="mobile"] .detail-tabs .seg.active .tab-label { color: var(--accent); }
+/* Tous les sélecteurs à onglets (Temps, Thème, voix…) : même fond coloré pour l'onglet actif. */
+[data-window="mobile"] .segmented .seg-pill { background: rgb(var(--accent-rgb) / 0.16); box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.35); border-radius: 10px; }
+[data-window="mobile"] .segmented .seg.active .tab-label { color: var(--accent); }
+
+/* ---------- Tirer pour actualiser : seule l'icône descend, la page ne bouge pas (comme sur Android) ---------- */
+.m-ptr {
+  position: absolute; left: 50%; top: calc(72px + env(safe-area-inset-top, 0px)); z-index: 6; pointer-events: none;
+  width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--popover); color: var(--accent); box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+  transition: opacity 0.15s;
+}
+.m-ptr.spinning > svg { animation: m-spin 0.8s linear infinite; }
+@keyframes m-spin { to { transform: rotate(360deg); } }
+
+/* ---------- Listes déroulantes : panneau du bas ---------- */
+.m-select-sheet { max-height: 70%; }
+.m-select-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+.m-select-row {
+  width: 100%; display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 0 14px; border-radius: 14px;
+  border: 0; background: none; color: var(--text); font: inherit; font-size: 16px; text-align: left; cursor: pointer;
+}
+.m-select-row .chip-dot { width: 12px; height: 12px; flex-shrink: 0; }
+.m-select-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-select-row.selected { background: rgb(var(--accent-rgb) / 0.12); color: var(--accent); font-weight: 700; }
+.m-select-row:active { background: rgb(var(--fg-rgb) / 0.06); }
+.m-select-check { font-weight: 800; color: var(--accent); }

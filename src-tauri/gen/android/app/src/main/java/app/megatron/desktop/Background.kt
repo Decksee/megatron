@@ -53,15 +53,13 @@ object Background {
   }
 
   /**
-   * Réglages propres à la marque : démarrage automatique (Tecno, Infinix, itel, Xiaomi…) ou
-   * applis jamais mises en veille (Samsung). Sinon, la fiche de l'appli dans les réglages.
+   * Réglages propres à la marque : démarrage automatique (Tecno, Infinix, itel, Xiaomi…).
+   * Sinon (Samsung compris), la fiche de l'appli dans les réglages.
    */
   fun openBrandSettings(activity: Activity) {
     val candidates = when {
-      brand().contains("samsung") -> listOf(
-        ComponentName("com.samsung.android.lool", "com.samsung.android.sm.battery.ui.BatteryActivity"),
-        ComponentName("com.samsung.android.sm", "com.samsung.android.sm.battery.ui.BatteryActivity"),
-      )
+      // Samsung : la fiche de l'appli (Batterie → Non restreinte), atteinte par le repli ci-dessous.
+      brand().contains("samsung") -> emptyList()
       brand().let { it.contains("tecno") || it.contains("infinix") || it.contains("itel") || it.contains("transsion") } -> listOf(
         ComponentName("com.transsion.phonemaster", "com.cyin.himgr.autostart.AutoStartActivity"),
         ComponentName("com.transsion.phonemaster", "com.cyin.himgr.applicationmanager.view.activities.AppManagerActivity"),

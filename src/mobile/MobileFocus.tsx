@@ -183,7 +183,7 @@ export function MobileFocus({ focusSessions, settings }: Data) {
         <div className="m-card-row">
           <div>
             <b className="m-card-title">Bloquer les applis distrayantes</b>
-            <span className="muted small">Pendant le focus, un écran « Focus en cours » passe devant.</span>
+            <span className="muted small">Pendant le focus, un écran « Focus en cours » passe devant.</span>
           </div>
           <Switch label="Bloquer" checked={block} onChange={(v) => setSetting("m_block", v ? "1" : "0")} />
         </div>
@@ -210,7 +210,7 @@ export function MobileFocus({ focusSessions, settings }: Data) {
               <span className="m-blocker-num">{blocker.overlay ? <Check size={14} strokeWidth={3} /> : 2}</span>
               <span>
                 <b>Affichage par-dessus les autres applis</b>
-                <span className="muted small">Pour poser l'écran « Focus en cours » devant l'appli bloquée.</span>
+                <span className="muted small">Pour poser l'écran « Focus en cours » devant l'appli bloquée.</span>
               </span>
             </button>
           </div>

@@ -55,6 +55,7 @@
         <receiver android:name=".ActionReceiver" android:exported="false" />
         <receiver android:name=".AlarmReceiver" android:exported="false" />
         <receiver android:name=".FocusReceiver" android:exported="false" />
+        <receiver android:name=".TimerReceiver" android:exported="false" />
         <!-- Blocage d'applis pendant un focus (seulement pendant le focus, avec la notification du compte à rebours). -->
         <service
             android:name=".FocusWatchService"

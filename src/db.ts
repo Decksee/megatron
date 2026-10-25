@@ -157,6 +157,40 @@ function reportWrite(step: string, e: unknown) {
   window.dispatchEvent(new CustomEvent(WRITE_ERROR, { detail: `${step} : ${errorText(e)}` }));
 }
 
+/** Événement de fenêtre : une écriture a réussi (le téléphone affiche une confirmation rapide). */
+export const WRITE_DONE = "megatron-write-done";
+
+/** Message de confirmation de chaque écriture (les réglages, le temps et la mémoire de l'IA restent silencieux). */
+const DONE_MESSAGES: [RegExp, string][] = [
+  [/^INSERT INTO projects/, "Projet créé"],
+  [/^UPDATE projects SET name=/, "Projet enregistré"],
+  [/^UPDATE projects SET status=/, "Statut du projet mis à jour"],
+  [/^DELETE FROM projects/, "Projet supprimé"],
+  [/^INSERT INTO tasks/, "Tâche ajoutée"],
+  [/^UPDATE tasks SET project_id=/, "Projet de la tâche changé"],
+  [/^UPDATE tasks SET planned_date=/, "Jour prévu mis à jour"],
+  [/^UPDATE tasks SET due_date=/, "Échéance mise à jour"],
+  [/^UPDATE tasks SET done=1/, "Tâche terminée 🎉"],
+  [/^UPDATE tasks SET done=0/, "Tâche remise à faire"],
+  [/^UPDATE tasks SET title=/, "Tâche renommée"],
+  [/^DELETE FROM tasks/, "Tâche supprimée"],
+  [/^INSERT INTO extras/, "Extra ajouté"],
+  [/^UPDATE extras SET title=/, "Extra modifié"],
+  [/^UPDATE extras SET done=1/, "Extra livré"],
+  [/^UPDATE extras SET done=0/, "Extra remis à faire"],
+  [/^DELETE FROM extras/, "Extra supprimé"],
+  [/^INSERT INTO payments/, "Paiement enregistré"],
+  [/^DELETE FROM payments/, "Paiement supprimé"],
+  [/^DELETE FROM time_entries/, "Session supprimée"],
+  [/^INSERT INTO reminders/, "Rappel créé"],
+  [/^UPDATE reminders SET title=/, "Rappel modifié"],
+  [/^UPDATE reminders SET done=1/, "Rappel terminé"],
+  [/^UPDATE reminders SET due_at=/, "Rappel replanifié"],
+  [/^DELETE FROM reminders/, "Rappel supprimé"],
+  [/^DELETE FROM memories WHERE/, "C'est oublié"],
+  [/^DELETE FROM memories$/, "Mémoire effacée"],
+];
+
 async function write(sql: string, params: unknown[] = []) {
   let res;
   try {
@@ -165,6 +199,8 @@ async function write(sql: string, params: unknown[] = []) {
     reportWrite("Enregistrement impossible", e);
     throw e;
   }
+  const done = DONE_MESSAGES.find(([re]) => re.test(sql))?.[1];
+  if (done) window.dispatchEvent(new CustomEvent(WRITE_DONE, { detail: done }));
   // Enregistré : un souci pour prévenir les écrans ne doit pas bloquer le formulaire.
   try {
     await withTimeout(emit(DATA_CHANGED), 5_000);

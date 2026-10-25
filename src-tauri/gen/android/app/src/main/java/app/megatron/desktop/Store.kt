@@ -74,8 +74,16 @@ object Store {
     db.execSQL("UPDATE tasks SET done = 1, completed_at = datetime('now') WHERE id = ?", arrayOf(id))
   }
 
+  /**
+   * « Replanifier » : la tâche passe à demain. Une échéance d'aujourd'hui (ou dépassée) suit aussi,
+   * sinon la tâche resterait dans « aujourd'hui » et la notification la réafficherait aussitôt.
+   */
   fun replanTomorrow(context: Context, id: Long) = withDb(context, Unit) { db ->
-    db.execSQL("UPDATE tasks SET planned_date = ? WHERE id = ?", arrayOf(tomorrow(), id))
+    val tomorrow = tomorrow()
+    db.execSQL(
+      "UPDATE tasks SET planned_date = ?, due_date = CASE WHEN due_date IS NOT NULL AND due_date < ? THEN ? ELSE due_date END WHERE id = ?",
+      arrayOf<Any>(tomorrow, tomorrow, tomorrow, id),
+    )
   }
 
   fun setting(context: Context, key: String): String? = withDb(context, null) { db ->

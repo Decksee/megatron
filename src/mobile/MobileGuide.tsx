@@ -37,8 +37,8 @@ const familyOf = (brand: string): Family =>
 /** Étape propre à la marque : Android ne dit pas si elle est faite, on la coche soi-même. */
 const BRAND_STEP: Record<Family, { title: string; text: string }> = {
   samsung: {
-    title: "Applis jamais en veille",
-    text: "Batterie → Limites d'utilisation en arrière-plan → Applis jamais en veille → « + » → Mégatron.",
+    title: "Batterie non restreinte",
+    text: "Paramètres → Applications → Mégatron → Batterie → « Non restreinte ». Mégatron n'apparaît alors plus dans « Applis jamais en veille » : c'est normal, il est déjà protégé.",
   },
   transsion: {
     title: "Démarrage automatique",
@@ -50,16 +50,23 @@ const BRAND_STEP: Record<Family, { title: string; text: string }> = {
   },
 };
 
+/**
+ * Étape de la marque faite ? Sur Samsung, « Non restreinte » (= plus d'optimisation de batterie) suffit :
+ * Android le dit, et l'appli disparaît alors de la liste « Applis jamais en veille ».
+ */
+const brandStepDone = (status: Status, settings: Data["settings"]) =>
+  settings.m_guide_brand === "1" || (familyOf(status.brand) === "samsung" && status.battery);
+
 export function guideRemaining(status: Status | null, settings: Data["settings"]) {
   if (!status) return 0;
-  return [status.notifications, status.battery, settings.m_guide_brand === "1"].filter((ok) => !ok).length;
+  return [status.notifications, status.battery, brandStepDone(status, settings)].filter((ok) => !ok).length;
 }
 
 /** Les étapes, utilisables dans un panneau (premier lancement) ou dans les Réglages. */
 export function BackgroundSteps({ status, settings }: { status: Status | null; settings: Data["settings"] }) {
   if (!status) return <span className="muted small">Vérification…</span>;
   const family = familyOf(status.brand);
-  const brandDone = settings.m_guide_brand === "1";
+  const brandDone = brandStepDone(status, settings);
   const open = (which: string) => void native("openBackgroundSettings", { which }).catch(console.error);
 
   const step = (done: boolean, icon: ReactNode, title: string, text: string, action: () => void, label: string, extra?: ReactNode) => (

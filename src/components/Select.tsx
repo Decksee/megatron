@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { popoverMotion, useDismiss, usePopoverPosition } from "./popover";
+import { isMobileApp } from "../mobile/native";
+import { Sheet } from "../mobile/sheets";
 
 export interface SelectOption<T> {
   value: T;
@@ -46,7 +48,8 @@ export function Select<T extends string | number | null>({ value, options, onCha
     height: Math.min(MAX_HEIGHT, options.length * OPTION_HEIGHT + MENU_PADDING),
     minHeight: OPTION_HEIGHT * 2 + MENU_PADDING,
   });
-  useDismiss(open, [buttonRef, menuRef], () => setOpen(false));
+  // Téléphone : le panneau du bas se ferme lui-même (toucher une ligne serait pris pour un clic « à côté »).
+  useDismiss(open && !isMobileApp(), [buttonRef, menuRef], () => setOpen(false));
 
   useEffect(() => {
     if (open) setActive(selectedIndex);
@@ -111,7 +114,26 @@ export function Select<T extends string | number | null>({ value, options, onCha
           <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </motion.svg>
       </button>
-      {createPortal(
+      {/* Téléphone : la liste monte du bas de l'écran, avec de grandes lignes faciles à toucher. */}
+      {isMobileApp() &&
+        createPortal(
+          <Sheet open={open} onClose={() => setOpen(false)} title={ariaLabel ?? "Choisir"} className="m-select-sheet">
+            <ul className="m-select-list" role="listbox">
+              {options.map((o, i) => (
+                <li key={String(o.value)}>
+                  <button type="button" className={i === selectedIndex ? "m-select-row selected" : "m-select-row"} onClick={() => choose(i)}>
+                    {o.color && <span className="chip-dot" style={{ background: o.color }} />}
+                    <span className="m-select-label">{o.label}</span>
+                    {o.hint && <span className="muted small">{o.hint}</span>}
+                    {i === selectedIndex && <span className="m-select-check">✓</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Sheet>,
+          document.querySelector(".m-shell") ?? document.body,
+        )}
+      {!isMobileApp() && createPortal(
         <AnimatePresence>
           {open && (
             <motion.ul

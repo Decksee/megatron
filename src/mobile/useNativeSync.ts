@@ -35,10 +35,27 @@ export function useNativeSync() {
       if (document.visibilityState === "visible") void emit(DATA_CHANGED);
     };
     document.addEventListener("visibilitychange", onVisible);
+    // Volet des notifications refermé (signal de MainActivity) : « Fait » ou « Replanifier » ont pu changer la base.
+    // Seconde relecture un peu après, au cas où Android finissait encore d'écrire.
+    let again: number | undefined;
+    const onResync = () => {
+      void emit(DATA_CHANGED);
+      window.clearTimeout(again);
+      again = window.setTimeout(() => void emit(DATA_CHANGED), 1200);
+    };
+    window.addEventListener("megatron-resync", onResync);
+    // Icônes de la barre d'état : sombres en thème clair, claires en thème sombre (suit le thème de l'appli).
+    const bars = () => void native("setSystemBars", { light: document.documentElement.dataset.theme === "light" }).catch(() => {});
+    bars();
+    const themeWatch = new MutationObserver(bars);
+    themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => {
       window.clearTimeout(timer);
+      window.clearTimeout(again);
       unlisten.then((fn) => fn());
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("megatron-resync", onResync);
+      themeWatch.disconnect();
     };
   }, []);
 }

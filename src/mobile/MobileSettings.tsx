@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "motion/react";
 import { setSetting } from "../db";
 import { THEME_OPTIONS, type ThemePref } from "../theme";
 import { USAGES, usageOf, type Usage } from "../projects";
@@ -32,6 +33,9 @@ export function MobileSettings({ settings, memories }: Data) {
           <div className="segmented m-segmented">
             {(Object.keys(USAGES) as Usage[]).map((u) => (
               <button key={u} className={u === usage ? "seg active" : "seg"} onClick={() => setSetting("usage", u)}>
+                {u === usage && (
+                  <motion.span layoutId="m-usage-seg" className="m-seg-pill" transition={{ type: "spring", stiffness: 500, damping: 38 }} />
+                )}
                 <span className="tab-label">{USAGES[u].label}</span>
               </button>
             ))}

@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { AlarmClock, AlertTriangle, Bot as BotIcon, ChevronLeft, FolderKanban, ListChecks, Plus, Settings2, Sun, Target } from "lucide-react";
+import { AlarmClock, AlertTriangle, Check, RotateCw, Bot as BotIcon, ChevronLeft, FolderKanban, ListChecks, Plus, Settings2, Sun, Target } from "lucide-react";
 import { useData, type Data } from "../useData";
-import { WRITE_ERROR } from "../db";
+import { DATA_CHANGED, WRITE_DONE, WRITE_ERROR } from "../db";
 import { useTheme } from "../theme";
 import { Bot } from "../components/Bot";
 import { ScrollChips } from "../components/ScrollChips";
@@ -13,6 +13,8 @@ import { MobileSettings } from "./MobileSettings";
 import { MobileFocus } from "./MobileFocus";
 import { MobileChat } from "./MobileChat";
 import { useBack } from "./useBack";
+import { usePullToRefresh } from "./usePullToRefresh";
+import { emit } from "@tauri-apps/api/event";
 import { MobileSheets, openAddTask } from "./sheets";
 import { MobileOnboarding, needsOnboarding } from "./MobileOnboarding";
 import { native } from "./native";
@@ -57,7 +59,9 @@ export function MobileApp() {
   const data = useData();
   useTheme(data.settings);
   useNativeSync();
-  const now = useNow();
+  // Horloge de l'appli : chaque seconde quand un minuteur s'affiche, sinon toutes les 30 s (batterie).
+  const [fastClock, setFastClock] = useState(false);
+  const now = useNow(fastClock ? 1000 : 30_000);
   const [tab, setTab] = useState<TabId>("today");
   // Page ouverte par-dessus les onglets (Rappels, Réglages), sinon l'onglet courant.
   const [sub, setSub] = useState<"reminders" | "settings" | null>(null);
@@ -70,17 +74,25 @@ export function MobileApp() {
     announced.current = true;
     requestAnimationFrame(() => requestAnimationFrame(() => void native("appReady").catch(() => {})));
   }, [data.settings]);
-  // Écriture en échec : message visible quelques secondes (sinon le formulaire reste ouvert sans explication).
-  const [writeError, setWriteError] = useState<string | null>(null);
+  // Messages rapides : confirmation de chaque création / modification / suppression, ou erreur d'enregistrement.
+  const [toast, setToast] = useState<{ id: number; text: string; error: boolean } | null>(null);
+  const pageRef = useRef<Page>("today");
   useEffect(() => {
     let timer: number | undefined;
-    const onError = (e: Event) => {
-      setWriteError((e as CustomEvent<string>).detail);
+    const show = (text: string, error: boolean) => {
+      setToast({ id: Date.now(), text, error });
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => setWriteError(null), 9000);
+      timer = window.setTimeout(() => setToast(null), error ? 9000 : 1800);
     };
+    // Sur l'écran IA, la discussion montre déjà chaque action : pas de confirmation en plus.
+    const onDone = (e: Event) => pageRef.current !== "ai" && show((e as CustomEvent<string>).detail, false);
+    const onError = (e: Event) => show((e as CustomEvent<string>).detail, true);
+    window.addEventListener(WRITE_DONE, onDone);
     window.addEventListener(WRITE_ERROR, onError);
-    return () => window.removeEventListener(WRITE_ERROR, onError);
+    return () => {
+      window.removeEventListener(WRITE_DONE, onDone);
+      window.removeEventListener(WRITE_ERROR, onError);
+    };
   }, []);
   // Présentation au premier lancement, décidée une fois les réglages lus.
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
@@ -102,6 +114,10 @@ export function MobileApp() {
             setSub(null);
             setTab("focus");
             setFocusView("focus");
+          } else if (r.action === "time") {
+            setSub(null);
+            setTab("focus");
+            setFocusView("time");
           } else if (r.action === "reminders") {
             setSub("reminders");
           }
@@ -110,17 +126,31 @@ export function MobileApp() {
     check();
     const onVisible = () => document.visibilityState === "visible" && check();
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    // Appli déjà ouverte et notification touchée : le signal arrive par le retour au premier plan.
+    window.addEventListener("megatron-resync", check);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("megatron-resync", check);
+    };
   }, []);
   // Retour Android : ferme la page ouverte, puis revient à Aujourd'hui, puis quitte l'appli.
   useBack(tab !== "today", () => setTab("today"));
   useBack(sub !== null, () => setSub(null));
   const page: Page = sub ?? tab;
+  pageRef.current = page;
+  useEffect(() => {
+    setFastClock(data.timers.length > 0 && ((page === "focus" && focusView === "time") || page === "projects"));
+  }, [data.timers.length, page, focusView]);
   // Chaque page s'ouvre en haut (la zone de défilement est partagée entre les onglets).
   const contentRef = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     contentRef.current?.scrollTo(0, 0);
   }, [page]);
+  // Tirer vers le bas en haut de la page : relecture des données (et des notifications / widgets).
+  const ptr = usePullToRefresh(contentRef, page !== "ai", async () => {
+    await emit(DATA_CHANGED).catch(() => {});
+    window.dispatchEvent(new CustomEvent(WRITE_DONE, { detail: "À jour" }));
+  });
   const showFab = !sub && (tab === "today" || tab === "tasks");
   const remindersToday = data.reminders.filter((r) => !r.done && new Date(r.due_at).toDateString() === now.toDateString()).length;
 
@@ -152,6 +182,13 @@ export function MobileApp() {
         </div>
       </header>
 
+      <div
+        className={ptr.refreshing ? "m-ptr spinning" : "m-ptr"}
+        style={{ opacity: Math.min(1, ptr.pull / 50), transform: `translate(-50%, ${ptr.pull - 46}px)` }}
+        aria-hidden="true"
+      >
+        <RotateCw size={18} strokeWidth={2.6} style={ptr.refreshing ? undefined : { transform: `rotate(${ptr.pull * 3}deg)` }} />
+      </div>
       <main className="m-content" ref={contentRef}>
         <AnimatePresence mode="wait">
           <motion.div
@@ -170,6 +207,9 @@ export function MobileApp() {
                 <div className="segmented m-segmented">
                   {(["focus", "time"] as const).map((v) => (
                     <button key={v} className={focusView === v ? "seg active" : "seg"} onClick={() => setFocusView(v)}>
+                      {focusView === v && (
+                        <motion.span layoutId="m-focus-seg" className="m-seg-pill" transition={{ type: "spring", stiffness: 500, damping: 38 }} />
+                      )}
                       <span className="tab-label">{v === "focus" ? "Focus" : "Temps"}</span>
                     </button>
                   ))}
@@ -201,16 +241,19 @@ export function MobileApp() {
       </AnimatePresence>
       <MobileSheets tasks={data.tasks} projects={data.projects} />
       <AnimatePresence>
-        {writeError && (
+        {toast && (
           <motion.div
-            className="m-toast"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            onClick={() => setWriteError(null)}
+            key={toast.id}
+            className="m-toast-wrap"
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98, transition: { duration: 0.18 } }}
+            transition={{ type: "spring", stiffness: 500, damping: 32 }}
           >
-            <AlertTriangle size={18} />
-            <span>{writeError}</span>
+            <div className={toast.error ? "m-toast error" : "m-toast"} onClick={() => setToast(null)} role="status">
+              {toast.error ? <AlertTriangle size={18} /> : <Check size={17} strokeWidth={3} />}
+              <span>{toast.text}</span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
