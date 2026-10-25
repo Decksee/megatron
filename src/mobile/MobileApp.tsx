@@ -15,7 +15,7 @@ import { MobileChat, requestVoice } from "./MobileChat";
 import { useBack } from "./useBack";
 import { usePullToRefresh } from "./usePullToRefresh";
 import { emit } from "@tauri-apps/api/event";
-import { MobileSheets, openAddTask } from "./sheets";
+import { MobileSheets, openAddTask, openTaskById } from "./sheets";
 import { MobileOnboarding, needsOnboarding } from "./MobileOnboarding";
 import { native } from "./native";
 import { Time } from "../views/Time";
@@ -106,7 +106,10 @@ export function MobileApp() {
     const check = () =>
       native<{ action: string | null }>("takeLaunchAction")
         .then((r) => {
-          if (r.action === "add") {
+          if (r.action?.startsWith("task:")) {
+            setSub(null);
+            openTaskById(Number(r.action.slice(5)));
+          } else if (r.action === "add") {
             setSub(null);
             setTab("today");
             openAddTask({ plannedToday: true });

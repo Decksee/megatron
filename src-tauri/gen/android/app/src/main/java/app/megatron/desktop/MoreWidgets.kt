@@ -67,15 +67,16 @@ object FocusWidget {
     when {
       // En cours : compte à rebours natif, bouton Arrêter.
       until > now -> {
-        v.setTextViewText(R.id.focus_title, "🎯 Focus en cours")
+        v.setTextViewText(R.id.focus_title, "Focus en cours")
         v.setViewVisibility(R.id.focus_big, View.GONE)
         v.setViewVisibility(R.id.focus_chrono, View.VISIBLE)
         v.setChronometer(R.id.focus_chrono, SystemClock.elapsedRealtime() + (until - now), null, true)
         v.setChronometerCountDown(R.id.focus_chrono, true)
         v.setTextViewText(R.id.focus_sub, "Fin à ${hhmm(until)}" + if (FocusCtl.blocking(context)) " · applis bloquées" else "")
-        v.setTextViewText(R.id.focus_action, "■  Arrêter")
+        v.setTextViewText(R.id.focus_action_text, "Arrêter")
+        v.setImageViewResource(R.id.focus_action_icon, R.drawable.ic_w_stop_white)
         v.setInt(R.id.focus_action, "setBackgroundResource", R.drawable.widget_pill_danger)
-        v.setTextColor(R.id.focus_action, 0xFFFFFFFF.toInt())
+        v.setTextColor(R.id.focus_action_text, 0xFFFFFFFF.toInt())
         v.setOnClickPendingIntent(R.id.focus_action, stopIntent(context))
       }
       // En pause dans l'appli : on y renvoie pour reprendre.
@@ -86,22 +87,24 @@ object FocusWidget {
         v.setViewVisibility(R.id.focus_big, View.VISIBLE)
         v.setTextViewText(R.id.focus_big, formatMinutes(((left + 59_999) / 60_000).toInt()))
         v.setTextViewText(R.id.focus_sub, "Reprends-le dans l'appli")
-        v.setTextViewText(R.id.focus_action, "Reprendre")
+        v.setTextViewText(R.id.focus_action_text, "Reprendre")
+        v.setImageViewResource(R.id.focus_action_icon, R.drawable.ic_w_play)
         v.setInt(R.id.focus_action, "setBackgroundResource", R.drawable.widget_pill)
-        v.setTextColor(R.id.focus_action, 0xFF000000.toInt())
+        v.setTextColor(R.id.focus_action_text, 0xFF000000.toInt())
         v.setOnClickPendingIntent(R.id.focus_action, Widget.openApp(context, "focus", 62))
       }
       // Rien en cours : durée habituelle, et raccourcis si la place le permet.
       else -> {
         val m = Store.setting(context, "focus_duration")?.toIntOrNull() ?: 25
-        v.setTextViewText(R.id.focus_title, "🎯 Focus")
+        v.setTextViewText(R.id.focus_title, "Focus")
         v.setViewVisibility(R.id.focus_chrono, View.GONE)
         v.setViewVisibility(R.id.focus_big, View.VISIBLE)
         v.setTextViewText(R.id.focus_big, formatMinutes(m))
         v.setTextViewText(R.id.focus_sub, if (Store.setting(context, "m_block") != "0") "Applis distrayantes bloquées" else "Reste concentré")
-        v.setTextViewText(R.id.focus_action, "▶  Lancer")
+        v.setTextViewText(R.id.focus_action_text, "Lancer")
+        v.setImageViewResource(R.id.focus_action_icon, R.drawable.ic_w_play)
         v.setInt(R.id.focus_action, "setBackgroundResource", R.drawable.widget_pill)
-        v.setTextColor(R.id.focus_action, 0xFF000000.toInt())
+        v.setTextColor(R.id.focus_action_text, 0xFF000000.toInt())
         v.setOnClickPendingIntent(R.id.focus_action, startIntent(context, m))
         if (!row && w >= 200 && h >= 170) {
           v.setViewVisibility(R.id.focus_quick, View.VISIBLE)

@@ -10,22 +10,29 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:ellipsize="end"
         android:maxLines="1"
-        android:text="⏰ Prochain rappel"
+        android:text="Prochain rappel"
         android:textColor="@color/widget_muted"
         android:textSize="12.5sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:drawableStart="@drawable/ic_w_bell"
+        android:drawablePadding="6dp"
+        android:gravity="center_vertical" />
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:ellipsize="end"
         android:maxLines="1"
         android:text="Aujourd\'hui · 14:30"
         android:textColor="@color/widget_accent"
         android:textSize="22sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:layout_marginTop="4dp" />
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:ellipsize="end"
         android:maxLines="1"
         android:text="Appeler le client"
         android:textColor="@color/widget_text"
@@ -34,28 +41,54 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
         android:orientation="horizontal">
-        <TextView
+    <LinearLayout
         android:layout_width="0dp"
-        android:layout_height="40dp"
+        android:layout_height="42dp"
         android:layout_weight="1"
-        android:layout_marginTop="10dp"
         android:background="@drawable/widget_pill"
         android:gravity="center"
-        android:text="✓ Fait"
-        android:textColor="#FF000000"
-        android:textSize="14sp"
-        android:textStyle="bold" />
-    <TextView
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp">
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/ic_w_check" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="7dp"
+            android:maxLines="1"
+            android:text="Fait"
+            android:textColor="#FF000000"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+    <LinearLayout
         android:layout_width="0dp"
-        android:layout_height="40dp"
+        android:layout_height="42dp"
         android:layout_weight="1"
-        android:layout_marginTop="10dp"
+        android:layout_marginStart="8dp"
         android:background="@drawable/widget_row_bg"
         android:gravity="center"
-        android:text="+10 min"
-        android:textColor="@color/widget_text"
-        android:textSize="14sp"
-        android:textStyle="bold" />
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp">
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/ic_w_snooze" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="7dp"
+            android:maxLines="1"
+            android:text="10 min"
+            android:textColor="@color/widget_text"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
     </LinearLayout>
 </LinearLayout>

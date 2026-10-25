@@ -104,6 +104,8 @@ const subscribe = (l: () => void) => {
 
 /** Fiche d'une tâche : intitulé, projet, dates, faite, suppression. */
 export const openTask = (task: Task) => set({ kind: "task", id: task.id });
+/** Fiche d'une tâche à partir de son numéro (bouton « Replanifier » d'une notification). */
+export const openTaskById = (id: number) => set({ kind: "task", id });
 /** Nouvelle tâche, rattachée au projet (ou à l'extra) de l'écran en cours. */
 export const openAddTask = (opts: { projectId?: number | null; extraId?: number | null; plannedToday?: boolean } = {}) =>
   set({ kind: "add", projectId: opts.projectId ?? null, extraId: opts.extraId ?? null, plannedToday: !!opts.plannedToday });

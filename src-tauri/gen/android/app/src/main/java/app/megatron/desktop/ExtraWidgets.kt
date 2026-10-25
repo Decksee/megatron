@@ -44,6 +44,14 @@ object TimerWidget {
     return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%02d:%02d".format(s / 60, s % 60)
   }
 
+  /** Bouton « icône + texte » : sans texte (widget étroit), l'icône seule reste centrée. */
+  private fun button(v: RemoteViews, id: Int, textId: Int, iconId: Int?, icon: Int?, label: String, iconOnly: Boolean) {
+    if (iconId != null && icon != null) v.setImageViewResource(iconId, icon)
+    v.setTextViewText(textId, label)
+    v.setViewVisibility(textId, if (iconOnly) View.GONE else View.VISIBLE)
+    v.setViewVisibility(id, View.VISIBLE)
+  }
+
   fun build(context: Context, options: Bundle): RemoteViews {
     val (w, h) = Widget.size(options)
     val row = h < ONE_ROW_DP
@@ -51,18 +59,18 @@ object TimerWidget {
     v.setOnClickPendingIntent(R.id.widget_root, Widget.openApp(context, "time", 67))
     val all = TimerNotif.timers(context)
     val shown = all.firstOrNull { it.runningSince != null } ?: all.firstOrNull()
-    val narrow = w < 170
-    v.setViewVisibility(R.id.timer_sub, if (row || narrow) View.GONE else View.VISIBLE)
+    val iconOnly = row || w < 170
+    v.setViewVisibility(R.id.timer_sub, if (row || w < 170) View.GONE else View.VISIBLE)
 
     if (shown == null) {
       // Aucun minuteur : on propose de reprendre le dernier projet travaillé.
       val (pid, name) = TimerNotif.lastProject(context)
-      v.setTextViewText(R.id.timer_label, "⏱ Minuteur")
+      v.setTextViewText(R.id.timer_label, "Minuteur")
       v.setViewVisibility(R.id.timer_chrono, View.GONE)
       v.setViewVisibility(R.id.timer_static, View.VISIBLE)
       v.setTextViewText(R.id.timer_static, "00:00")
       v.setTextViewText(R.id.timer_sub, "Sur : $name")
-      v.setTextViewText(R.id.timer_main, if (row) "▶" else "▶  Démarrer")
+      button(v, R.id.timer_main, R.id.timer_main_text, R.id.timer_main_icon, R.drawable.ic_w_play, "Démarrer", iconOnly)
       v.setOnClickPendingIntent(R.id.timer_main, TimerNotif.action(context, TimerReceiver.START, pid, 30))
       v.setViewVisibility(R.id.timer_stop, View.GONE)
       return v
@@ -70,7 +78,7 @@ object TimerWidget {
 
     val running = shown.runningSince
     val others = all.size - 1
-    v.setTextViewText(R.id.timer_label, (if (running != null) "⏱ " else "⏸ ") + shown.name)
+    v.setTextViewText(R.id.timer_label, shown.name)
     if (running != null) {
       // Chrono qui monte, tenu par Android : aucun code ne tourne pendant que le minuteur compte.
       val elapsed = shown.doneMs + (System.currentTimeMillis() - running)
@@ -78,18 +86,17 @@ object TimerWidget {
       v.setViewVisibility(R.id.timer_chrono, View.VISIBLE)
       v.setChronometer(R.id.timer_chrono, SystemClock.elapsedRealtime() - elapsed, null, true)
       v.setTextViewText(R.id.timer_sub, if (others > 0) "En cours · +$others autre${if (others > 1) "s" else ""}" else "En cours")
-      v.setTextViewText(R.id.timer_main, if (row || narrow) "⏸" else "⏸  Pause")
+      button(v, R.id.timer_main, R.id.timer_main_text, R.id.timer_main_icon, R.drawable.ic_w_pause, "Pause", iconOnly)
       v.setOnClickPendingIntent(R.id.timer_main, TimerNotif.action(context, TimerReceiver.PAUSE, shown.projectId, 31))
     } else {
       v.setViewVisibility(R.id.timer_chrono, View.GONE)
       v.setViewVisibility(R.id.timer_static, View.VISIBLE)
       v.setTextViewText(R.id.timer_static, clock(shown.doneMs))
       v.setTextViewText(R.id.timer_sub, "En pause")
-      v.setTextViewText(R.id.timer_main, if (row || narrow) "▶" else "▶  Reprendre")
+      button(v, R.id.timer_main, R.id.timer_main_text, R.id.timer_main_icon, R.drawable.ic_w_play, "Reprendre", iconOnly)
       v.setOnClickPendingIntent(R.id.timer_main, TimerNotif.action(context, TimerReceiver.RESUME, shown.projectId, 32))
     }
-    v.setViewVisibility(R.id.timer_stop, View.VISIBLE)
-    v.setTextViewText(R.id.timer_stop, if (row || narrow) "■" else "■  Arrêter")
+    button(v, R.id.timer_stop, R.id.timer_stop_text, null, null, "Arrêter", iconOnly)
     v.setOnClickPendingIntent(R.id.timer_stop, TimerNotif.action(context, TimerReceiver.STOP, shown.projectId, 33))
     return v
   }

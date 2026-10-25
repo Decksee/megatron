@@ -4,20 +4,25 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
-    android:gravity="center"
+    android:gravity="center_vertical"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:padding="14dp">
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:ellipsize="end"
         android:maxLines="1"
-        android:text="🎯 Focus"
+        android:text="Focus"
         android:textColor="@color/widget_muted"
         android:textSize="13sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:drawableStart="@drawable/ic_w_target"
+        android:drawablePadding="6dp"
+        android:gravity="center_vertical" />
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:ellipsize="end"
         android:maxLines="1"
         android:text="25 min"
         android:textColor="@color/widget_text"
@@ -26,18 +31,32 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:ellipsize="end"
         android:maxLines="1"
         android:text="Applis distrayantes bloquées"
         android:textColor="@color/widget_muted"
         android:textSize="12sp" />
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:layout_marginTop="10dp"
+        android:layout_height="42dp"
+        android:layout_marginTop="12dp"
         android:background="@drawable/widget_pill"
         android:gravity="center"
-        android:text="▶  Lancer"
-        android:textColor="#FF000000"
-        android:textSize="14sp"
-        android:textStyle="bold" />
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp">
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/ic_w_play" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="7dp"
+            android:maxLines="1"
+            android:text="Lancer"
+            android:textColor="#FF000000"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 </LinearLayout>

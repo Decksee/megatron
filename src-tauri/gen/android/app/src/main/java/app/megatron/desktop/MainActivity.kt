@@ -38,9 +38,13 @@ class MainActivity : TauriActivity() {
     val shownAt = SystemClock.uptimeMillis()
     splash.setKeepOnScreenCondition { !ready && SystemClock.uptimeMillis() - shownAt < 3000 }
     splash.setOnExitAnimationListener { screen ->
-      screen.view.animate().alpha(0f).setDuration(220).withEndAction { screen.remove() }.start()
+      screen.view.animate().alpha(0f).setDuration(220).withEndAction {
+        screen.remove()
+        applyBars()
+      }.start()
     }
     enableEdgeToEdge()
+    applyBars()
     super.onCreate(savedInstanceState)
     window.decorView.setBackgroundColor(getColor(R.color.splash_bg))
     rememberAction(intent)
@@ -69,7 +73,15 @@ class MainActivity : TauriActivity() {
   }
 
   /** Icônes de la barre d'état et de navigation : sombres en thème clair, claires en thème sombre. */
-  fun setLightBars(light: Boolean) = runOnUiThread {
+  private fun prefs() = getSharedPreferences("megatron", Context.MODE_PRIVATE)
+
+  /** Thème des barres retenu (dernier choix de l'appli), appliqué sans attendre l'interface. */
+  private fun applyBars() {
+    if (prefs().contains("light_bars")) setLightBars(prefs().getBoolean("light_bars", false), remember = false)
+  }
+
+  fun setLightBars(light: Boolean, remember: Boolean = true) = runOnUiThread {
+    if (remember) prefs().edit().putBoolean("light_bars", light).apply()
     // Fond derrière les barres (zone sous les boutons de navigation) : celui du thème de l'appli.
     window.decorView.setBackgroundColor(if (light) 0xFFF7F7F9.toInt() else 0xFF000000.toInt())
     WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -90,6 +102,7 @@ class MainActivity : TauriActivity() {
   override fun onResume() {
     super.onResume()
     current = java.lang.ref.WeakReference(this)
+    applyBars()
   }
 
   override fun onDestroy() {

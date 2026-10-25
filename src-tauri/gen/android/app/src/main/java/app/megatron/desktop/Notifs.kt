@@ -58,6 +58,16 @@ object Notifs {
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
+  /** Ouvre l'appli sur la fiche d'une tâche. */
+  private fun openTask(context: Context, taskId: Long): PendingIntent =
+    PendingIntent.getActivity(
+      context, 12,
+      Intent(context, MainActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        .putExtra("megatron_action", "task:$taskId"),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
   fun action(context: Context, action: String, id: Long, request: Int): PendingIntent =
     PendingIntent.getBroadcast(
       context, request,
@@ -105,7 +115,8 @@ object Notifs {
       .setCategory(NotificationCompat.CATEGORY_STATUS)
       .setContentIntent(openApp(context))
       .addAction(0, "Fait", action(context, ActionReceiver.TASK_DONE, current.id, 10))
-      .addAction(0, "Replanifier", action(context, ActionReceiver.TASK_REPLAN, current.id, 11))
+      // Replanifier : l'appli s'ouvre sur la fiche de la tâche, pour choisir le jour et l'échéance.
+      .addAction(0, "Replanifier", openTask(context, current.id))
     try {
       nm.notify(ID_TASK, builder.build())
     } catch (e: SecurityException) {
