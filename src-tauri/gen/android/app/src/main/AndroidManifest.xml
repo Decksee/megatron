@@ -97,6 +97,30 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_reminder_info" />
         </receiver>
+        <receiver android:name=".TimerWidgetProvider" android:exported="true" android:label="Mégatron · Minuteur">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_timer_info" />
+        </receiver>
+        <receiver android:name=".QuickWidgetProvider" android:exported="true" android:label="Mégatron · Ajout rapide">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_quick_info" />
+        </receiver>
+        <receiver android:name=".MoneyWidgetProvider" android:exported="true" android:label="Mégatron · Argent">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_money_info" />
+        </receiver>
+        <receiver android:name=".WeekWidgetProvider" android:exported="true" android:label="Mégatron · Ma semaine">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_week_info" />
+        </receiver>
 
         <provider
           android:name="androidx.core.content.FileProvider"

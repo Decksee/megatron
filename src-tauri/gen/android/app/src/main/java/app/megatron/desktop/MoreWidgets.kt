@@ -15,7 +15,10 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private fun updateAll(context: Context, provider: Class<*>, build: (Bundle) -> RemoteViews) {
+/** Hauteur d'une seule rangée d'icônes (Samsung, Tecno…) : en dessous, on passe à la disposition sur une ligne. */
+internal const val ONE_ROW_DP = 140
+
+internal fun updateAll(context: Context, provider: Class<*>, build: (Bundle) -> RemoteViews) {
   val manager = AppWidgetManager.getInstance(context)
   for (id in manager.getAppWidgetIds(ComponentName(context, provider))) {
     manager.updateAppWidget(id, build(manager.getAppWidgetOptions(id)))
@@ -49,14 +52,16 @@ object FocusWidget {
 
   fun build(context: Context, options: Bundle): RemoteViews {
     val (w, h) = Widget.size(options)
-    val v = RemoteViews(context.packageName, R.layout.widget_focus)
+    // Une seule rangée de haut : temps à gauche, bouton à droite. Sinon : tout empilé.
+    val row = h < ONE_ROW_DP
+    val v = RemoteViews(context.packageName, if (row) R.layout.widget_focus_row else R.layout.widget_focus)
     val now = System.currentTimeMillis()
     val until = FocusCtl.endsAt(context)
     val open = Store.openFocus(context)
-    val tiny = w < 120 || h < 100
+    val tiny = row || w < 120
 
     v.setOnClickPendingIntent(R.id.widget_root, Widget.openApp(context, "focus", 62))
-    v.setViewVisibility(R.id.focus_title, if (h < 80) View.GONE else View.VISIBLE)
+    v.setViewVisibility(R.id.focus_title, View.VISIBLE)
     v.setViewVisibility(R.id.focus_quick, View.GONE)
 
     when {
@@ -98,7 +103,7 @@ object FocusWidget {
         v.setInt(R.id.focus_action, "setBackgroundResource", R.drawable.widget_pill)
         v.setTextColor(R.id.focus_action, 0xFF000000.toInt())
         v.setOnClickPendingIntent(R.id.focus_action, startIntent(context, m))
-        if (w >= 200 && h >= 170) {
+        if (!row && w >= 200 && h >= 170) {
           v.setViewVisibility(R.id.focus_quick, View.VISIBLE)
           v.setOnClickPendingIntent(R.id.focus_q1, startIntent(context, 15))
           v.setOnClickPendingIntent(R.id.focus_q2, startIntent(context, 50))
@@ -107,12 +112,32 @@ object FocusWidget {
       }
     }
     if (tiny) v.setViewVisibility(R.id.focus_sub, View.GONE)
+    // Trop étroit pour le bouton : le widget entier fait l'action (lancer ou arrêter).
+    if (row && w < 170) {
+      v.setViewVisibility(R.id.focus_action, View.GONE)
+      v.setOnClickPendingIntent(
+        R.id.widget_root,
+        if (until > now) stopIntent(context)
+        else if (open?.pausedAt != null) Widget.openApp(context, "focus", 62)
+        else startIntent(context, Store.setting(context, "focus_duration")?.toIntOrNull() ?: 25),
+      )
+    }
     return v
   }
 }
 
 /** Widget Prochain rappel : quand, quoi, et Fait / +10 min sans ouvrir l'appli. */
 object ReminderWidget {
+  /** Confirmation affichée un instant après un bouton du widget (« ✓ C'est fait »…). */
+  fun flash(context: Context, text: String) = updateAll(context, ReminderWidgetProvider::class.java) { options ->
+    val row = Widget.size(options).second < ONE_ROW_DP
+    RemoteViews(context.packageName, if (row) R.layout.widget_reminder_row else R.layout.widget_reminder).apply {
+      setTextViewText(R.id.rem_when, text)
+      setTextViewText(R.id.rem_title, "")
+      setViewVisibility(R.id.rem_actions, View.GONE)
+    }
+  }
+
   fun refreshAll(context: Context) = updateAll(context, ReminderWidgetProvider::class.java) { build(context, it) }
 
   private fun whenLabel(due: Long): String {
@@ -131,12 +156,14 @@ object ReminderWidget {
 
   fun build(context: Context, options: Bundle): RemoteViews {
     val (w, h) = Widget.size(options)
-    val v = RemoteViews(context.packageName, R.layout.widget_reminder)
+    // Une seule rangée de haut : heure et titre sur une ligne, boutons à droite s'il y a la place.
+    val row = h < ONE_ROW_DP
+    val v = RemoteViews(context.packageName, if (row) R.layout.widget_reminder_row else R.layout.widget_reminder)
     val next = Store.nextReminder(context)
-    val small = w < 150 || h < 110
+    val small = if (row) w < 260 else w < 150 || h < 110
 
     v.setOnClickPendingIntent(R.id.widget_root, Widget.openApp(context, "reminders", 63))
-    v.setViewVisibility(R.id.rem_label, if (h < 90) View.GONE else View.VISIBLE)
+    v.setViewVisibility(R.id.rem_label, if (row) View.GONE else View.VISIBLE)
     if (next == null) {
       v.setTextViewText(R.id.rem_when, "Rien de prévu")
       v.setTextViewText(R.id.rem_title, "Touche pour ajouter un rappel")
@@ -145,10 +172,10 @@ object ReminderWidget {
     }
     v.setTextViewText(R.id.rem_when, whenLabel(next.dueAt))
     v.setTextViewText(R.id.rem_title, next.title)
-    v.setInt(R.id.rem_title, "setMaxLines", if (small) 1 else 2)
+    v.setInt(R.id.rem_title, "setMaxLines", if (small || row) 1 else 2)
     v.setViewVisibility(R.id.rem_actions, if (small) View.GONE else View.VISIBLE)
-    v.setOnClickPendingIntent(R.id.rem_done, Notifs.action(context, ActionReceiver.REMINDER_DONE, next.id, 9000))
-    v.setOnClickPendingIntent(R.id.rem_snooze, Notifs.action(context, ActionReceiver.REMINDER_SNOOZE, next.id, 9001))
+    v.setOnClickPendingIntent(R.id.rem_done, Widget.widgetAction(context, ActionReceiver.REMINDER_DONE, next.id, 9000))
+    v.setOnClickPendingIntent(R.id.rem_snooze, Widget.widgetAction(context, ActionReceiver.REMINDER_SNOOZE, next.id, 9001))
     return v
   }
 }

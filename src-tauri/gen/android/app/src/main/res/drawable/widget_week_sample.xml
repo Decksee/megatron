@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Graphique d'exemple pour l'aperçu du widget « Ma semaine ». -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="146dp"
+    android:height="88dp"
+    android:viewportWidth="146"
+    android:viewportHeight="88">
+    <path android:fillColor="@color/widget_line" android:pathData="M6,4 h10 v80 h-10 Z" />
+    <path android:fillColor="#99A3E4B2" android:pathData="M6,44 h10 v40 h-10 Z" />
+    <path android:fillColor="@color/widget_line" android:pathData="M26,4 h10 v80 h-10 Z" />
+    <path android:fillColor="#99A3E4B2" android:pathData="M26,22 h10 v62 h-10 Z" />
+    <path android:fillColor="@color/widget_line" android:pathData="M46,4 h10 v80 h-10 Z" />
+    <path android:fillColor="#99A3E4B2" android:pathData="M46,54 h10 v30 h-10 Z" />
+    <path android:fillColor="@color/widget_line" android:pathData="M66,4 h10 v80 h-10 Z" />
+    <path android:fillColor="@color/widget_accent" android:pathData="M66,9 h10 v75 h-10 Z" />
+    <path android:fillColor="@color/widget_line" android:pathData="M86,4 h10 v80 h-10 Z" />
+    <path android:fillColor="#99A3E4B2" android:pathData="M86,29 h10 v55 h-10 Z" />
+    <path android:fillColor="@color/widget_line" android:pathData="M106,4 h10 v80 h-10 Z" />
+    <path android:fillColor="#99A3E4B2" android:pathData="M106,66 h10 v18 h-10 Z" />
+    <path android:fillColor="@color/widget_line" android:pathData="M126,4 h10 v80 h-10 Z" />
+    <path android:fillColor="#99A3E4B2" android:pathData="M126,76 h10 v8 h-10 Z" />
+</vector>

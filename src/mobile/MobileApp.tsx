@@ -11,7 +11,7 @@ import { Projects } from "../views/Projects";
 import { ProgressRing } from "../views/Today";
 import { MobileSettings } from "./MobileSettings";
 import { MobileFocus } from "./MobileFocus";
-import { MobileChat } from "./MobileChat";
+import { MobileChat, requestVoice } from "./MobileChat";
 import { useBack } from "./useBack";
 import { usePullToRefresh } from "./usePullToRefresh";
 import { emit } from "@tauri-apps/api/event";
@@ -114,6 +114,13 @@ export function MobileApp() {
             setSub(null);
             setTab("focus");
             setFocusView("focus");
+          } else if (r.action === "voice") {
+            setSub(null);
+            setTab("ai");
+            requestVoice();
+          } else if (r.action === "projects") {
+            setSub(null);
+            setTab("projects");
           } else if (r.action === "time") {
             setSub(null);
             setTab("focus");

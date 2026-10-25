@@ -17,8 +17,18 @@ class ActionReceiver : BroadcastReceiver() {
     val id = intent.getLongExtra("id", -1)
     if (id < 0) return
     val pending = goAsync()
+    val fromWidget = intent.getBooleanExtra("widget", false)
     Thread {
       try {
+        // Depuis un widget : retour visuel immédiat, puis la tâche (ou le rappel) part un instant après.
+        if (fromWidget) {
+          when (intent.action) {
+            TASK_DONE -> Widget.showChecked(context, id)
+            REMINDER_DONE -> ReminderWidget.flash(context, "✓ C'est fait")
+            REMINDER_SNOOZE -> ReminderWidget.flash(context, "⏰ Dans 10 min")
+          }
+          Thread.sleep(700)
+        }
         when (intent.action) {
           TASK_DONE -> Store.markDone(context, id)
           TASK_REPLAN -> Store.replanTomorrow(context, id)
@@ -34,6 +44,7 @@ class ActionReceiver : BroadcastReceiver() {
         Alarms.scheduleAll(context)
         Notifs.refreshTask(context)
         Widget.refreshAll(context)
+        MainActivity.resync()
       } finally {
         pending.finish()
       }

@@ -262,6 +262,12 @@ fn migrations() -> Vec<Migration> {
         description: "jour prevu des taches (distinct de l'echeance)",
         sql: "ALTER TABLE tasks ADD COLUMN planned_date TEXT;",
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 11,
+        description: "sonnerie des rappels (telephone)",
+        sql: "ALTER TABLE reminders ADD COLUMN ring INTEGER NOT NULL DEFAULT 0;",
+        kind: MigrationKind::Up,
     }]
 }
 

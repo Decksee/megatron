@@ -60,7 +60,7 @@ object TimerNotif {
     )
   }
 
-  private fun action(context: Context, action: String, projectId: Long?, request: Int): PendingIntent =
+  fun action(context: Context, action: String, projectId: Long?, request: Int): PendingIntent =
     PendingIntent.getBroadcast(
       context, request,
       Intent(context, TimerReceiver::class.java).setAction(action).putExtra("project", projectId ?: -1L),
@@ -139,6 +139,32 @@ object TimerNotif {
     }
   }
 
+  /** Démarre (ou reprend) le minuteur d'un projet, comme le bouton « Démarrer » de l'appli. */
+  fun start(context: Context, projectId: Long?) {
+    Store.withDb(context, Unit) { db ->
+      val exists = db.rawQuery("SELECT 1 FROM timers WHERE ${sameProject(projectId)}", listOfNotNull(projectId?.toString()).toTypedArray())
+        .use { it.moveToFirst() }
+      if (!exists) {
+        db.execSQL(
+          "INSERT INTO timers (project_id, created_at) VALUES (?, ?)",
+          arrayOf<Any?>(projectId, Store.toIso(System.currentTimeMillis())),
+        )
+      }
+    }
+    resume(context, projectId)
+  }
+
+  /** Projet du dernier temps compté (pour « Démarrer » sur le widget), et son nom. */
+  fun lastProject(context: Context): Pair<Long?, String> = Store.withDb(context, null as Long? to "Sans projet") { db ->
+    db.rawQuery(
+      "SELECT e.project_id, p.name FROM time_entries e LEFT JOIN projects p ON p.id = e.project_id ORDER BY e.started_at DESC LIMIT 1",
+      null,
+    ).use { c ->
+      if (!c.moveToFirst() || c.isNull(0)) null as Long? to "Sans projet"
+      else c.getLong(0) to (if (c.isNull(1)) "Sans projet" else c.getString(1))
+    }
+  }
+
   fun stop(context: Context, projectId: Long?) {
     closeOpen(context, projectId)
     Store.withDb(context, Unit) { db -> db.execSQL("DELETE FROM timers WHERE project_id IS ?", arrayOf<Any?>(projectId)) }
@@ -151,6 +177,7 @@ class TimerReceiver : BroadcastReceiver() {
     const val PAUSE = "app.megatron.TIMER_PAUSE"
     const val RESUME = "app.megatron.TIMER_RESUME"
     const val STOP = "app.megatron.TIMER_STOP"
+    const val START = "app.megatron.TIMER_START"
   }
 
   override fun onReceive(context: Context, intent: Intent) {
@@ -163,8 +190,12 @@ class TimerReceiver : BroadcastReceiver() {
           PAUSE -> TimerNotif.pause(context, projectId)
           RESUME -> TimerNotif.resume(context, projectId)
           STOP -> TimerNotif.stop(context, projectId)
+          START -> TimerNotif.start(context, projectId)
         }
         TimerNotif.refresh(context)
+        TimerWidget.refreshAll(context)
+        WeekWidget.refreshAll(context)
+        MainActivity.resync()
       } finally {
         pending.finish()
       }

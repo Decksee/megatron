@@ -61,6 +61,7 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
   const [due, setDue] = useState<Date | null>(() => new Date(Date.now() + 30 * 60_000));
   const [repeat, setRepeat] = useState<ReminderRepeat>("none");
   const [projectId, setProjectId] = useState<number | null>(null);
+  const [ring, setRing] = useState(false);
   const [showDone, setShowDone] = useState(false);
   /** Rappel en cours de modification : le formulaire du haut sert alors à le modifier. */
   const [editing, setEditing] = useState<Reminder | null>(null);
@@ -78,11 +79,12 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
     setDue(new Date(Date.now() + 30 * 60_000));
     setRepeat("none");
     setProjectId(null);
+    setRing(false);
   };
 
   const add = async () => {
     if (!valid) return;
-    const r = { title: title.trim(), dueAt: due!, repeat, projectId };
+    const r = { title: title.trim(), dueAt: due!, repeat, projectId, ring };
     if (editing) {
       await updateReminder(editing.id, r);
       reset();
@@ -98,6 +100,7 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
     setDue(new Date(r.due_at));
     setRepeat(r.repeat);
     setProjectId(r.project_id);
+    setRing(!!r.ring);
     requestAnimationFrame(() => document.getElementById("reminder-title")?.focus());
   };
 
@@ -134,6 +137,11 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
           {r.repeat !== "none" && (
             <span className="muted small with-icon">
               <Repeat size={11} /> {REPEAT_LABEL[r.repeat]}
+            </span>
+          )}
+          {!!r.ring && isMobileApp() && (
+            <span className="muted small with-icon">
+              <BellRing size={11} /> Sonnerie
             </span>
           )}
         </div>
@@ -218,6 +226,16 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
           />
           <Select small value={projectId} onChange={setProjectId} options={projectOptions(projects)} ariaLabel="Projet" />
         </div>
+        {isMobileApp() && (
+          <button type="button" className={ring ? "m-ring on" : "m-ring"} onClick={() => setRing(!ring)} aria-pressed={ring}>
+            <BellRing size={17} />
+            <span>
+              <b>Sonnerie</b>
+              <span className="muted small">{ring ? "Sonne comme un réveil, même en silencieux" : "Simple notification"}</span>
+            </span>
+            <span className="m-ring-switch" />
+          </button>
+        )}
       </form>
 
       {upcoming.length === 0 && !showDone ? (

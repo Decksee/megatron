@@ -93,6 +93,8 @@ export interface Reminder {
   /** due_at pour lequel la notification a déjà été envoyée. */
   notified_at: string | null;
   created_at: string;
+  /** Téléphone : sonne comme un réveil (1) au lieu d'une simple notification (0). */
+  ring?: number;
 }
 
 export type ProjectInput = Omit<Project, "id" | "created_at" | "paid_at">;
@@ -483,22 +485,27 @@ export async function listReminders() {
 }
 
 /** Modifie un rappel ; il sonnera de nouveau à sa (nouvelle) heure. */
-export function updateReminder(id: number, r: { title: string; dueAt: Date; repeat: ReminderRepeat; projectId: number | null }) {
-  return write("UPDATE reminders SET title=$1, due_at=$2, repeat=$3, project_id=$4, notified_at=NULL, done=0 WHERE id=$5", [
+export function updateReminder(
+  id: number,
+  r: { title: string; dueAt: Date; repeat: ReminderRepeat; projectId: number | null; ring?: boolean },
+) {
+  return write("UPDATE reminders SET title=$1, due_at=$2, repeat=$3, project_id=$4, notified_at=NULL, done=0, ring=$6 WHERE id=$5", [
     r.title,
     r.dueAt.toISOString(),
     r.repeat,
     r.projectId,
     id,
+    r.ring ? 1 : 0,
   ]);
 }
 
-export function createReminder(r: { title: string; dueAt: Date; repeat: ReminderRepeat; projectId: number | null }) {
-  return write("INSERT INTO reminders (title, due_at, repeat, project_id) VALUES ($1,$2,$3,$4)", [
+export function createReminder(r: { title: string; dueAt: Date; repeat: ReminderRepeat; projectId: number | null; ring?: boolean }) {
+  return write("INSERT INTO reminders (title, due_at, repeat, project_id, ring) VALUES ($1,$2,$3,$4,$5)", [
     r.title,
     r.dueAt.toISOString(),
     r.repeat,
     r.projectId,
+    r.ring ? 1 : 0,
   ]);
 }
 

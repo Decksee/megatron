@@ -23,6 +23,31 @@ object Widget {
   private const val PADDING_DP = 24
   private const val ROW_DP = 48 // ligne + espacement
 
+  /** Tâche qu'on vient de cocher sur le widget : affichée cochée un instant avant de disparaître. */
+  @Volatile private var checking: Long? = null
+
+  /** Retour immédiat : la tâche apparaît cochée tout de suite (la base est modifiée juste après). */
+  fun showChecked(context: Context, taskId: Long) {
+    checking = taskId
+    try {
+      val manager = AppWidgetManager.getInstance(context)
+      val tasks = Store.todayTasks(context)
+      for (id in manager.getAppWidgetIds(ComponentName(context, WidgetProvider::class.java))) {
+        manager.updateAppWidget(id, build(context, tasks, manager.getAppWidgetOptions(id)))
+      }
+    } finally {
+      checking = null
+    }
+  }
+
+  /** Bouton du widget : même action que la notification, avec le retour visuel du widget. */
+  fun widgetAction(context: Context, action: String, id: Long, request: Int): PendingIntent =
+    PendingIntent.getBroadcast(
+      context, request,
+      Intent(context, ActionReceiver::class.java).setAction(action).putExtra("id", id).putExtra("widget", true),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
   fun refreshAll(context: Context) {
     val manager = AppWidgetManager.getInstance(context)
     val ids = manager.getAppWidgetIds(ComponentName(context, WidgetProvider::class.java))
@@ -32,6 +57,10 @@ object Widget {
     }
     FocusWidget.refreshAll(context)
     ReminderWidget.refreshAll(context)
+    TimerWidget.refreshAll(context)
+    QuickWidget.refreshAll(context)
+    MoneyWidget.refreshAll(context)
+    WeekWidget.refreshAll(context)
   }
 
   fun refreshOne(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
@@ -47,7 +76,7 @@ object Widget {
 
   private fun build(context: Context, tasks: List<Store.TaskRow>, options: Bundle): RemoteViews {
     val (w, h) = size(options)
-    return if (w < 150 || h < 110) small(context, tasks, w, h) else list(context, tasks, h)
+    return if (w < 150 || h < ONE_ROW_DP) small(context, tasks, w, h) else list(context, tasks, h)
   }
 
   fun openApp(context: Context, action: String?, request: Int): PendingIntent =
@@ -70,6 +99,11 @@ object Widget {
     val roomForNext = n > 0 && (w >= 150 || h >= 110)
     views.setViewVisibility(R.id.small_next, if (roomForNext) View.VISIBLE else View.GONE)
     if (roomForNext) views.setTextViewText(R.id.small_next, tasks[0].title)
+    // Une seule rangée de haut : le nombre et la prochaine tâche sur une ligne chacun, rien de coupé.
+    if (h < ONE_ROW_DP) {
+      views.setViewVisibility(R.id.small_label, if (roomForNext) View.GONE else View.VISIBLE)
+      views.setInt(R.id.small_next, "setMaxLines", 1)
+    }
     views.setOnClickPendingIntent(R.id.widget_root, openApp(context, null, 60))
     return views
   }
@@ -89,12 +123,20 @@ object Widget {
     val shown = tasks.take(if (n > fit) (fit - 1).coerceAtLeast(1) else fit)
     shown.forEachIndexed { i, t ->
       val row = RemoteViews(context.packageName, R.layout.widget_row)
+      val isChecking = t.id == checking
       row.setTextViewText(R.id.row_title, t.title)
-      row.setTextViewText(R.id.row_meta, if (t.late) "en retard" else t.project ?: "")
-      row.setTextColor(R.id.row_meta, context.getColor(if (t.late) R.color.widget_danger else R.color.widget_muted))
-      row.setImageViewResource(R.id.row_check_icon, if (t.late) R.drawable.widget_check_late else R.drawable.widget_check)
+      if (isChecking) {
+        row.setTextColor(R.id.row_title, context.getColor(R.color.widget_muted))
+        row.setTextViewText(R.id.row_meta, "Fait ✓")
+        row.setTextColor(R.id.row_meta, context.getColor(R.color.widget_accent))
+        row.setImageViewResource(R.id.row_check_icon, R.drawable.widget_check_done)
+      } else {
+        row.setTextViewText(R.id.row_meta, if (t.late) "en retard" else t.project ?: "")
+        row.setTextColor(R.id.row_meta, context.getColor(if (t.late) R.color.widget_danger else R.color.widget_muted))
+        row.setImageViewResource(R.id.row_check_icon, if (t.late) R.drawable.widget_check_late else R.drawable.widget_check)
+      }
       // Toucher le rond : tâche faite, sans ouvrir l'appli (même récepteur que la notification).
-      row.setOnClickPendingIntent(R.id.row_check, Notifs.action(context, ActionReceiver.TASK_DONE, t.id, 7000 + i))
+      row.setOnClickPendingIntent(R.id.row_check, widgetAction(context, ActionReceiver.TASK_DONE, t.id, 7000 + i))
       row.setOnClickPendingIntent(R.id.row_root, openApp(context, null, 60))
       views.addView(R.id.widget_rows, row)
     }

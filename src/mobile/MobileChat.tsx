@@ -19,6 +19,13 @@ const SUGGESTIONS = [
  * Discussion avec l'assistant, pensée pour le téléphone : messages plein écran,
  * zone de saisie collée en bas (au-dessus du clavier), gros boutons micro et envoyer.
  */
+/** Micro du widget « Ajout rapide » : l'écran IA s'ouvre et se met à écouter tout de suite. */
+let voicePending = false;
+export function requestVoice() {
+  voicePending = true;
+  window.dispatchEvent(new Event("megatron-voice"));
+}
+
 export function MobileChat({ settings }: Data) {
   const config = aiConfig(settings);
   const [editing, setEditing] = useState(false);
@@ -75,6 +82,19 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
     if (ai.recording) stopTalking(config, voice, { speak: false });
     else startTalking(() => stopTalking(config, voice, { speak: false }));
   };
+
+  // Ouvert depuis le micro du widget : on écoute directement (sans voix configurée, l'écran reste prêt à écrire).
+  useEffect(() => {
+    const listen = () => {
+      if (!voicePending) return;
+      voicePending = false;
+      if (voice && !ai.recording) startTalking(() => stopTalking(config, voice, { speak: false }));
+      else inputRef.current?.focus();
+    };
+    listen();
+    window.addEventListener("megatron-voice", listen);
+    return () => window.removeEventListener("megatron-voice", listen);
+  }, [voice?.provider]);
 
   const empty = ai.messages.length === 0 && !ai.busy && !ai.recording;
   const typing = !!text.trim();

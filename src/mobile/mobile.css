@@ -165,7 +165,7 @@ html[data-window="mobile"] #root {
 /* Poignée du panneau : large zone à saisir pour le glisser vers le bas. */
 .m-sheet-handle { display: flex; justify-content: center; padding: 6px 0 4px; margin: -8px -16px 0; touch-action: none; cursor: grab; }
 .m-sheet-head { touch-action: none; }
-.m-sheet-backdrop { backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.m-sheet-backdrop { background: rgb(0 0 0 / 0.45); } /* pas de flou : trop coûteux pendant l'animation sur Android */
 
 /* ---------- En-tête : retour, cloche (rappels), roue (réglages) ---------- */
 .m-head { gap: 6px; }
@@ -680,3 +680,77 @@ html[data-window="mobile"] #root {
 .m-select-row.selected { background: rgb(var(--accent-rgb) / 0.12); color: var(--accent); font-weight: 700; }
 .m-select-row:active { background: rgb(var(--fg-rgb) / 0.06); }
 .m-select-check { font-weight: 800; color: var(--accent); }
+
+/* Panneaux fluides : le mouvement est confié à la carte graphique. */
+.m-sheet, .m-sheet-backdrop { will-change: transform, opacity; }
+/* Applis à bloquer : hauteur fixe (pas de saut quand la liste arrive), liste qui défile dedans. */
+.m-sheet-apps { height: 82%; }
+.m-sheet-apps .m-app-list { flex: 1; max-height: none; min-height: 0; }
+.m-app { content-visibility: auto; contain-intrinsic-size: auto 52px; }
+
+/* ---------- Extras et paiements : champs des panneaux ---------- */
+.m-input {
+  min-height: 50px; padding: 0 14px; border-radius: 14px; border: 0; outline: none; box-sizing: border-box; width: 100%;
+  background: rgb(var(--fg-rgb) / 0.06); color: var(--text); font: inherit; font-size: 16px;
+}
+.m-amount {
+  display: flex; align-items: center; gap: 8px; min-height: 54px; padding: 0 16px; border-radius: 14px;
+  background: rgb(var(--fg-rgb) / 0.06);
+}
+.m-amount:focus-within, .m-input:focus { box-shadow: inset 0 0 0 1.5px rgb(var(--accent-rgb) / 0.6); }
+.m-amount input {
+  flex: 1; min-width: 0; border: 0; outline: none; background: none; color: var(--text);
+  font: inherit; font-size: 20px; font-weight: 700; padding: 0; font-variant-numeric: tabular-nums;
+}
+.m-amount.big input { font-size: 28px; }
+.m-amount-currency { font-size: 16px; font-weight: 700; color: var(--muted); }
+.m-sheet .m-field .date-trigger, .m-sheet .m-field .select { min-height: 50px; border-radius: 14px; font-size: 15px; width: 100%; }
+
+/* ---------- Rappels (v3) : heure | titre et projet | actions, en grille ---------- */
+[data-window="mobile"] .reminder {
+  display: grid; grid-template-columns: 58px minmax(0, 1fr) auto auto; column-gap: 10px; row-gap: 6px;
+  align-items: center; padding: 14px 8px 14px 14px; flex-wrap: nowrap;
+}
+[data-window="mobile"] .reminder-time {
+  grid-column: 1; grid-row: 1 / 3; width: auto; align-self: stretch;
+  display: flex; flex-direction: column; justify-content: center; border-right: 1px solid rgb(var(--fg-rgb) / 0.08);
+}
+[data-window="mobile"] .reminder-main { grid-column: 2; grid-row: 1; min-width: 0; }
+[data-window="mobile"] .reminder-title { font-size: 16px; font-weight: 700; line-height: 1.35; overflow-wrap: break-word; word-break: normal; }
+[data-window="mobile"] .reminder .tag-pill { grid-column: 2; grid-row: 2; justify-self: start; order: 0; margin: 0; max-width: 100%; }
+[data-window="mobile"] .reminder > .icon-btn.edit { grid-column: 3; grid-row: 1 / 3; }
+[data-window="mobile"] .reminder > .confirm-delete { grid-column: 4; grid-row: 1 / 3; }
+[data-window="mobile"] .reminder > .btn.ghost { grid-column: 2; grid-row: 3; justify-self: start; }
+[data-window="mobile"] .reminder > .btn.primary { grid-column: 3 / 5; grid-row: 3; }
+
+/* Rappels : interrupteur Sonnerie */
+.m-ring {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 12px; border-radius: 14px; cursor: pointer;
+  border: 1px solid rgb(var(--fg-rgb) / 0.08); background: rgb(var(--fg-rgb) / 0.04); color: var(--text); font: inherit; text-align: left;
+}
+.m-ring > svg { flex-shrink: 0; color: var(--muted); }
+.m-ring > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.m-ring b { font-size: 15px; }
+.m-ring.on { border-color: rgb(var(--accent-rgb) / 0.5); background: rgb(var(--accent-rgb) / 0.1); }
+.m-ring.on > svg { color: var(--accent); }
+.m-ring-switch { position: relative; width: 44px; height: 26px; border-radius: 999px; flex-shrink: 0; background: rgb(var(--fg-rgb) / 0.2); transition: background 0.2s; }
+.m-ring-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.m-ring.on .m-ring-switch { background: var(--accent); }
+.m-ring.on .m-ring-switch::after { transform: translateX(18px); }
+
+/* ---------- Sous-tâches d'un extra : liste légère, rattachée par un trait ---------- */
+[data-window="mobile"] .extra-tasks { margin: 10px 0 2px 36px; padding-left: 12px; border-left: 2px solid rgb(var(--accent-rgb) / 0.35); }
+[data-window="mobile"] .extra-tasks .task-list { gap: 2px; }
+[data-window="mobile"] .extra-tasks .tasks { gap: 0; }
+[data-window="mobile"] .extra-tasks .task.m-task {
+  background: none; border: 0; border-radius: 12px; padding: 9px 4px 9px 2px; gap: 10px;
+}
+[data-window="mobile"] .extra-tasks .task.m-task + .task.m-task { border-top: 1px solid rgb(var(--fg-rgb) / 0.06); border-radius: 0; }
+[data-window="mobile"] .extra-tasks .task.m-task .check { width: 22px; height: 22px; }
+[data-window="mobile"] .extra-tasks .m-task .task-title { font-size: 15px; font-weight: 500; padding-top: 1px; }
+[data-window="mobile"] .extra-tasks .m-task-body { gap: 6px; }
+[data-window="mobile"] .extra-tasks .m-task-meta .date-chip { min-height: 26px; font-size: 12px; padding: 0 8px; }
+[data-window="mobile"] .extra-tasks .m-task-open { width: 32px; height: 32px; margin: -4px -2px 0 0; background: none; }
+[data-window="mobile"] .extra-tasks .m-task-add {
+  min-height: 40px; justify-content: flex-start; padding: 0 2px; border: 0; background: none; font-size: 14px;
+}

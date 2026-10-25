@@ -14,4 +14,9 @@
     <string name="widget_reminder_label">"⏰ Prochain rappel"</string>
     <string name="widget_focus_description">"Lance un focus d'un toucher et suis le compte à rebours."</string>
     <string name="widget_reminder_description">"Ton prochain rappel, avec Fait et +10 min."</string>
+    <string name="widget_week_title">"Ma semaine"</string>
+    <string name="widget_timer_description">"Le temps de travail en cours, avec Pause et Arrêter."</string>
+    <string name="widget_quick_description">"Ajoute une tâche ou parle à l'assistant d'un toucher."</string>
+    <string name="widget_money_description">"Ce qui reste à encaisser, et ta prochaine deadline."</string>
+    <string name="widget_week_description">"Ton temps de travail de la semaine, jour par jour."</string>
 </resources>

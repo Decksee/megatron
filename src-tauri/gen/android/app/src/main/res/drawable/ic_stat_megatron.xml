@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Petite icône des notifications (barre d'état) : les yeux de Mégatron, en blanc. -->
+<!-- Petite icône des notifications (barre d'état) : les yeux de Mégatron dans un carré aux bords arrondis, en blanc. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF" android:pathData="M2.5,8.5 L9.5,10.5 C9.5,13.5 8,15 6.2,15 C4,15 2.5,12.5 2.5,8.5 Z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M11.5,10.5 L17.5,8.5 C17.5,12.5 16,15 14,15 C12.5,15 11.5,13.5 11.5,10.5 Z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M19.5,10 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+    <!-- Contour : carré arrondi plein moins un carré arrondi plus petit. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M7,1.5 L17,1.5 A5.5,5.5 0 0,1 22.5,7 L22.5,17 A5.5,5.5 0 0,1 17,22.5 L7,22.5 A5.5,5.5 0 0,1 1.5,17 L1.5,7 A5.5,5.5 0 0,1 7,1.5 Z M7,2.8 A4.2,4.2 0 0,0 2.8,7 L2.8,17 A4.2,4.2 0 0,0 7,21.2 L17,21.2 A4.2,4.2 0 0,0 21.2,17 L21.2,7 A4.2,4.2 0 0,0 17,2.8 Z" />
+    <!-- Les yeux et le point, comme sur l'icône de l'appli. -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M5.4,9.8 L10.2,11.2 C10.2,13.5 9.1,14.7 7.7,14.7 C6.2,14.7 5.4,12.9 5.4,9.8 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M11.4,11.2 L15.9,9.8 C15.9,12.9 14.9,14.7 13.5,14.7 C12.2,14.7 11.4,13.5 11.4,11.2 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M17.3,11 a1.1,1.1 0 1,0 2.2,0 a1.1,1.1 0 1,0 -2.2,0" />
 </vector>

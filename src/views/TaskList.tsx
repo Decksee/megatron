@@ -269,7 +269,7 @@ export function TaskList({ tasks, projects, projectId, showProject, placeholder,
     <div className="task-list">
       {mobile ? (
         <button type="button" className="m-task-add" onClick={() => openAddTask({ projectId, extraId, plannedToday })}>
-          <Plus size={18} /> Ajouter une tâche
+          <Plus size={18} /> {extraId != null ? "Ajouter une sous-tâche" : "Ajouter une tâche"}
         </button>
       ) : (
         <form

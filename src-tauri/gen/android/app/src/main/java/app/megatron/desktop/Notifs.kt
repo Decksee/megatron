@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -17,6 +19,7 @@ object Notifs {
   const val CH_TASK = "tache_en_cours"
   const val CH_REMINDER = "rappels"
   const val CH_DAY = "journee"
+  const val CH_RING = "rappels_sonnerie"
   const val ID_TASK = 1
 
   fun channels(context: Context) {
@@ -33,6 +36,18 @@ object Notifs {
     )
     nm.createNotificationChannel(
       NotificationChannel(CH_DAY, "Point du matin", NotificationManager.IMPORTANCE_DEFAULT).apply { description = "Ce que tu as à faire aujourd'hui" },
+    )
+    // Rappels avec sonnerie : son de réveil du téléphone, sur le canal « alarme » (sonne même en silencieux).
+    nm.createNotificationChannel(
+      NotificationChannel(CH_RING, "Rappels avec sonnerie", NotificationManager.IMPORTANCE_HIGH).apply {
+        description = "Les rappels qui sonnent comme un réveil"
+        setSound(
+          RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+          AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build(),
+        )
+        enableVibration(true)
+        vibrationPattern = longArrayOf(0, 600, 400, 600, 400, 600)
+      },
     )
   }
 
@@ -102,17 +117,19 @@ object Notifs {
     channels(context)
     if (!canNotify(context)) return
     val id = (1000 + r.id).toInt()
-    val n = NotificationCompat.Builder(context, CH_REMINDER)
+    val n = NotificationCompat.Builder(context, if (r.ring) CH_RING else CH_REMINDER)
       .setSmallIcon(R.drawable.ic_stat_megatron)
-      .setContentTitle("🔔 ${r.title}")
+      .setContentTitle("${if (r.ring) "⏰" else "🔔"} ${r.title}")
       .setContentText(if (r.repeat == "none") "Rappel Mégatron" else "Rappel répété")
-      .setPriority(NotificationCompat.PRIORITY_HIGH)
-      .setCategory(NotificationCompat.CATEGORY_REMINDER)
+      .setPriority(if (r.ring) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
+      .setCategory(if (r.ring) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
       .setAutoCancel(true)
       .setContentIntent(openApp(context))
       .addAction(0, "Fait", action(context, ActionReceiver.REMINDER_DONE, r.id, id * 2))
       .addAction(0, "Dans 10 min", action(context, ActionReceiver.REMINDER_SNOOZE, r.id, id * 2 + 1))
       .build()
+      // Sonnerie : le son se répète jusqu'à « Fait », « Dans 10 min » ou un glissement de la notification.
+      .apply { if (r.ring) flags = flags or android.app.Notification.FLAG_INSISTENT }
     try {
       NotificationManagerCompat.from(context).notify(id, n)
     } catch (e: SecurityException) {

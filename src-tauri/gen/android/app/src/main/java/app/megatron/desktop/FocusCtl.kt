@@ -168,6 +168,7 @@ class FocusReceiver : BroadcastReceiver() {
           START -> FocusCtl.startFromWidget(context, intent.getIntExtra("minutes", 0).takeIf { it > 0 })
           STOP -> FocusCtl.stopFromWidget(context)
         }
+        MainActivity.resync()
       } finally {
         pending.finish()
       }

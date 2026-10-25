@@ -232,15 +232,23 @@ export function MobileFocus({ focusSessions, settings }: Data) {
 }
 
 /** Liste des applis du téléphone, à cocher. */
+/** Liste des applis lue une seule fois, dès l'arrivée sur l'écran Focus : le panneau s'ouvre déjà rempli. */
+let appsLoad: Promise<App[]> | null = null;
+const loadApps = () =>
+  (appsLoad ??= isTauri
+    ? native<{ apps: App[] }>("listApps").then((r) => r.apps).catch(() => ((appsLoad = null), []))
+    : Promise.resolve([]));
+
 function AppPicker({ open, selected, onClose }: { open: boolean; selected: string[]; onClose: () => void }) {
   const [apps, setApps] = useState<App[] | null>(null);
   const [chosen, setChosen] = useState<Set<string>>(new Set(selected));
 
   useEffect(() => {
-    if (!open) return;
-    setChosen(new Set(selected));
-    if (!apps && isTauri) native<{ apps: App[] }>("listApps").then((r) => setApps(r.apps)).catch(() => setApps([]));
-    if (!isTauri) setApps([]);
+    void loadApps().then(setApps);
+  }, []);
+
+  useEffect(() => {
+    if (open) setChosen(new Set(selected));
   }, [open]);
 
   const save = async () => {
@@ -249,7 +257,7 @@ function AppPicker({ open, selected, onClose }: { open: boolean; selected: strin
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Applis à bloquer" className="m-sheet-tall">
+    <Sheet open={open} onClose={onClose} title="Applis à bloquer" className="m-sheet-apps">
       <div className="m-app-list">
         {apps == null && <span className="muted small">Chargement…</span>}
         {apps?.length === 0 && <span className="muted small">Aucune appli trouvée.</span>}

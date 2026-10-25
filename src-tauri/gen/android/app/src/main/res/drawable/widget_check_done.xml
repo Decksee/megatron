@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rond coché du widget (retour immédiat quand on coche une tâche, avant qu'elle ne disparaisse). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="22"
+    android:viewportHeight="22">
+    <path android:fillColor="@color/widget_accent" android:pathData="M11,0 a11,11 0 1,0 0.001,0 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6.2,11.3 L9.5,14.5 L15.8,7.9" />
+</vector>

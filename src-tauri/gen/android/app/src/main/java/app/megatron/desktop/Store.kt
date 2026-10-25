@@ -92,7 +92,7 @@ object Store {
 
   // ---------- Rappels ----------
 
-  data class Reminder(val id: Long, val title: String, val dueAt: Long, val repeat: String)
+  data class Reminder(val id: Long, val title: String, val dueAt: Long, val repeat: String, val ring: Boolean = false)
 
   private fun isoFormat() = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
 
@@ -107,10 +107,17 @@ object Store {
 
   fun pendingReminders(context: Context): List<Reminder> = withDb(context, emptyList()) { db ->
     val list = mutableListOf<Reminder>()
-    db.rawQuery("SELECT id, title, due_at, repeat FROM reminders WHERE done = 0", null).use { c ->
+    // La colonne « ring » arrive avec une mise à jour de la base : tant que l'appli ne l'a pas créée, on fait sans.
+    val withRing = try {
+      db.rawQuery("SELECT id, title, due_at, repeat, ring FROM reminders WHERE done = 0", null)
+    } catch (e: Exception) {
+      null
+    }
+    (withRing ?: db.rawQuery("SELECT id, title, due_at, repeat FROM reminders WHERE done = 0", null)).use { c ->
       while (c.moveToNext()) {
         val due = parseIso(c.getString(2)) ?: continue
-        list.add(Reminder(c.getLong(0), c.getString(1), due, c.getString(3) ?: "none"))
+        val ring = c.columnCount > 4 && c.getInt(4) == 1
+        list.add(Reminder(c.getLong(0), c.getString(1), due, c.getString(3) ?: "none", ring))
       }
     }
     list

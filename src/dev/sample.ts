@@ -28,6 +28,10 @@ export const SAMPLE_TASKS: Task[] = [
   { id: 4, project_id: null, title: "Relancer la facture de mars", done: 0, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(120), completed_at: null },
   { id: 5, project_id: 2, title: "Choisir la typographie", done: 0, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(100), completed_at: null },
   { id: 6, project_id: 1, title: "Optimiser les images", done: 1, due_date: null, planned_date: null, extra_id: null, created_at: sqlAgo(2000), completed_at: sqlAgo(1500) },
+  // Sous-tâches des extras (aperçu du découpage d'un extra en tâches).
+  { id: 7, project_id: 1, title: "Maquette de la page blog", done: 1, due_date: null, planned_date: null, extra_id: 1, created_at: sqlAgo(2900), completed_at: sqlAgo(900) },
+  { id: 8, project_id: 1, title: "Intégrer la liste des articles", done: 0, due_date: day(2), planned_date: day(1), extra_id: 1, created_at: sqlAgo(2800), completed_at: null },
+  { id: 9, project_id: 1, title: "Page d'un article", done: 0, due_date: null, planned_date: null, extra_id: 1, created_at: sqlAgo(2700), completed_at: null },
 ];
 
 export const SAMPLE_ENTRIES: TimeEntry[] = [
