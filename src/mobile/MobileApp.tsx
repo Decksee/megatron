@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { AlarmClock, AlertTriangle, Bot as BotIcon, ChevronLeft, FolderKanban, ListChecks, Plus, Settings2, Sun, Target } from "lucide-react";
 import { useData, type Data } from "../useData";
+import { WRITE_ERROR } from "../db";
 import { useTheme } from "../theme";
 import { Bot } from "../components/Bot";
 import { ScrollChips } from "../components/ScrollChips";
@@ -69,6 +70,18 @@ export function MobileApp() {
     announced.current = true;
     requestAnimationFrame(() => requestAnimationFrame(() => void native("appReady").catch(() => {})));
   }, [data.settings]);
+  // Écriture en échec : message visible quelques secondes (sinon le formulaire reste ouvert sans explication).
+  const [writeError, setWriteError] = useState<string | null>(null);
+  useEffect(() => {
+    let timer: number | undefined;
+    const onError = (e: Event) => {
+      setWriteError((e as CustomEvent<string>).detail);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setWriteError(null), 9000);
+    };
+    window.addEventListener(WRITE_ERROR, onError);
+    return () => window.removeEventListener(WRITE_ERROR, onError);
+  }, []);
   // Présentation au premier lancement, décidée une fois les réglages lus.
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
   useEffect(() => {
@@ -187,6 +200,20 @@ export function MobileApp() {
         )}
       </AnimatePresence>
       <MobileSheets tasks={data.tasks} projects={data.projects} />
+      <AnimatePresence>
+        {writeError && (
+          <motion.div
+            className="m-toast"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            onClick={() => setWriteError(null)}
+          >
+            <AlertTriangle size={18} />
+            <span>{writeError}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {onboarding && <MobileOnboarding key="onboarding" settings={data.settings} onDone={() => setOnboarding(false)} />}
       </AnimatePresence>

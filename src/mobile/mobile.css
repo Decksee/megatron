@@ -625,3 +625,11 @@ html[data-window="mobile"] #root {
 [data-window="mobile"] .usage-options { display: flex; flex-direction: column; gap: 10px; }
 [data-window="mobile"] .usage-option { flex-direction: row; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; text-align: left; min-height: 64px; }
 [data-window="mobile"] .usage-option b { font-size: 16px; min-width: 70px; }
+/* Message d'erreur (écriture impossible) : au-dessus de tout, touché pour le fermer. */
+.m-toast {
+  position: absolute; left: 12px; right: 12px; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); z-index: 40;
+  display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; border-radius: 16px;
+  background: #3a1513; color: #ffb4ae; font-size: 14px; line-height: 1.4; box-shadow: 0 10px 30px rgb(0 0 0 / 0.4);
+  overflow-wrap: anywhere;
+}
+.m-toast > svg { flex-shrink: 0; margin-top: 1px; }

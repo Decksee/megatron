@@ -137,9 +137,40 @@ function db() {
   return dbPromise;
 }
 
+/** Événement de fenêtre : une écriture a échoué (le téléphone l'affiche, au lieu d'un formulaire figé). */
+export const WRITE_ERROR = "megatron-write-error";
+
+const errorText = (e: unknown) => String((e as Error)?.message ?? e);
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(`pas de réponse après ${ms / 1000} s`)), ms);
+    p.then(
+      (v) => (window.clearTimeout(timer), resolve(v)),
+      (e) => (window.clearTimeout(timer), reject(e)),
+    );
+  });
+}
+
+function reportWrite(step: string, e: unknown) {
+  console.error(step, e);
+  window.dispatchEvent(new CustomEvent(WRITE_ERROR, { detail: `${step} : ${errorText(e)}` }));
+}
+
 async function write(sql: string, params: unknown[] = []) {
-  const res = await (await db()).execute(sql, params);
-  await emit(DATA_CHANGED);
+  let res;
+  try {
+    res = await withTimeout((async () => (await db()).execute(sql, params))(), 10_000);
+  } catch (e) {
+    reportWrite("Enregistrement impossible", e);
+    throw e;
+  }
+  // Enregistré : un souci pour prévenir les écrans ne doit pas bloquer le formulaire.
+  try {
+    await withTimeout(emit(DATA_CHANGED), 5_000);
+  } catch (e) {
+    reportWrite("Enregistré, mais l'écran ne s'est pas actualisé", e);
+  }
   return res;
 }
 

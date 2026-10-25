@@ -23,7 +23,12 @@ object Store {
     val path = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("db_path", null) ?: return null
     if (!java.io.File(path).exists()) return null
     return try {
-      SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READWRITE)
+      // Sans table « android_metadata » (NO_LOCALIZED_COLLATORS) et en WAL comme l'appli : Android n'écrit rien
+      // en ouvrant la base et ne change pas son mode, donc il ne la verrouille pas pendant un enregistrement.
+      SQLiteDatabase.openDatabase(
+        path, null,
+        SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.NO_LOCALIZED_COLLATORS or SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING,
+      )
     } catch (e: Exception) {
       null
     }
