@@ -33,6 +33,10 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 
 # Windows seulement : encoche, voix, son, applis, Gestionnaire d'identification.
+# Android : autorités de certification intégrées (le vérificateur du système demande une initialisation Java).
+[target.'cfg(target_os = "android")'.dependencies]
+webpki-root-certs = "1"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_System_SystemInformation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_Foundation", "Win32_UI_Shell", "Win32_System_Shutdown", "Win32_Security_Credentials"] }
 windows = { version = "0.62", features = ["Media_Control", "Foundation", "Storage_Streams", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Media", "Media_SpeechRecognition", "Foundation_Collections", "Globalization"] }

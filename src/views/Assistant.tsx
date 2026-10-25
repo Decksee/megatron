@@ -140,6 +140,12 @@ export function AiSetup({ settings, onDone, canCancel }: Pick<Data, "settings"> 
 
   return (
     <div className="view ai-setup">
+      {/* Téléphone : le retour à la conversation est tout en haut, à portée de vue. */}
+      {canCancel && isMobileApp() && (
+        <button type="button" className="m-setup-back" onClick={onDone}>
+          <ChevronLeft size={18} /> Retour à la conversation
+        </button>
+      )}
       <div className="provider-cards" role="radiogroup" aria-label="Fournisseur d'IA">
         {(Object.keys(PROVIDERS) as ProviderId[]).map((id) => {
           const Icon = PROVIDER_ICON[id];
@@ -252,7 +258,7 @@ export function AiSetup({ settings, onDone, canCancel }: Pick<Data, "settings"> 
           <Lock size={11} />{" "}
           {isMobileApp() ? "Clé gardée sur ce téléphone, jamais exportée." : "Clé gardée dans le Gestionnaire d'identification Windows, jamais exportée."}
         </span>
-        {canCancel && (
+        {canCancel && !isMobileApp() && (
           <button className="btn ghost" onClick={onDone}>
             <ChevronLeft size={14} /> Retour à la conversation
           </button>
@@ -311,6 +317,15 @@ function VoiceSetup({ settings }: Pick<Data, "settings">) {
           Activer
         </button>
       </form>
+      {/* Où obtenir la clé du fournisseur choisi pour la voix. */}
+      <div className="voice-key-help">
+        <span className="muted small">{PROVIDERS[provider].hint}</span>
+        {PROVIDERS[provider].keyUrl && (
+          <button type="button" className="btn ghost" onClick={() => invoke("open_url", { url: PROVIDERS[provider].keyUrl })}>
+            Obtenir une clé {PROVIDERS[provider].label} <ExternalLink size={12} />
+          </button>
+        )}
+      </div>
       {status?.kind === "error" && <ErrorNote raw={status.text} service={provider} />}
       {status?.kind === "ok" && <div className="status ok">{status.text}</div>}
     </div>

@@ -754,3 +754,27 @@ html[data-window="mobile"] #root {
 [data-window="mobile"] .extra-tasks .m-task-add {
   min-height: 40px; justify-content: flex-start; padding: 0 2px; border: 0; background: none; font-size: 14px;
 }
+
+/* Voix (IA sans transcription, ex. Claude) : fournisseur, clé et « Activer » sur trois lignes. */
+[data-window="mobile"] .voice-setup { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: var(--tile); }
+[data-window="mobile"] .voice-setup form.row { flex-direction: column; align-items: stretch; gap: 10px; }
+[data-window="mobile"] .voice-setup form.row > * { width: 100%; box-sizing: border-box; }
+[data-window="mobile"] .voice-setup input { min-height: 48px; font-size: 16px; border-radius: 14px; }
+[data-window="mobile"] .voice-setup .select { min-height: 48px; border-radius: 14px; font-size: 15px; }
+[data-window="mobile"] .voice-setup .btn { min-height: 48px; justify-content: center; border-radius: 14px; font-size: 15px; }
+.voice-key-help { display: flex; flex-direction: column; gap: 8px; }
+.voice-key-help .btn { align-self: flex-start; }
+[data-window="mobile"] .voice-key-help .btn { align-self: stretch; }
+/* Ordre logique : fournisseur, où obtenir la clé, la clé, Activer. */
+[data-window="mobile"] .voice-setup form.row { display: contents; }
+[data-window="mobile"] .voice-setup form.row > .select { order: 1; }
+[data-window="mobile"] .voice-setup .voice-key-help { order: 2; }
+[data-window="mobile"] .voice-setup form.row > input { order: 3; }
+[data-window="mobile"] .voice-setup form.row > .btn { order: 4; }
+[data-window="mobile"] .voice-setup > .status, [data-window="mobile"] .voice-setup > .error-note { order: 5; }
+
+/* Réglages de l'IA : retour à la conversation en haut. */
+.m-setup-back {
+  display: flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 14px 0 8px; border-radius: 14px; align-self: flex-start;
+  border: 0; cursor: pointer; background: rgb(var(--fg-rgb) / 0.06); color: var(--text); font: inherit; font-size: 15px; font-weight: 700;
+}

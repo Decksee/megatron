@@ -2526,6 +2526,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-sql",
  "tauri-plugin-updater",
+ "webpki-root-certs",
  "windows",
  "windows-collections",
  "windows-sys 0.61.2",

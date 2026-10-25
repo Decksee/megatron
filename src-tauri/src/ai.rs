@@ -170,11 +170,18 @@ pub(crate) fn error_message(text: &str) -> String {
 
 /// Client HTTP avec délais : sans eux, un fournisseur qui ne répond pas bloquerait l'assistant indéfiniment.
 pub(crate) fn client() -> reqwest::Client {
-    reqwest::Client::builder()
+    let builder = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(60))
-        .build()
-        .unwrap_or_default()
+        .timeout(Duration::from_secs(60));
+    // Android : le vérificateur de certificats du système exige une initialisation côté Java ; sans elle,
+    // toute connexion HTTPS échoue (l'IA restait sur « Connexion… »). On lui donne la liste d'autorités de Mozilla.
+    #[cfg(target_os = "android")]
+    let builder = builder.tls_certs_only(
+        webpki_root_certs::TLS_SERVER_ROOT_CERTS
+            .iter()
+            .filter_map(|cert| reqwest::Certificate::from_der(cert).ok()),
+    );
+    builder.build().unwrap_or_default()
 }
 
 async fn send(req: reqwest::RequestBuilder) -> Result<Value, String> {
