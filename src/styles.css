@@ -1446,11 +1446,18 @@ button.tile:focus-visible { outline: 2px solid var(--accent); }
 .inline-icon { vertical-align: -1px; }
 
 .split { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 200px; gap: 10px; }
-.side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+/* Colonne de droite : elle défile d'un bloc (les tuiles gardent leur taille au lieu d'être écrasées). */
+.side {
+  display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: none; mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+}
+.side::-webkit-scrollbar { display: none; }
+.side > .tile { flex-shrink: 0; }
+.side > .tile:last-child { margin-bottom: 14px; }
 .side-stat { display: flex; align-items: center; gap: 12px; }
 .ring-label { font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .side-value { font-size: 15px; font-weight: 700; }
-.side-list { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; }
+.side-list { display: flex; flex-direction: column; gap: 2px; }
 .side-list .tile-title { margin-bottom: 4px; }
 .side-row {
   display: flex;
@@ -2572,3 +2579,27 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 /* Coche bien centrée dans son cercle : pas de marge intérieure de bouton, icône en bloc. */
 .check, .todo-check { padding: 0; box-sizing: border-box; line-height: 0; }
 .check > svg, .todo-check > svg { display: block; margin: 0; flex-shrink: 0; }
+
+/* Fenêtre basse (encoche, petite fenêtre) : colonne de droite plus compacte. */
+@media (max-height: 560px) {
+  .side { gap: 8px; }
+  .side > .tile { padding: 10px 12px; }
+  .side .week-done { gap: 8px; }
+  .side .mini-bars { height: 48px; }
+  .side .side-row { padding: 5px 6px; }
+}
+
+/* Noms pour t'appeler : pastilles retirables + champ d'ajout. */
+.name-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.name-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: 999px;
+  background: rgb(var(--accent-rgb) / 0.14); color: var(--accent); font-size: 12.5px; font-weight: 600;
+}
+.name-chip button {
+  display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%;
+  background: none; color: inherit; cursor: pointer; opacity: 0.7;
+}
+.name-chip button:hover { opacity: 1; background: rgb(var(--accent-rgb) / 0.18); }
+.inline-add { gap: 8px; }
+.inline-add input { flex: 1; min-width: 0; }
+.clock-greeting { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

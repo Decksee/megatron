@@ -8,10 +8,11 @@ import type { Mood } from "../mood";
 import type { Data } from "../useData";
 import { BackgroundSteps, useBackgroundStatus } from "./MobileGuide";
 import { useBack } from "./useBack";
+import { MemoryAdd, NamesSetting } from "../views/Settings";
 
 const isTauri = "__TAURI_INTERNALS__" in window;
 const USAGE_ICON: Record<Usage, typeof Briefcase> = { freelance: Briefcase, studies: GraduationCap, personal: Sparkles };
-const STEPS = 5;
+const STEPS = 6;
 
 /** Doit-on présenter l'appli ? (premier lancement ; `?onboarding` pour la revoir dans l'aperçu) */
 export const needsOnboarding = (settings: Data["settings"]) =>
@@ -34,7 +35,8 @@ function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: 
  * Plein écran, on avance d'un geste (glisser) ou avec « Suivant » ; « Passer » à tout moment.
  */
 export function MobileOnboarding({ settings, onDone }: { settings: Data["settings"]; onDone: () => void }) {
-  const [step, setStep] = useState(0);
+  // Reprise à l'écran atteint : des téléphones (Tecno, Xiaomi…) ferment l'appli pendant qu'on est dans les réglages d'Android.
+  const [step, setStep] = useState(() => Math.min(STEPS - 1, Math.max(0, Number(settings.m_ob_step) || 0)));
   const [dir, setDir] = useState(1);
   const [usage, setUsage] = useState<Usage | null>((settings.usage as Usage) || null);
   const status = useBackgroundStatus();
@@ -49,6 +51,7 @@ export function MobileOnboarding({ settings, onDone }: { settings: Data["setting
     if (next < 0 || next >= STEPS) return;
     setDir(next > step ? 1 : -1);
     setStep(next);
+    void setSetting("m_ob_step", String(next)).catch(console.error);
   };
   const finish = async () => {
     await Promise.all([setSetting("m_onboarded", "1"), setSetting("m_guide_seen", "1")]).catch(console.error);
@@ -60,7 +63,7 @@ export function MobileOnboarding({ settings, onDone }: { settings: Data["setting
     window.setTimeout(() => go(2), 280);
   };
 
-  const mood: Mood = step === 0 ? "happy" : step === 3 ? "focus" : step === 4 ? "think" : "happy";
+  const mood: Mood = step === 0 ? "happy" : step === 4 ? "focus" : step === 5 ? "think" : "happy";
 
   const screens = [
     <div className="m-ob-screen m-ob-hello" key="hello">
@@ -90,6 +93,21 @@ export function MobileOnboarding({ settings, onDone }: { settings: Data["setting
             </motion.button>
           );
         })}
+      </div>
+    </div>,
+
+    <div className="m-ob-screen" key="you">
+      <h2>Et toi, comment je t'appelle ?</h2>
+      <p className="muted">Pour te dire bonjour à ma façon. Facultatif, ça se change dans Réglages → Toi.</p>
+      <div className="settings">
+        <NamesSetting settings={settings} />
+        <section className="setting column">
+          <div>
+            <div className="setting-title">Parle-moi un peu de toi</div>
+            <div className="muted small">Ton métier, ta façon de travailler : je m'en souviendrai.</div>
+          </div>
+          <MemoryAdd placeholder="Ex. Je suis étudiant en design" />
+        </section>
       </div>
     </div>,
 

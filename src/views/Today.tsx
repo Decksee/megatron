@@ -1,4 +1,5 @@
 import { isOpen, isTaskLate, lateByProject, taskBucket, toIsoDay } from "../projects";
+import { pickNickname, withName } from "../nickname";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { AlertTriangle, Check, Clock3, Plus } from "lucide-react";
@@ -52,7 +53,7 @@ export function Today({ now, onOpen, ...data }: Data & { now: Date; onOpen: (tab
   return (
     <div className="today-board">
       <div className="today-col">
-        <ClockTile now={now} />
+        <ClockTile now={now} settings={data.settings} />
         <WorkTile {...data} now={now} onOpen={() => onOpen("time")} />
       </div>
       <div className="today-col">
@@ -72,10 +73,10 @@ function greeting(now: Date) {
   return "Bonsoir";
 }
 
-function ClockTile({ now }: { now: Date }) {
+function ClockTile({ now, settings }: { now: Date; settings: Data["settings"] }) {
   return (
     <div className="tile clock-tile">
-      <span className="clock-greeting">{greeting(now)}</span>
+      <span className="clock-greeting">{withName(greeting(now), pickNickname(settings))}</span>
       <span className="clock-digits">{pad(now.getHours())}</span>
       <span className="clock-dots" aria-hidden="true">
         {[0, 1, 2].map((i) => (
@@ -111,7 +112,7 @@ function WorkTile({ entries, timers, projects, now, onOpen }: Data & { now: Date
               key={t.id}
               className="pulse"
               style={{ background: (t.project_id != null && byId.get(t.project_id)?.color) || NO_PROJECT_COLOR }}
-              title={(t.project_id != null && byId.get(t.project_id)?.name) || "Sans projet"}
+              title={(t.project_id != null && byId.get(t.project_id)?.name) || "Autre projet"}
             />
           ))}
           <span className="tile-caption">en cours</span>
@@ -255,7 +256,7 @@ function TodoTile({ tasks, projects, now, onOpen }: Data & { now: Date; onOpen: 
             {" · "}
             {late.groups
               .slice(0, 3)
-              .map(([id, n]) => `${id == null ? "sans projet" : nameOf.get(id)} ${n}`)
+              .map(([id, n]) => `${id == null ? "autre projet" : nameOf.get(id)} ${n}`)
               .join(" · ")}
             {late.groups.length > 3 ? " …" : ""}
           </span>

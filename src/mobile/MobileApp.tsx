@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { pickNickname, withName } from "../nickname";
 import { AnimatePresence, motion } from "motion/react";
 import { AlarmClock, AlertTriangle, Check, RotateCw, Bot as BotIcon, ChevronLeft, FolderKanban, ListChecks, Plus, Settings2, Sun, Target } from "lucide-react";
 import { useData, type Data } from "../useData";
@@ -306,7 +307,7 @@ function greeting(now: Date) {
 }
 
 /** Aujourd'hui : un résumé (anneau de progression), les retards, puis les tâches du jour. */
-function TodayPage({ tasks, projects }: Data) {
+function TodayPage({ tasks, projects, settings }: Data) {
   const now = new Date();
   const today = tasks.filter((t) => !t.done && taskBucket(t, now) === "today");
   const late = lateByProject(tasks, now);
@@ -319,7 +320,7 @@ function TodayPage({ tasks, projects }: Data) {
     <div className="m-today">
       <section className="m-hero">
         <div className="m-hero-text">
-          <span className="m-hello">{greeting(now)} 👋</span>
+          <span className="m-hello">{withName(greeting(now), pickNickname(settings))} 👋</span>
           <span className="m-date">{now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</span>
           <b className="m-hero-count">
             {today.length ? `${today.length} tâche${today.length > 1 ? "s" : ""} à faire` : total ? "Tout est fait 🎉" : "Rien de prévu"}
@@ -342,7 +343,7 @@ function TodayPage({ tasks, projects }: Data) {
             <span className="m-late-detail">
               {late.groups
                 .slice(0, 3)
-                .map(([id, n]) => `${id == null ? "Sans projet" : nameOf.get(id)}${late.groups.length > 1 ? ` (${n})` : ""}`)
+                .map(([id, n]) => `${id == null ? "Autre projet" : nameOf.get(id)}${late.groups.length > 1 ? ` (${n})` : ""}`)
                 .join(" · ")}
             </span>
           </span>
@@ -379,7 +380,7 @@ function TasksPage({ tasks, projects }: Data) {
     <div className="m-tasks">
       <ScrollChips>
         {chip("all", "Toutes")}
-        {chip("none", "Sans projet")}
+        {chip("none", "Autre projet")}
         {active.map((p) => chip(p.id, p.name, p.color))}
       </ScrollChips>
       <TaskList tasks={visible} projects={projects} projectId={typeof filter === "number" ? filter : null} showProject={filter === "all"} />

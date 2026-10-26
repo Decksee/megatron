@@ -4,6 +4,7 @@ import { enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri
 import { listEntries, listFocusSessions, listProjects, listReminders, listSettings, listTasks, setSetting, type Settings } from "./db";
 import { isLeader } from "./leader";
 import { notify } from "./notify";
+import { nicknameNow, withName } from "./nickname";
 import { compose } from "./ai/session";
 import { activeFocus } from "./focus";
 import { formatDay, isOpen, taskBucket, toIsoDay } from "./projects";
@@ -84,7 +85,7 @@ async function sendBriefing(settings: Settings, now: Date) {
       `Écris le point du matin : ce que l'utilisateur doit faire aujourd'hui, en commençant par le plus important ` +
         `(deadlines dépassées, tâches en retard, puis ce qui arrive bientôt). Cite les éléments, pas de liste à puces. S'il n'y a rien, souhaite-lui une bonne journée.\n${lines.join("\n")}`,
     )) ?? briefingFallback(facts);
-  await notify("☀️ Ta journée", text);
+  await notify(`☀️ ${withName("Bonjour", await nicknameNow())}`, text);
 }
 
 /**
@@ -172,7 +173,8 @@ export function useBreakNudge() {
           .replace("{today}", today)
           .replace("{hour}", hhmm(date));
       nudgesToday.current.count++;
-      await notify(late ? "🌙 Il se fait tard" : "☕ Petite pause ?", text);
+      const name = await nicknameNow();
+      await notify(late ? `🌙 Il se fait tard${name ? `, ${name}` : ""}` : `☕ Petite pause${name ? `, ${name}` : ""} ?`, text);
     }, CHECK_MS);
     return () => clearInterval(id);
   }, []);

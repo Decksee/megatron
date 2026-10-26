@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { nicknames } from "../nickname";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { listMemories, loadConversation, saveConversation, type Settings } from "../db";
@@ -37,6 +38,8 @@ export interface AiConfig {
   memory: boolean;
   /** Pour qui sont les projets (freelance, études, perso). */
   usage: Usage;
+  /** Les noms par lesquels l'utilisateur aime être appelé. */
+  nicknames: string[];
 }
 
 export interface VoiceConfig {
@@ -55,6 +58,7 @@ export function aiConfig(settings: Settings): AiConfig | null {
     baseUrl: settings.ai_base_url || null,
     memory: settings.ai_memory !== "0",
     usage: usageOf(settings),
+    nicknames: nicknames(settings),
   };
 }
 
@@ -112,6 +116,9 @@ Profil : projets personnels, sans client ni prix. Un projet fini passe au statut
 
 async function systemPrompt(config: AiConfig) {
   let prompt = SYSTEM + USAGE_RULES[config.usage] + (isMobileApp() ? PHONE_RULES : "");
+  if (config.nicknames.length) {
+    prompt += `\n\nL'utilisateur aime que tu l'appelles : ${config.nicknames.map((n) => `« ${n} »`).join(", ")}. Glisse un de ces noms de temps en temps, naturellement (pas à chaque réponse), en les variant.`;
+  }
   if (config.memory) {
     const memories = await listMemories().catch(() => []);
     prompt += MEMORY_RULES;

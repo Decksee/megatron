@@ -147,7 +147,7 @@ async function commandTime() {
   const running = entries.filter((e) => !e.ended_at);
   const names = new Map(projects.map((p) => [p.id, p.name]));
   const live = running.length
-    ? `\n▶️ En cours : ${running.map((e) => `${e.project_id != null ? names.get(e.project_id) : "sans projet"} (${formatDuration(entryMs(e, now))})`).join(", ")}`
+    ? `\n▶️ En cours : ${running.map((e) => `${e.project_id != null ? names.get(e.project_id) : "autre projet"} (${formatDuration(entryMs(e, now))})`).join(", ")}`
     : "";
   return `⏱ Aujourd'hui : ${formatDuration(today)}\n📅 Cette semaine : ${formatDuration(week)}${live}`;
 }
@@ -336,7 +336,7 @@ async function dailySummary(settings: Settings) {
   const detail = [...byProject.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
-    .map(([id, ms]) => `${id != null ? names.get(id) : "sans projet"} ${formatDuration(ms)}`)
+    .map(([id, ms]) => `${id != null ? names.get(id) : "autre projet"} ${formatDuration(ms)}`)
     .join(", ");
 
   const doneToday = tasks.filter((t) => t.done && t.completed_at && new Date(t.completed_at + "Z") >= today).length;
@@ -417,7 +417,7 @@ async function backgroundChecks(settings: Settings) {
       for (const e of forgotten) {
         warned.add(String(e.id));
         await sendTelegram(
-          `⏱ Le minuteur « ${e.project_id != null ? names.get(e.project_id) : "sans projet"} » tourne depuis ${formatDuration(
+          `⏱ Le minuteur « ${e.project_id != null ? names.get(e.project_id) : "autre projet"} » tourne depuis ${formatDuration(
             entryMs(e, now),
           )}. Tu bosses encore dessus ?`,
           undefined,

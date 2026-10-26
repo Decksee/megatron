@@ -67,6 +67,8 @@ $latestPath = Join-Path $out "latest.json"
 
 # 4. Mise en ligne
 $title = "Mégatron $Version"
-gh release create "v$Version" (Join-Path $out $assetName) $latestPath --repo $Repo --title $title --notes ($(if ($Notes) { $Notes } else { $title }))
+# Le tag pointe sur le commit construit (pas forcément la branche principale).
+$commit = (git rev-parse HEAD).Trim()
+gh release create "v$Version" (Join-Path $out $assetName) $latestPath --repo $Repo --target $commit --title $title --notes ($(if ($Notes) { $Notes } else { $title }))
 if ($LASTEXITCODE -ne 0) { throw "La publication sur GitHub a échoué." }
 Write-Host "Publié : https://github.com/$Repo/releases/tag/v$Version"

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ArrowLeft, Bot as Bot2, CircleHelp, Database, Smartphone, FolderKanban, Info, ListChecks, Minus, Settings2, Sparkles, Target, X } from "lucide-react";
+import { ArrowLeft, Bot as Bot2, CircleHelp, Database, Smartphone, FolderKanban, Info, ListChecks, Minus, Settings2, Sparkles, Target, UserRound, X } from "lucide-react";
 import { Welcome } from "./views/Welcome";
 import { Help } from "./views/Help";
 import { Versions } from "./views/Versions";
@@ -24,12 +24,13 @@ import { Tasks } from "./views/Tasks";
 import { Projects } from "./views/Projects";
 import { TelegramSettings } from "./views/TelegramSettings";
 import { useSpeechPrefs } from "./ai/speech";
-import { DataSettings, GeneralSettings, MemorySetting, SpeechSetting, WakeWordSetting } from "./views/Settings";
+import { DataSettings, GeneralSettings, MemorySetting, NamesSetting, SpeechSetting, WakeWordSetting } from "./views/Settings";
 import type { Data } from "./useData";
 
 /** Sous-parties de « Réglages ». */
 const SETTINGS = [
   { id: "general", label: "Général", icon: Settings2, hint: "Apparence, démarrage et comportement de l'encoche." },
+  { id: "you", label: "Toi", icon: UserRound, hint: "Comment Mégatron t'appelle et ce qu'il sait de toi." },
   { id: "ia", label: "IA", icon: Sparkles, hint: "Ton assistant, ta clé, sa voix et la commande vocale." },
   { id: "focus", label: "Focus", icon: Target, hint: "Tes réglages de concentration par défaut et ce qui te distrait." },
   { id: "phone", label: "Téléphone", icon: Smartphone, hint: "Notifications et discussion avec Mégatron depuis Telegram." },
@@ -200,7 +201,13 @@ export function SettingsApp() {
                     </div>
                   </header>
                   {sub === "general" && <GeneralSettings settings={data.settings} />}
-                  {sub === "ia" && <AiSection settings={data.settings} memories={data.memories} />}
+                  {sub === "you" && (
+                    <div className="settings">
+                      <NamesSetting settings={data.settings} />
+                      <MemorySetting settings={data.settings} memories={data.memories} />
+                    </div>
+                  )}
+                  {sub === "ia" && <AiSection settings={data.settings} />}
                   {sub === "focus" && <FocusSection {...data} />}
                   {sub === "phone" && <TelegramSettings settings={data.settings} />}
                   {sub === "data" && <DataSettings />}
@@ -252,7 +259,7 @@ export function SettingsApp() {
   );
 }
 
-function AiSection({ settings, memories }: Pick<Data, "settings" | "memories">) {
+function AiSection({ settings }: Pick<Data, "settings">) {
   const config = aiConfig(settings);
   const [editing, setEditing] = useState(false);
   if (!config || editing) return <AiSetup settings={settings} onDone={() => setEditing(false)} canCancel={!!config} />;
@@ -260,7 +267,6 @@ function AiSection({ settings, memories }: Pick<Data, "settings" | "memories">) 
     <div className="settings">
       <WakeWordSetting settings={settings} />
       <SpeechSetting settings={settings} />
-      <MemorySetting settings={settings} memories={memories} />
       <section className="setting">
         <div>
           <div className="setting-title">Connecté à {PROVIDERS[config.provider].label}</div>

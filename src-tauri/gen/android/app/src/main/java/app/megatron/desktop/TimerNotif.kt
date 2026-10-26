@@ -44,7 +44,7 @@ object TimerNotif {
             if (e.isNull(1)) since = start else done += ((Store.parseIso(e.getString(1)) ?: start) - start).coerceAtLeast(0)
           }
         }
-        list.add(TimerState(pid, if (c.isNull(2)) "Sans projet" else c.getString(2), done, since))
+        list.add(TimerState(pid, if (c.isNull(2)) "Autre projet" else c.getString(2), done, since))
       }
     }
     list
@@ -155,13 +155,13 @@ object TimerNotif {
   }
 
   /** Projet du dernier temps compté (pour « Démarrer » sur le widget), et son nom. */
-  fun lastProject(context: Context): Pair<Long?, String> = Store.withDb(context, null as Long? to "Sans projet") { db ->
+  fun lastProject(context: Context): Pair<Long?, String> = Store.withDb(context, null as Long? to "Autre projet") { db ->
     db.rawQuery(
       "SELECT e.project_id, p.name FROM time_entries e LEFT JOIN projects p ON p.id = e.project_id ORDER BY e.started_at DESC LIMIT 1",
       null,
     ).use { c ->
-      if (!c.moveToFirst() || c.isNull(0)) null as Long? to "Sans projet"
-      else c.getLong(0) to (if (c.isNull(1)) "Sans projet" else c.getString(1))
+      if (!c.moveToFirst() || c.isNull(0)) null as Long? to "Autre projet"
+      else c.getLong(0) to (if (c.isNull(1)) "Autre projet" else c.getString(1))
     }
   }
 

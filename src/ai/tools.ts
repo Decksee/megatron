@@ -467,7 +467,7 @@ async function findTask(a: Record<string, unknown>, pendingOnly = false) {
   const projectIds = new Set(matches.map((t) => t.project_id));
   if (projectIds.size > 1) {
     const names = new Map((await listProjects()).map((p) => [p.id, p.name]));
-    const list = [...projectIds].map((id) => (id == null ? "sans projet" : names.get(id))).join(", ");
+    const list = [...projectIds].map((id) => (id == null ? "autre projet" : names.get(id))).join(", ");
     throw new Error(`Plusieurs tâches « ${a.titre} » (${list}) : rappelle l'outil avec le paramètre projet.`);
   }
   return matches[0];
@@ -744,7 +744,7 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
     case "demarrer_minuteur": {
       const project = await findProject(a.projet);
       await startTimer(project?.id ?? null);
-      return { result: "Minuteur démarré.", label: `Minuteur lancé : ${project?.name ?? "sans projet"}` };
+      return { result: "Minuteur démarré.", label: `Minuteur lancé : ${project?.name ?? "autre projet"}` };
     }
     case "pause_minuteur":
     case "arreter_minuteur": {
@@ -842,13 +842,13 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       for (const e of entries) {
         const ms = overlapMs(e, from, to, now);
         if (ms > 0) {
-          const key = e.project_id != null ? (names.get(e.project_id) ?? "?") : "Sans projet";
+          const key = e.project_id != null ? (names.get(e.project_id) ?? "?") : "Autre projet";
           byProject.set(key, (byProject.get(key) ?? 0) + ms);
         }
       }
       const running = timers
         .filter((t) => isRunning(entries, t.project_id))
-        .map((t) => (t.project_id != null ? names.get(t.project_id) : "Sans projet"));
+        .map((t) => (t.project_id != null ? names.get(t.project_id) : "Autre projet"));
       const result = [
         `Total réel (${String(a.periode)}) : ${formatDuration(totalMs(entries, from, to, now))}`,
         ...[...byProject].sort((x, y) => y[1] - x[1]).map(([k, ms]) => `- ${k} : ${formatDuration(ms)}`),

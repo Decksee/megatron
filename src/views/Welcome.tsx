@@ -23,9 +23,10 @@ import { Bot } from "../components/Bot";
 import { Switch } from "../components/Switch";
 import { Select } from "../components/Select";
 import type { Data } from "../useData";
+import { MemoryAdd, NamesSetting } from "./Settings";
 
 const USAGE_ICONS: Record<Usage, typeof Briefcase> = { freelance: Briefcase, studies: GraduationCap, personal: Sparkles };
-const STEPS = ["Bienvenue", "Ton usage", "Ce que je fais", "Me parler", "C'est parti"];
+const STEPS = ["Bienvenue", "Ton usage", "Toi", "Ce que je fais", "Me parler", "C'est parti"];
 
 /**
  * Visite guidée du premier lancement : présentation, type d'usage, fonctions, IA, puis réglages de départ.
@@ -110,6 +111,23 @@ export function Welcome({ settings, onFinish }: Pick<Data, "settings"> & { onFin
 
           {step === 2 && (
             <>
+              <h2>Et toi, comment je t'appelle ?</h2>
+              <p className="muted">Je m'en sers pour te dire bonjour et dans mes notifications. Tout est facultatif et se change dans Réglages → Toi.</p>
+              <div className="settings welcome-settings">
+                <NamesSetting settings={settings} />
+                <section className="setting column">
+                  <div>
+                    <div className="setting-title">Parle-moi un peu de toi</div>
+                    <div className="muted small">Ton métier, tes clients, ta façon de travailler : je m'en souviendrai pour mieux t'aider.</div>
+                  </div>
+                  <MemoryAdd />
+                </section>
+              </div>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
               <h2>Ce que je fais pour toi</h2>
               <div className="welcome-features">
                 <Feature icon={MousePointer2} title="L'encoche">
@@ -139,7 +157,7 @@ export function Welcome({ settings, onFinish }: Pick<Data, "settings"> & { onFin
             </>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <>
               <h2>Parle-moi</h2>
               <p className="muted">Je comprends ce que tu me demandes et je le fais pour toi.</p>
@@ -177,7 +195,7 @@ export function Welcome({ settings, onFinish }: Pick<Data, "settings"> & { onFin
             </>
           )}
 
-          {step === 4 && <LastTouches settings={settings} />}
+          {step === 5 && <LastTouches settings={settings} />}
         </motion.div>
       </AnimatePresence>
 

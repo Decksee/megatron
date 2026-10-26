@@ -150,6 +150,14 @@ object Notifs {
   fun cancel(context: Context, id: Int) = NotificationManagerCompat.from(context).cancel(id)
 
   /** Point du matin, calculé hors ligne : tâches du jour, retards, premier rappel. */
+  /** Un des noms choisis par l'utilisateur (Réglages → Toi), au hasard ; null s'il n'en a pas. */
+  private fun nickname(context: Context): String? = try {
+    val list = org.json.JSONArray(Store.setting(context, "nicknames") ?: "[]")
+    (0 until list.length()).map { list.optString(it).trim() }.filter { it.isNotEmpty() }.randomOrNull()
+  } catch (_: Exception) {
+    null
+  }
+
   fun showBriefing(context: Context) {
     channels(context)
     if (!canNotify(context) || Store.setting(context, "briefing") == "0") return
@@ -166,7 +174,7 @@ object Notifs {
     val text = if (parts.isEmpty()) "Rien de prévu aujourd'hui. Bonne journée !" else parts.joinToString(" · ")
     val n = NotificationCompat.Builder(context, CH_DAY)
       .setSmallIcon(R.drawable.ic_stat_megatron)
-      .setContentTitle("☀️ Ta journée")
+      .setContentTitle(nickname(context)?.let { "☀️ Bonjour $it" } ?: "☀️ Ta journée")
       .setContentText(text)
       .setStyle(NotificationCompat.BigTextStyle().bigText(text))
       .setAutoCancel(true)

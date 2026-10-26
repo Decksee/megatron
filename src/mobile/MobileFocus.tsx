@@ -213,6 +213,17 @@ export function MobileFocus({ focusSessions, settings }: Data) {
                 <span className="muted small">Pour poser l'écran « Focus en cours » devant l'appli bloquée.</span>
               </span>
             </button>
+            {/* Appli installée hors Play Store : Android bloque ces réglages tant qu'on ne les a pas autorisés. */}
+            <div className="m-blocker-help">
+              <b>« L'accès a été refusé à cette appli » ?</b>
+              <span className="muted small">
+                Android bloque ces réglages pour les applis installées hors Play Store. Ouvre la fiche de Mégatron, touche ⋮ en haut à
+                droite puis « Autoriser les paramètres restreints », et reviens activer les deux étapes.
+              </span>
+              <button className="btn ghost" onClick={() => native("openBlockerSettings", { which: "app" })}>
+                Ouvrir la fiche de Mégatron
+              </button>
+            </div>
           </div>
         )}
         {block && (

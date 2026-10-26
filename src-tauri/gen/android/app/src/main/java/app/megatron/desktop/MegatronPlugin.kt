@@ -150,7 +150,12 @@ class MegatronPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun openBlockerSettings(invoke: Invoke) {
     val which = invoke.parseArgs(SettingsArgs::class.java).which
-    val intent = if (which == "overlay") FocusWatchService.overlaySettings(activity) else FocusWatchService.usageSettings(activity)
+    val intent = when (which) {
+      "overlay" -> FocusWatchService.overlaySettings(activity)
+      // Fiche de l'appli : son menu ⋮ propose « Autoriser les paramètres restreints » (appli installée hors Play Store).
+      "app" -> Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${activity.packageName}"))
+      else -> FocusWatchService.usageSettings(activity)
+    }
     try {
       activity.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (e: Exception) {

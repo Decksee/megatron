@@ -5,7 +5,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { motion } from "motion/react";
-import { clearMemories, deleteMemory, exportBackup, importBackup, setSetting } from "../db";
+import { addMemory, clearMemories, deleteMemory, exportBackup, importBackup, setSetting } from "../db";
+import { MAX_NICKNAMES, nicknames } from "../nickname";
+import { Plus, X } from "lucide-react";
 import { DEFAULT_IDLE_MINUTES } from "../time";
 import { THEME_OPTIONS, type ThemePref } from "../theme";
 import type { Data } from "../useData";
@@ -625,6 +627,7 @@ export function MemorySetting({ settings, memories }: Pick<Data, "settings" | "m
                 </button>
               ))}
           </div>
+          <MemoryAdd />
           {memories.length === 0 ? (
             <span className="muted small">
               Rien pour l'instant. Parle-lui de toi (« je facture 450 € la journée », « je préfère les réponses courtes »…) ou dis-lui
@@ -651,5 +654,79 @@ export function MemorySetting({ settings, memories }: Pick<Data, "settings" | "m
         </section>
       )}
     </div>
+  );
+}
+
+/** Ajout direct d'une info sur soi (« je suis développeur web », « je bosse surtout le soir »…). */
+export function MemoryAdd({ placeholder = "Ex. Je suis graphiste, je préfère les réponses courtes" }: { placeholder?: string }) {
+  const [draft, setDraft] = useState("");
+  return (
+    <form
+      className="row inline-add"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const text = draft.trim();
+        if (!text) return;
+        void addMemory(text).catch(console.error);
+        setDraft("");
+      }}
+    >
+      <input value={draft} maxLength={200} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder} aria-label="Une info sur toi" />
+      <button className="btn ghost" type="submit" disabled={!draft.trim()}>
+        <Plus size={14} /> Ajouter
+      </button>
+    </form>
+  );
+}
+
+/** Les noms que Mégatron utilise pour t'appeler : bonjours, notifications et réponses de l'IA. */
+export function NamesSetting({ settings }: Pick<Data, "settings">) {
+  const names = nicknames(settings);
+  const [draft, setDraft] = useState("");
+  const save = (next: string[]) => void setSetting("nicknames", JSON.stringify(next)).catch(console.error);
+  const full = names.length >= MAX_NICKNAMES;
+  return (
+    <section className="setting column names-setting">
+      <div>
+        <div className="setting-title">Comment Mégatron t'appelle</div>
+        <div className="muted small">
+          Ton prénom, un surnom, « chef », « mon cœur »… Mets-en plusieurs : il les alterne dans ses bonjours, ses notifications et ses réponses.
+        </div>
+      </div>
+      {names.length > 0 && (
+        <div className="name-chips">
+          {names.map((n) => (
+            <span key={n} className="name-chip">
+              {n}
+              <button type="button" aria-label={`Retirer ${n}`} onClick={() => save(names.filter((x) => x !== n))}>
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {!full && (
+        <form
+          className="row inline-add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const n = draft.trim();
+            if (n && !names.some((x) => x.toLowerCase() === n.toLowerCase())) save([...names, n]);
+            setDraft("");
+          }}
+        >
+          <input
+            value={draft}
+            maxLength={30}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={names.length ? "Un autre nom" : "Ex. Dixie"}
+            aria-label="Un nom pour t'appeler"
+          />
+          <button className="btn ghost" type="submit" disabled={!draft.trim()}>
+            <Plus size={14} /> Ajouter
+          </button>
+        </form>
+      )}
+    </section>
   );
 }

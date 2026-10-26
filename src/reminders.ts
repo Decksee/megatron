@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { markReminderNotified, type Reminder, type ReminderRepeat } from "./db";
 import { isLeader } from "./leader";
 import { notify } from "./notify";
+import { nicknameNow } from "./nickname";
 import { reminderButtons, telegramNotify } from "./telegram";
 import type { Data } from "./useData";
 
@@ -47,7 +48,9 @@ export function useReminderWatcher(data: Data) {
         const pending = dueReminders(ref.current.reminders, new Date()).filter((r) => r.notified_at !== r.due_at);
         if (!pending.length || !(await isLeader())) return;
         for (const r of pending) {
-          await notify(`🔔 ${r.title}`, r.repeat === "none" ? "Rappel Mégatron" : `Rappel Mégatron · ${REPEAT_LABEL[r.repeat]}`);
+          const name = await nicknameNow();
+          const label = name ? `Rappel pour ${name}` : "Rappel Mégatron";
+          await notify(`🔔 ${r.title}`, r.repeat === "none" ? label : `${label} · ${REPEAT_LABEL[r.repeat]}`);
           await telegramNotify("reminders", `🔔 ${r.title}`, reminderButtons(r.id));
           await markReminderNotified(r);
         }

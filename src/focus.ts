@@ -4,6 +4,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { endFocus, saveFocusProgress, type FocusSession } from "./db";
 import { isLeader } from "./leader";
 import { notify } from "./notify";
+import { nicknameNow, withName } from "./nickname";
 import { telegramNotify } from "./telegram";
 import type { Data } from "./useData";
 
@@ -123,7 +124,7 @@ export function useFocusMonitor(data: Data) {
         if (focusElapsedMs(session, now) >= session.planned_minutes * 60_000) {
           await saveFocusProgress(session.id, t.ms, t.byKey);
           await endFocus(session, true);
-          await notify("Session de focus terminée 🎯", "Bravo ! Prends une petite pause.");
+          await notify("Session de focus terminée 🎯", `${withName("Bravo", await nicknameNow())} ! Prends une petite pause.`);
           await telegramNotify("focus", "🎯 Session de focus terminée. Bravo ! Prends une petite pause.");
           return;
         }
@@ -146,10 +147,11 @@ export function useFocusMonitor(data: Data) {
           }
           if (over && !t.warned) {
             t.warned = true;
+            const name = await nicknameNow();
             await notify(
               distraction === IDLE_KEY ? "Temps de repos écoulé" : "Budget de distraction dépassé",
               distraction === IDLE_KEY
-                ? "Ta pause est finie : on s'y remet !"
+                ? `Ta pause est finie : on s'y remet${name ? `, ${name}` : ""} !`
                 : session.mode === "block"
                   ? `${distraction} est bloqué jusqu'à la fin de la session.`
                   : `Retour au boulot ! (${distraction})`,

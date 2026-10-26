@@ -778,3 +778,14 @@ html[data-window="mobile"] #root {
   display: flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 14px 0 8px; border-radius: 14px; align-self: flex-start;
   border: 0; cursor: pointer; background: rgb(var(--fg-rgb) / 0.06); color: var(--text); font: inherit; font-size: 15px; font-weight: 700;
 }
+
+/* Noms pour t'appeler (réglages et présentation). */
+[data-window="mobile"] .name-chip { font-size: 15px; padding: 6px 6px 6px 14px; }
+[data-window="mobile"] .name-chip button { width: 28px; height: 28px; }
+[data-window="mobile"] .inline-add input { min-height: 46px; font-size: 16px; border-radius: 14px; }
+[data-window="mobile"] .inline-add .btn { min-height: 46px; border-radius: 14px; }
+.m-hello { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+/* Aide « paramètres restreints » sous les autorisations du blocage. */
+.m-blocker-help { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 16px; background: rgb(var(--fg-rgb) / 0.05); }
+.m-blocker-help .btn { min-height: 44px; border-radius: 14px; justify-content: center; }

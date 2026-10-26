@@ -202,7 +202,7 @@ function ProjectChips({ projects, value, onChange }: { projects: Project[]; valu
       <span className="m-field-label">Projet</span>
       <ScrollChips>
         <button type="button" className={value == null ? "chip active" : "chip"} onClick={() => onChange(null)}>
-          Sans projet
+          Autre projet
         </button>
         {active.map((p) => (
           <button type="button" key={p.id} className={value === p.id ? "chip active" : "chip"} onClick={() => onChange(p.id)}>

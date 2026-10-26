@@ -6,7 +6,7 @@ import { USAGES, usageOf, type Usage } from "../projects";
 import { aiConfig } from "../ai/session";
 import { PROVIDERS } from "../ai/providers";
 import { AiSetup } from "../views/Assistant";
-import { DataSettings, MemorySetting, SpeechSetting } from "../views/Settings";
+import { DataSettings, MemorySetting, NamesSetting, SpeechSetting } from "../views/Settings";
 import { Select } from "../components/Select";
 import { Switch } from "../components/Switch";
 import { briefingOn } from "../wellbeing";
@@ -68,6 +68,12 @@ export function MobileSettings({ settings, memories }: Data) {
         </section>
       </div>
 
+      <h2 className="m-section-title">Toi</h2>
+      <div className="settings">
+        <NamesSetting settings={settings} />
+        <MemorySetting settings={settings} memories={memories} />
+      </div>
+
       <h2 className="m-section-title">Appli fermée {left > 0 && <span className="m-section-badge">{left} à faire</span>}</h2>
       <BackgroundSteps status={background} settings={settings} />
 
@@ -86,7 +92,6 @@ export function MobileSettings({ settings, memories }: Data) {
             </button>
           </section>
           <SpeechSetting settings={settings} />
-          <MemorySetting settings={settings} memories={memories} />
         </div>
       )}
 

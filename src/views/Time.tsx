@@ -1,5 +1,5 @@
 import { isOpen } from "../projects";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { pauseTimer, resumeTimers, setSetting, startTimer, stopTimer, type Project, type Timer } from "../db";
 import type { Data } from "../useData";
@@ -76,7 +76,7 @@ export function Time(data: Data & { now: Date }) {
             return (
               <li key={String(projectId)} className="breakdown-row">
                 <span className="chip-dot" style={{ background: p?.color ?? NO_PROJECT_COLOR }} />
-                <span className="breakdown-name">{p?.name ?? "Sans projet"}</span>
+                <span className="breakdown-name">{p?.name ?? "Autre projet"}</span>
                 <span className="breakdown-value">{formatDuration(ms)}</span>
                 <span className="muted small breakdown-pct">{Math.round((ms / rowsSum) * 100)}%</span>
               </li>
@@ -117,6 +117,11 @@ function Timers({ projects, entries, timers, settings, now }: Data & { now: Date
   const projectById = new Map(projects.map((p) => [p.id, p]));
   const anyRunning = timers.some((t) => isRunning(entries, t.project_id));
   const autoPausedAt = settings.auto_paused_at;
+
+  // Un chronomètre relancé (d'ici, de l'encoche ou d'ailleurs) : l'avis « Mis en pause… » n'a plus lieu d'être.
+  useEffect(() => {
+    if (autoPausedAt && anyRunning) setSetting("auto_paused_at", "");
+  }, [autoPausedAt, anyRunning]);
 
   // Si le projet choisi vient d'être lancé, on passe au suivant disponible.
   const selected: number | null | undefined =
@@ -173,7 +178,7 @@ function Timers({ projects, entries, timers, settings, now }: Data & { now: Date
                   className={running ? "pulse" : "chip-dot"}
                   style={{ background: p?.color ?? NO_PROJECT_COLOR }}
                 />
-                <span className="timer-project">{p?.name ?? "Sans projet"}</span>
+                <span className="timer-project">{p?.name ?? "Autre projet"}</span>
                 {!running && <span className="muted small">en pause</span>}
                 <span className="timer-clock">{formatClock(timerElapsed(t, entries, now))}</span>
                 <TimerButtons timer={t} running={running} />
@@ -189,7 +194,7 @@ function Timers({ projects, entries, timers, settings, now }: Data & { now: Date
             className="timer-select"
             value={selected ?? null}
             onChange={setProjectId}
-            options={projectOptions(available, canAddNoProject ? "Sans projet" : null)}
+            options={projectOptions(available, canAddNoProject ? "Autre projet" : null)}
             ariaLabel="Projet du minuteur"
           />
           <button className="btn primary" onClick={() => selected !== undefined && start(selected)}>

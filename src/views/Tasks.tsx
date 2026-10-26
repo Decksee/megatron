@@ -53,7 +53,7 @@ export function Tasks({ projects, tasks }: Data) {
       <div className="view">
         <ScrollChips>
           {chip("all", "Toutes")}
-          {chip("none", "Sans projet")}
+          {chip("none", "Autre projet")}
           {active.map((p) => chip(p.id, p.name, p.color))}
         </ScrollChips>
         <TaskList
@@ -105,7 +105,7 @@ export function Tasks({ projects, tasks }: Data) {
               return (
                 <button key={String(id)} className="side-row" onClick={() => setFilter(id ?? "none")}>
                   <span className="chip-dot" style={{ background: p?.color ?? "var(--muted)" }} />
-                  <span className="side-row-name">{p?.name ?? "Sans projet"}</span>
+                  <span className="side-row-name">{p?.name ?? "Autre projet"}</span>
                   <span className="side-row-value">{n}</span>
                 </button>
               );

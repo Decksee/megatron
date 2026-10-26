@@ -15,6 +15,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: "0.4.4",
+    date: "2026-10-26",
+    title: "Personnalisation",
+    changes: [
+      "Réglages → Toi : dis à Mégatron comment t'appeler (ton prénom, un surnom, plusieurs si tu veux). Il s'en sert pour te dire bonjour, dans ses notifications et dans ses réponses.",
+      "Tu peux aussi lui apprendre directement qui tu es et comment tu travailles, depuis Réglages → Toi.",
+      "La visite du premier lancement te demande comment t'appeler.",
+      "« Sans projet » devient « Autre projet ».",
+      "Dans l'encoche, la colonne de droite des Tâches défile d'un bloc au lieu d'écraser ses cases.",
+      "Corrections mineures.",
+    ],
+  },
+  {
     version: "0.4.3",
     date: "2026-10-20",
     title: "Corrections mineures",
