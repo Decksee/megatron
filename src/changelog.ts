@@ -15,6 +15,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: "0.4.5",
+    date: "2026-10-28",
+    title: "Corrections mineures",
+    changes: [
+      "Les conseils de pause parlent de ce que tu fais vraiment : ton projet en cours, l'heure, ton prochain rappel.",
+      "Corrections mineures.",
+    ],
+  },
+  {
     version: "0.4.4",
     date: "2026-10-26",
     title: "Personnalisation",

@@ -1,7 +1,6 @@
 package app.megatron.desktop
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -19,29 +18,19 @@ object Store {
     context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("db_path", path).apply()
   }
 
-  private fun open(context: Context): SQLiteDatabase? {
+  private fun path(context: Context): String? {
     val path = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("db_path", null) ?: return null
-    if (!java.io.File(path).exists()) return null
-    return try {
-      // Sans table « android_metadata » (NO_LOCALIZED_COLLATORS) et en WAL comme l'appli : Android n'écrit rien
-      // en ouvrant la base et ne change pas son mode, donc il ne la verrouille pas pendant un enregistrement.
-      SQLiteDatabase.openDatabase(
-        path, null,
-        SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.NO_LOCALIZED_COLLATORS or SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING,
-      )
-    } catch (e: Exception) {
-      null
-    }
+    return path.takeIf { java.io.File(it).exists() }
   }
 
-  fun <T> withDb(context: Context, default: T, block: (SQLiteDatabase) -> T): T {
-    val db = open(context) ?: return default
+  /** Un accès à la base, par le même SQLite que l'appli (voir NativeDb) ; `default` si la base est absente ou en erreur. */
+  fun <T> withDb(context: Context, default: T, block: (Db) -> T): T {
+    val path = path(context) ?: return default
     return try {
-      block(db)
-    } catch (e: Exception) {
+      block(Db(path))
+    } catch (e: Throwable) {
+      android.util.Log.w("Megatron", "base : ${e.message}")
       default
-    } finally {
-      db.close()
     }
   }
 
@@ -117,7 +106,7 @@ object Store {
       while (c.moveToNext()) {
         val due = parseIso(c.getString(2)) ?: continue
         val ring = c.columnCount > 4 && c.getInt(4) == 1
-        list.add(Reminder(c.getLong(0), c.getString(1), due, c.getString(3) ?: "none", ring))
+        list.add(Reminder(c.getLong(0), c.getString(1), due, c.getString(3).ifEmpty { "none" }, ring))
       }
     }
     list
@@ -197,14 +186,10 @@ object Store {
   fun startFocus(context: Context, minutes: Int, mode: String): Long = withDb(context, -1L) { db ->
     val now = toIso(System.currentTimeMillis())
     db.execSQL("UPDATE focus_sessions SET ended_at = ? WHERE ended_at IS NULL", arrayOf(now))
-    db.compileStatement(
+    db.insert(
       "INSERT INTO focus_sessions (project_id, started_at, planned_minutes, budget_minutes, mode) VALUES (NULL, ?, ?, 0, ?)",
-    ).use { st ->
-      st.bindString(1, now)
-      st.bindLong(2, minutes.toLong())
-      st.bindString(3, mode)
-      st.executeInsert()
-    }
+      arrayOf<Any?>(now, minutes.toLong(), mode),
+    )
   }
 
   /** Arrêt avant la fin : la session n'est pas comptée comme réussie. */

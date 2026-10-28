@@ -382,17 +382,30 @@ async function chat(config: AiConfig, body: object) {
  * Fait rédiger un court texte (notification) par l'IA, sans outils ni historique : rien n'apparaît
  * dans la discussion. Renvoie null si l'IA n'est pas configurée, échoue, ou juge qu'il n'y a rien à dire (« RIEN »).
  */
+/**
+ * Texte d'une notification rédigé par l'IA. `null` : pas d'IA ou erreur (prendre le texte de secours) ;
+ * `""` : l'IA juge qu'il vaut mieux ne rien envoyer.
+ */
 export async function compose(settings: Settings, instruction: string): Promise<string | null> {
   const config = aiConfig(settings);
   if (!config) return null;
-  const system =
+  let system =
     "Tu es Mégatron, l'assistant de productivité de l'utilisateur. Tu écris le texte d'une notification Windows : " +
     "en français, tutoiement, chaleureux et concret, 160 caractères au plus, sans guillemets, sans titre, sans markdown. " +
+    "Parle de SA situation à lui (ce qu'il fait, ce qui l'attend), jamais de conseils passe-partout. " +
     "Si rien ne justifie la notification, réponds exactement RIEN.";
+  if (config.nicknames.length) {
+    system += ` Il aime qu'on l'appelle ${config.nicknames.map((n) => `« ${n} »`).join(" ou ")} (le titre de la notification le nomme déjà : pas besoin de le répéter).`;
+  }
+  if (config.memory) {
+    const memories = await listMemories().catch(() => []);
+    if (memories.length) system += `\nCe que tu sais de lui (sers-t'en si c'est utile, sans le réciter) :\n${memories.map((m) => `- ${m.text}`).join("\n")}`;
+  }
   try {
     const res = await chat(config, buildBody(config.provider, system, [userMessage(config.provider, instruction)], []));
     const text = parseResponse(config.provider, res).text?.trim().replace(/^["«\s]+|["»\s]+$/g, "");
-    if (!text || /^RIEN\.?$/i.test(text)) return null;
+    if (!text) return null;
+    if (/^RIEN\.?$/i.test(text)) return "";
     return text.length > 220 ? `${text.slice(0, 217)}…` : text;
   } catch {
     return null;

@@ -35,6 +35,9 @@ tauri-plugin-process = "2"
 # Windows seulement : encoche, voix, son, applis, Gestionnaire d'identification.
 # Android : autorités de certification intégrées (le vérificateur du système demande une initialisation Java).
 [target.'cfg(target_os = "android")'.dependencies]
+# Accès à la base depuis Kotlin par la même copie de SQLite que sqlx (native_db.rs).
+libsqlite3-sys = "0.30.1"
+jni = "0.21.1"
 webpki-root-certs = "1"
 
 [target.'cfg(windows)'.dependencies]

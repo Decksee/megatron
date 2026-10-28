@@ -70,7 +70,7 @@ const FALLBACK = {
 type Kind = "late" | "empty" | "longDay" | "streak";
 
 async function send(settings: Settings, kind: Kind, title: string, instruction: string, fallback: string) {
-  const text = (await compose(settings, `${instruction}\n${EXAMPLE_HINT}`)) ?? fallback;
+  const text = (await compose(settings, `${instruction}\n${EXAMPLE_HINT}`)) || fallback;
   const today = toIsoDay(new Date());
   const count = settings.boost_day === today ? Number(settings.boost_count || 0) : 0;
   await setSetting("boost_day", today);

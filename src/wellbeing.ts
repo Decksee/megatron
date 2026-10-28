@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
-import { listEntries, listFocusSessions, listProjects, listReminders, listSettings, listTasks, setSetting, type Settings } from "./db";
+import { listEntries, listFocusSessions, listProjects, listReminders, listSettings, listTasks, setSetting, type Settings, type TimeEntry } from "./db";
 import { isLeader } from "./leader";
 import { notify } from "./notify";
 import { nicknameNow, withName } from "./nickname";
@@ -84,7 +84,7 @@ async function sendBriefing(settings: Settings, now: Date) {
       settings,
       `Écris le point du matin : ce que l'utilisateur doit faire aujourd'hui, en commençant par le plus important ` +
         `(deadlines dépassées, tâches en retard, puis ce qui arrive bientôt). Cite les éléments, pas de liste à puces. S'il n'y a rien, souhaite-lui une bonne journée.\n${lines.join("\n")}`,
-    )) ?? briefingFallback(facts);
+    )) || briefingFallback(facts);
   await notify(`☀️ ${withName("Bonjour", await nicknameNow())}`, text);
 }
 
@@ -114,12 +114,59 @@ export function useDailyBriefing() {
 
 // ---------- Conseils de pause ----------
 
-const BREAK_FALLBACKS = [
-  "Ça fait {streak} que tu bosses sans t'arrêter. Lève-toi, bois un verre d'eau, 5 minutes : ton cerveau te dira merci.",
-  "{streak} d'affilée, c'est du solide. Petite pause : étire-toi, regarde au loin, respire.",
-  "Tu enchaînes depuis {streak}. Une pause de 5 minutes maintenant, et tu repars plus frais.",
-];
 const LATE_FALLBACK = "Il est {hour} et tu as déjà {today} au compteur. Pense à t'arrêter pour ce soir, la suite attendra demain.";
+
+interface ForegroundWindow {
+  process: string;
+}
+
+/** Ce qui se passe vraiment en ce moment : projet chronométré, tâche du jour, prochain rendez-vous, appli ouverte. */
+async function breakContext(now: Date) {
+  const [entries, projects, tasks, reminders, facts, fg] = await Promise.all([
+    listEntries(),
+    listProjects(),
+    listTasks(),
+    listReminders(),
+    todayFacts(now),
+    invoke<ForegroundWindow | null>("foreground_window").catch(() => null),
+  ]);
+  const nameOf = new Map(projects.map((p) => [p.id, p.name]));
+  const running = entries
+    .filter((e: TimeEntry) => e.ended_at == null)
+    .map((e) => ({ name: e.project_id != null ? (nameOf.get(e.project_id) ?? "un projet") : "autre projet", ms: now.getTime() - new Date(e.started_at).getTime() }))
+    .sort((a, b) => b.ms - a.ms)[0];
+  const doneToday = tasks.filter((t) => t.done && t.completed_at && new Date(`${t.completed_at}Z`).toDateString() === now.toDateString()).length;
+  const nextReminder = reminders
+    .filter((r) => !r.done && new Date(r.due_at) > now)
+    .sort((a, b) => a.due_at.localeCompare(b.due_at))[0];
+  const nextIn = nextReminder ? (new Date(nextReminder.due_at).getTime() - now.getTime()) / 60_000 : Infinity;
+  // L'appli active (sur n'importe quel écran), sauf Mégatron lui-même ou le bureau : ça ne dit rien de son travail.
+  const app = fg?.process && !/^(megatron|mégatron|explorer|searchhost|shellexperiencehost)(\.exe)?$/i.test(fg.process) ? fg.process.replace(/\.exe$/i, "") : null;
+  const lines = [
+    running ? `Minuteur en cours : ${running.name}, depuis ${formatDuration(running.ms)}.` : "Aucun minuteur en cours.",
+    // Seulement le nom de l'appli : le titre de la fenêtre peut contenir un mail, un document…
+    app ? `Appli au premier plan : ${app}.` : "",
+    `Tâches du jour restantes : ${facts.todo.map((t) => t.title).slice(0, 4).join(" ; ") || "aucune"}${facts.late.length ? ` (dont ${facts.late.length} en retard)` : ""}.`,
+    `Tâches cochées aujourd'hui : ${doneToday}.`,
+    nextIn < 180 ? `Prochain rappel : « ${nextReminder!.title} » à ${hhmm(new Date(nextReminder!.due_at))} (dans ${Math.round(nextIn)} min).` : "",
+    facts.lateProjects.length || facts.deadlines.length
+      ? `Échéances proches : ${[...facts.lateProjects.map((p) => `${p.name} (dépassée)`), ...facts.deadlines.map((p) => `${p.name} le ${formatDay(p.deadline!)}`)].join(" ; ")}.`
+      : "",
+    now.getHours() >= 12 && now.getHours() < 14 ? "C'est l'heure du déjeuner." : "",
+  ].filter(Boolean);
+  return { running, nextReminder: nextIn < 180 ? nextReminder : undefined, nextIn, doneToday, lines };
+}
+
+/** Texte de secours (sans IA), rattaché à ce qu'il fait. */
+function breakFallback(ctx: Awaited<ReturnType<typeof breakContext>>, streak: string, count: number, lunch: boolean) {
+  const what = ctx.running ? `Tu es sur ${ctx.running.name} depuis ${streak}` : `Tu enchaînes depuis ${streak}`;
+  const done = ctx.doneToday ? `, ${ctx.doneToday} tâche${ctx.doneToday > 1 ? "s" : ""} cochée${ctx.doneToday > 1 ? "s" : ""} déjà` : "";
+  if (lunch) return `${what}${done}. C'est l'heure de manger : coupe 20 minutes, tu reprendras plus vite.`;
+  if (ctx.nextReminder && ctx.nextIn <= 45)
+    return `${what}${done}. « ${ctx.nextReminder.title} » arrive à ${hhmm(new Date(ctx.nextReminder.due_at))} : 5 minutes de pause maintenant, et tu y seras frais.`;
+  const ideas = ["marche 5 minutes", "lève-toi et étire le dos", "décroche de l'écran 5 minutes"];
+  return `${what}${done}. ${ideas[count % ideas.length][0].toUpperCase()}${ideas[count % ideas.length].slice(1)}, la suite n'en sera que meilleure.`;
+}
 
 /**
  * Conseils de pause : Mégatron suit le temps passé devant le PC sans vraie pause (5 min sans activité).
@@ -158,23 +205,34 @@ export function useBreakNudge() {
 
       const streak = formatDuration(streakMin * 60_000);
       const today = formatDuration(worked);
-      const text =
-        (await compose(
-          settings,
-          `Contexte : il est ${hhmm(date)}. L'utilisateur est actif sur son PC depuis ${streak} sans vraie pause` +
-            `${worked > 0 ? ` et a chronométré ${today} de travail aujourd'hui` : ""}. ` +
-            `C'est le conseil de pause n°${nudgesToday.current.count + 1} de la journée. ` +
-            (late
-              ? "Il est tard : encourage-le à s'arrêter pour ce soir."
-              : "Juge s'il faut lui conseiller une petite pause (eau, s'étirer, marcher, regarder au loin) ; varie les idées, sans faire la morale."),
-        )) ??
-        (late ? LATE_FALLBACK : BREAK_FALLBACKS[nudgesToday.current.count % BREAK_FALLBACKS.length])
-          .replace("{streak}", streak)
-          .replace("{today}", today)
-          .replace("{hour}", hhmm(date));
+      const ctx = await breakContext(date);
+      const lunch = date.getHours() >= 12 && date.getHours() < 14;
+      const text = await compose(
+        settings,
+        `Contexte : il est ${hhmm(date)} (${date.toLocaleDateString("fr-FR", { weekday: "long" })}). L'utilisateur est actif sur son PC depuis ${streak} sans vraie pause` +
+          `${worked > 0 ? ` et a chronométré ${today} de travail aujourd'hui` : ""}. ` +
+          `C'est le conseil de pause n°${nudgesToday.current.count + 1} de la journée.\n${ctx.lines.join("\n")}\n` +
+          (late
+            ? "Il est tard : encourage-le à s'arrêter pour ce soir, en t'appuyant sur ce qu'il a fait aujourd'hui."
+            : "Écris un conseil de pause personnel : rattache-le à ce qu'il fait vraiment (projet, appli, tâche), au moment de la journée " +
+              "(déjeuner, fin d'après-midi…) et à ce qui l'attend (un rappel proche : la pause tombe bien avant). " +
+              "Propose UNE idée de pause précise et variée. Pas de « bois un verre d'eau » ni de phrase générique, pas de morale."),
+      );
+      if (text === "") return; // l'IA juge que ce n'est pas le moment
+      const body =
+        text ??
+        (late
+          ? LATE_FALLBACK.replace("{today}", today).replace("{hour}", hhmm(date))
+          : breakFallback(ctx, streak, nudgesToday.current.count, lunch));
       nudgesToday.current.count++;
       const name = await nicknameNow();
-      await notify(late ? `🌙 Il se fait tard${name ? `, ${name}` : ""}` : `☕ Petite pause${name ? `, ${name}` : ""} ?`, text);
+      const on = ctx.running ? ` sur ${ctx.running.name}` : "";
+      const title = late
+        ? `🌙 Il se fait tard${name ? `, ${name}` : ""}`
+        : lunch
+          ? `🍽️ ${name ? `${name}, à` : "À"} table ?`
+          : `☕ ${streak}${on}${name ? `, ${name}` : ""}`;
+      await notify(title, body);
     }, CHECK_MS);
     return () => clearInterval(id);
   }, []);

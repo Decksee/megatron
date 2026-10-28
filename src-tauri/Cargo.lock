@@ -2513,6 +2513,8 @@ name = "megatron"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "jni 0.21.1",
+ "libsqlite3-sys",
  "reqwest",
  "serde",
  "serde_json",

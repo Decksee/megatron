@@ -9,6 +9,8 @@ mod files;
 mod media;
 #[cfg(mobile)]
 mod mobile;
+#[cfg(target_os = "android")]
+mod native_db;
 mod telegram;
 #[cfg(windows)]
 mod wake;
