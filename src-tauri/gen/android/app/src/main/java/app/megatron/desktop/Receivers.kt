@@ -67,7 +67,8 @@ class AlarmReceiver : BroadcastReceiver() {
         when (intent.action) {
           REMINDER -> {
             val id = intent.getLongExtra("id", -1)
-            Store.reminder(context, id)?.let { r ->
+            Store.reminder(context, id)?.let { found ->
+              val r = Store.catchUp(context, found)
               Notifs.showReminder(context, r)
               Store.markNotified(context, id)
             }

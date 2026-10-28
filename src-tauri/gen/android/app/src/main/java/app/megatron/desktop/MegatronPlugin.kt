@@ -197,6 +197,39 @@ class MegatronPlugin(private val activity: Activity) : Plugin(activity) {
     startActivityForResult(invoke, intent, "pickTextFileResult")
   }
 
+  /** Son actuel des rappels avec sonnerie. */
+  @Command
+  fun ringSound(invoke: Invoke) {
+    val res = JSObject()
+    res.put("title", Notifs.ringTitle(activity))
+    invoke.resolve(res)
+  }
+
+  /** Ouvre le choix des sons d'Android (réveils, sonneries, notifications) pour les rappels avec sonnerie. */
+  @Command
+  fun pickRingSound(invoke: Invoke) {
+    val intent = Intent(android.media.RingtoneManager.ACTION_RINGTONE_PICKER)
+      .putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_TYPE, android.media.RingtoneManager.TYPE_ALL)
+      .putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_TITLE, "Son des rappels")
+      .putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+      .putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM))
+      .putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+      .putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Notifs.ringUri(activity))
+    startActivityForResult(invoke, intent, "pickRingSoundResult")
+  }
+
+  @ActivityCallback
+  fun pickRingSoundResult(invoke: Invoke, result: ActivityResult) {
+    if (result.resultCode == Activity.RESULT_OK) {
+      @Suppress("DEPRECATION")
+      val uri = result.data?.getParcelableExtra<android.net.Uri>(android.media.RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+      Notifs.setRingSound(activity, uri)
+    }
+    val res = JSObject()
+    res.put("title", Notifs.ringTitle(activity))
+    invoke.resolve(res)
+  }
+
   @ActivityCallback
   fun pickTextFileResult(invoke: Invoke, result: ActivityResult) {
     val uri = result.data?.data

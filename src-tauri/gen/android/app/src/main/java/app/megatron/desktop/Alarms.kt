@@ -54,7 +54,11 @@ object Alarms {
     val now = System.currentTimeMillis()
     val ids = mutableSetOf<String>()
     for (r in Store.pendingReminders(context)) {
-      val at = if (r.dueAt > now) r.dueAt else continue
+      val at = when {
+        r.dueAt > now -> r.dueAt
+        r.everyMin > 0 -> Store.nextOccurrence(r, r.dueAt, now) ?: continue
+        else -> continue
+      }
       set(context, at, pending(context, AlarmReceiver.REMINDER, r.id, 3000 + r.id.toInt(), true)!!)
       ids.add(r.id.toString())
     }

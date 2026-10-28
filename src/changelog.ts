@@ -15,6 +15,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: "0.4.6",
+    date: "2026-10-28",
+    title: "Rappels améliorés",
+    changes: [
+      "Rappels sur certains jours de la semaine seulement (ex. le lundi et le samedi).",
+      "Rappels répétés dans la journée : toutes les 15 min, 30 min, heures… jusqu'à l'heure de ton choix (ex. chaque heure le lundi, de 9 h à 18 h).",
+      "L'IA sait créer ces rappels : « rappelle-moi de boire de l'eau chaque heure le lundi ».",
+      "Corrections mineures.",
+    ],
+  },
+  {
     version: "0.4.5",
     date: "2026-10-28",
     title: "Corrections mineures",

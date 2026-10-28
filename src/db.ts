@@ -80,7 +80,8 @@ export interface FocusSession {
   paused_ms: number;
 }
 
-export type ReminderRepeat = "none" | "daily" | "weekdays" | "weekly" | "monthly";
+/** « days » : seulement les jours de la semaine choisis (colonne days). */
+export type ReminderRepeat = "none" | "daily" | "weekdays" | "days" | "weekly" | "monthly";
 
 export interface Reminder {
   id: number;
@@ -95,6 +96,52 @@ export interface Reminder {
   created_at: string;
   /** Téléphone : sonne comme un réveil (1) au lieu d'une simple notification (0). */
   ring?: number;
+  /** Jours choisis (0 = dimanche … 6 = samedi), séparés par des virgules, pour repeat = « days ». */
+  days?: string;
+  /** Répétition dans la journée : toutes les N minutes (0 = une fois). */
+  every_min?: number;
+  /** Fin de la répétition dans la journée (« HH:MM », vide = fin de journée). */
+  until_time?: string;
+  /** Heure de départ de chaque journée (« HH:MM »). */
+  start_time?: string;
+}
+
+/** Fréquence d'un rappel : quels jours, et combien de fois dans la journée. */
+export interface ReminderRule {
+  repeat: ReminderRepeat;
+  days: number[];
+  everyMin: number;
+  /** « HH:MM » ou vide (fin de journée). */
+  until: string;
+  /** « HH:MM » : heure du premier rappel de chaque journée. */
+  start: string;
+}
+
+const hhmmOf = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+const minutesOf = (hhmm: string) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+export function ruleOf(r: Reminder): ReminderRule {
+  return {
+    repeat: r.repeat,
+    days: (r.days ?? "").split(",").filter(Boolean).map(Number).filter((n) => n >= 0 && n <= 6),
+    everyMin: r.every_min ?? 0,
+    until: r.until_time ?? "",
+    start: r.start_time || hhmmOf(new Date(r.due_at)),
+  };
+}
+
+const dayAllowed = (d: Date, rule: Pick<ReminderRule, "repeat" | "days">) =>
+  rule.repeat === "weekdays" ? d.getDay() !== 0 && d.getDay() !== 6 : rule.repeat === "days" ? rule.days.includes(d.getDay()) : true;
+
+/** Premier rappel : un jour qui ne fait pas partie des jours choisis avance au prochain jour permis (même heure). */
+export function firstOccurrence(due: Date, rule: Pick<ReminderRule, "repeat" | "days">) {
+  const d = new Date(due);
+  if (rule.repeat === "days" && !rule.days.length) return d;
+  for (let i = 0; i < 7 && !dayAllowed(d, rule); i++) d.setDate(d.getDate() + 1);
+  return d;
 }
 
 export type ProjectInput = Omit<Project, "id" | "created_at" | "paid_at">;
@@ -484,55 +531,93 @@ export async function listReminders() {
   return (await db()).select<Reminder[]>("SELECT * FROM reminders ORDER BY done ASC, due_at ASC");
 }
 
+export interface ReminderInput {
+  title: string;
+  dueAt: Date;
+  repeat: ReminderRepeat;
+  projectId: number | null;
+  ring?: boolean;
+  /** Jours choisis (0 = dimanche … 6 = samedi), pour repeat = « days ». */
+  days?: number[];
+  /** Toutes les N minutes dans la journée (0 = une fois). */
+  everyMin?: number;
+  /** Jusqu'à « HH:MM » (vide = fin de journée). */
+  until?: string;
+}
+
+/** Valeurs à enregistrer : premier rappel sur un jour permis, heure de départ de chaque journée. */
+function reminderRow(r: ReminderInput) {
+  const days = r.repeat === "days" ? [...new Set(r.days ?? [])].sort() : [];
+  const due = firstOccurrence(r.dueAt, { repeat: r.repeat, days });
+  const everyMin = Math.max(0, Math.round(r.everyMin ?? 0));
+  return [r.title, due.toISOString(), r.repeat, r.projectId, r.ring ? 1 : 0, days.join(","), everyMin, everyMin ? (r.until ?? "") : "", hhmmOf(due)];
+}
+
 /** Modifie un rappel ; il sonnera de nouveau à sa (nouvelle) heure. */
-export function updateReminder(
-  id: number,
-  r: { title: string; dueAt: Date; repeat: ReminderRepeat; projectId: number | null; ring?: boolean },
-) {
-  return write("UPDATE reminders SET title=$1, due_at=$2, repeat=$3, project_id=$4, notified_at=NULL, done=0, ring=$6 WHERE id=$5", [
-    r.title,
-    r.dueAt.toISOString(),
-    r.repeat,
-    r.projectId,
-    id,
-    r.ring ? 1 : 0,
-  ]);
+export function updateReminder(id: number, r: ReminderInput) {
+  return write(
+    "UPDATE reminders SET title=$1, due_at=$2, repeat=$3, project_id=$4, ring=$5, days=$6, every_min=$7, until_time=$8, start_time=$9, notified_at=NULL, done=0 WHERE id=$10",
+    [...reminderRow(r), id],
+  );
 }
 
-export function createReminder(r: { title: string; dueAt: Date; repeat: ReminderRepeat; projectId: number | null; ring?: boolean }) {
-  return write("INSERT INTO reminders (title, due_at, repeat, project_id, ring) VALUES ($1,$2,$3,$4,$5)", [
-    r.title,
-    r.dueAt.toISOString(),
-    r.repeat,
-    r.projectId,
-    r.ring ? 1 : 0,
-  ]);
+export function createReminder(r: ReminderInput) {
+  return write(
+    "INSERT INTO reminders (title, due_at, repeat, project_id, ring, days, every_min, until_time, start_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+    reminderRow(r),
+  );
 }
 
-/** Prochaine occurrence strictement dans le futur. */
-export function nextOccurrence(from: Date, repeat: ReminderRepeat, now = new Date()) {
+/**
+ * Prochaine occurrence strictement dans le futur, ou null si le rappel est terminé.
+ * Dans la journée : toutes les N minutes jusqu'à l'heure de fin ; puis jour suivant permis, à l'heure de départ.
+ * (Mêmes règles côté Android : Store.nextOccurrence.)
+ */
+export function nextOccurrence(from: Date, rule: ReminderRule, now = new Date()): Date | null {
   const d = new Date(from);
-  const step = () => {
-    if (repeat === "daily") d.setDate(d.getDate() + 1);
-    else if (repeat === "weekly") d.setDate(d.getDate() + 7);
-    else if (repeat === "monthly") d.setMonth(d.getMonth() + 1);
-    else if (repeat === "weekdays") {
-      do d.setDate(d.getDate() + 1);
-      while (d.getDay() === 0 || d.getDay() === 6);
+  const start = minutesOf(rule.start || hhmmOf(from));
+  const end = rule.until ? minutesOf(rule.until) : 23 * 60 + 59;
+  for (let guard = 0; guard < 2000; guard++) {
+    if (rule.everyMin > 0) {
+      const c = new Date(d.getTime() + rule.everyMin * 60_000);
+      if (c.toDateString() === d.toDateString() && c.getHours() * 60 + c.getMinutes() <= end) {
+        d.setTime(c.getTime());
+        if (d > now) return d;
+        continue;
+      }
     }
-  };
-  do step();
-  while (d <= now);
-  return d;
+    if (rule.repeat === "none") return null;
+    if (rule.repeat === "weekly") d.setDate(d.getDate() + 7);
+    else if (rule.repeat === "monthly") d.setMonth(d.getMonth() + 1);
+    else {
+      let i = 0;
+      do d.setDate(d.getDate() + 1);
+      while (!dayAllowed(d, rule) && ++i < 8);
+    }
+    d.setHours(Math.floor(start / 60), start % 60, 0, 0);
+    if (d > now) return d;
+  }
+  return null;
+}
+
+/**
+ * Rappel « toutes les N min » déjà notifié dont le créneau suivant est arrivé (sans « Fait ») :
+ * il passe au dernier créneau échu, pour sonner de nouveau. Renvoie null s'il n'y a rien à faire.
+ */
+export function catchUpReminder(r: Reminder, now = new Date()) {
+  if (!r.every_min || r.done || r.notified_at !== r.due_at) return null;
+  const rule = ruleOf(r);
+  let slot = new Date(r.due_at);
+  for (let next = nextOccurrence(slot, rule, slot); next && next <= now; next = nextOccurrence(slot, rule, slot)) slot = next;
+  if (slot.getTime() === new Date(r.due_at).getTime()) return null;
+  return write("UPDATE reminders SET due_at=$1, notified_at=NULL WHERE id=$2", [slot.toISOString(), r.id]);
 }
 
 /** « Fait » : un rappel répété passe à sa prochaine occurrence, sinon il est terminé. */
 export function completeReminder(r: Reminder) {
-  if (r.repeat === "none") return write("UPDATE reminders SET done=1 WHERE id=$1", [r.id]);
-  return write("UPDATE reminders SET due_at=$1, notified_at=NULL WHERE id=$2", [
-    nextOccurrence(new Date(r.due_at), r.repeat).toISOString(),
-    r.id,
-  ]);
+  const next = nextOccurrence(new Date(r.due_at), ruleOf(r));
+  if (!next) return write("UPDATE reminders SET done=1 WHERE id=$1", [r.id]);
+  return write("UPDATE reminders SET due_at=$1, notified_at=NULL WHERE id=$2", [next.toISOString(), r.id]);
 }
 
 export function snoozeReminder(r: Reminder, minutes: number) {
@@ -718,9 +803,9 @@ export async function importBackup(raw: unknown) {
   }
   for (const r of Array.isArray(b.reminders) ? b.reminders : []) {
     await d.execute(
-      "INSERT INTO reminders (id, title, due_at, repeat, project_id, done, notified_at, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+      "INSERT INTO reminders (id, title, due_at, repeat, project_id, done, notified_at, created_at, ring, days, every_min, until_time, start_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
       [r.id, r.title, r.due_at, r.repeat ?? "none", r.project_id ?? null, r.done ? 1 : 0, r.notified_at ?? null,
-        r.created_at ?? nowSql()],
+        r.created_at ?? nowSql(), r.ring ? 1 : 0, r.days ?? "", r.every_min ?? 0, r.until_time ?? "", r.start_time ?? ""],
     );
   }
   for (const m of Array.isArray(b.memories) ? b.memories : []) {

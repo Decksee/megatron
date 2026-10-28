@@ -270,6 +270,15 @@ fn migrations() -> Vec<Migration> {
         description: "sonnerie des rappels (telephone)",
         sql: "ALTER TABLE reminders ADD COLUMN ring INTEGER NOT NULL DEFAULT 0;",
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 12,
+        description: "rappels : jours choisis et repetition dans la journee",
+        sql: "ALTER TABLE reminders ADD COLUMN days TEXT NOT NULL DEFAULT '';
+              ALTER TABLE reminders ADD COLUMN every_min INTEGER NOT NULL DEFAULT 0;
+              ALTER TABLE reminders ADD COLUMN until_time TEXT NOT NULL DEFAULT '';
+              ALTER TABLE reminders ADD COLUMN start_time TEXT NOT NULL DEFAULT '';",
+        kind: MigrationKind::Up,
     }]
 }
 

@@ -2603,3 +2603,18 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 .inline-add { gap: 8px; }
 .inline-add input { flex: 1; min-width: 0; }
 .clock-greeting { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Rappels : choix des jours de la semaine (L M M J V S D). */
+.weekday-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+.weekday {
+  width: 30px; height: 30px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+  background: rgb(var(--fg-rgb) / 0.07); color: var(--muted); font: inherit; font-size: 12px; font-weight: 700;
+  transition: background 0.15s, color 0.15s;
+}
+.weekday:hover { background: rgb(var(--fg-rgb) / 0.12); color: var(--text); }
+.weekday.on { background: rgb(var(--accent-rgb) / 0.2); color: var(--accent); }
+
+/* Rappels : chaque liste avec son titre au-dessus. */
+.reminder-rules { align-items: flex-end; gap: 8px; }
+.rule-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rule-caption { padding-left: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }

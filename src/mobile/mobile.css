@@ -789,3 +789,25 @@ html[data-window="mobile"] #root {
 /* Aide « paramètres restreints » sous les autorisations du blocage. */
 .m-blocker-help { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 16px; background: rgb(var(--fg-rgb) / 0.05); }
 .m-blocker-help .btn { min-height: 44px; border-radius: 14px; justify-content: center; }
+
+/* Rappels : jours de la semaine, assez grands pour le doigt. */
+[data-window="mobile"] .weekday-picker { justify-content: space-between; gap: 4px; }
+[data-window="mobile"] .weekday { width: 40px; height: 40px; font-size: 14px; }
+
+/* Son de l'alarme des rappels (sous l'interrupteur Sonnerie). */
+.m-ring-sound {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 14px; border: 0; border-radius: 16px;
+  background: rgb(var(--fg-rgb) / 0.05); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.m-ring-sound > svg { flex-shrink: 0; color: var(--muted); }
+.m-ring-sound > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.m-ring-sound b { font-size: 15px; }
+.m-ring-sound .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Rappels : jours, répétition dans la journée, heure de fin et projet sur deux colonnes. */
+[data-window="mobile"] .reminder-rules { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+[data-window="mobile"] .reminder-rules > * { width: 100%; min-width: 0; }
+[data-window="mobile"] .reminder-rules .select { width: 100%; justify-content: space-between; }
+[data-window="mobile"] .rule-caption { font-size: 11px; }
+/* Dernière liste seule sur sa ligne (le projet, sans « Jusqu'à ») : toute la largeur. */
+[data-window="mobile"] .reminder-rules > .rule-field:last-child:nth-child(odd) { grid-column: 1 / -1; }

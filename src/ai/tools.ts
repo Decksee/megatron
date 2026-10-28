@@ -43,7 +43,9 @@ import {
   type Project,
   type ProjectStatus,
   type ReminderRepeat,
+  ruleOf,
 } from "../db";
+import { ruleLabel } from "../reminders";
 import { changeStatus, projectMoney, recordPayment, STATUS_LABEL, taskBucket } from "../projects";
 import { formatDuration, isRunning, overlapMs, periodBuckets, totalMs, type Period } from "../time";
 import type { ToolDef } from "./providers";
@@ -53,6 +55,23 @@ import { requestEndConversation, requestFile } from "./session";
 export interface ToolOutput {
   result: string;
   label: string;
+}
+
+const DAY_NAMES: Record<string, number> = { dimanche: 0, lundi: 1, mardi: 2, mercredi: 3, jeudi: 4, vendredi: 5, samedi: 6 };
+
+/** Jours et répétition dans la journée donnés à l'IA → champs du rappel (seulement ceux qu'elle a fournis). */
+function ruleArgs(a: Record<string, unknown>) {
+  const out: { days?: number[]; everyMin?: number; until?: string } = {};
+  if (typeof a.jours === "string" && a.jours.trim()) {
+    out.days = a.jours
+      .toLowerCase()
+      .split(/[,;\s]+/)
+      .map((j) => DAY_NAMES[j.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/s$/, "")])
+      .filter((n) => n !== undefined);
+  }
+  if (a.toutes_les_minutes !== undefined) out.everyMin = Math.max(0, Number(a.toutes_les_minutes) || 0);
+  if (typeof a.jusqu_a === "string") out.until = /^\d{1,2}:\d{2}$/.test(a.jusqu_a.trim()) ? a.jusqu_a.trim().padStart(5, "0") : "";
+  return out;
 }
 
 const str = (desc: string, extra: object = {}) => ({ type: "string", description: desc, ...extra });
@@ -333,12 +352,17 @@ export const TOOLS: ToolDef[] = [
   { name: "arreter_focus", description: "Termine la session de focus en cours.", parameters: obj({}) },
   {
     name: "creer_rappel",
-    description: "Crée un rappel qui s'affichera dans l'encoche et en notification.",
+    description:
+      "Crée un rappel qui s'affichera dans l'encoche et en notification. Il peut se répéter certains jours (repetition = days + jours) " +
+      "et plusieurs fois dans la journée (toutes_les_minutes, jusqu_a), ex. « chaque heure le lundi de 9 h à 18 h ».",
     parameters: obj(
       {
         titre: str("Ce qu'il faut rappeler"),
-        quand: str("Date et heure locales au format AAAA-MM-JJTHH:MM"),
-        repetition: str("Répétition", { enum: ["none", "daily", "weekdays", "weekly", "monthly"] }),
+        quand: str("Date et heure locales du premier rappel, format AAAA-MM-JJTHH:MM"),
+        repetition: str("Répétition", { enum: ["none", "daily", "weekdays", "days", "weekly", "monthly"] }),
+        jours: str("Si repetition = days : jours de la semaine, séparés par des virgules (ex. « lundi,samedi »)"),
+        toutes_les_minutes: num("Répéter dans la journée toutes les N minutes (ex. 60 = chaque heure) ; 0 ou absent = une fois"),
+        jusqu_a: str("Avec toutes_les_minutes : heure de fin dans la journée, HH:MM (ex. 18:00) ; absent = jusqu'à minuit"),
         projet: str("Nom du projet (optionnel)"),
       },
       ["titre", "quand"],
@@ -356,7 +380,10 @@ export const TOOLS: ToolDef[] = [
         minutes: num("Pour reporter : nombre de minutes (défaut 10)"),
         nouveau_titre: str("Pour modifier : nouveau texte (optionnel)"),
         quand: str("Pour modifier : nouvelle date et heure ISO 8601 locale, ex. 2026-10-15T14:30 (optionnel)"),
-        repetition: str("Pour modifier : répétition (optionnel)", { enum: ["none", "daily", "weekdays", "weekly", "monthly"] }),
+        repetition: str("Pour modifier : répétition (optionnel)", { enum: ["none", "daily", "weekdays", "days", "weekly", "monthly"] }),
+        jours: str("Si repetition = days : jours de la semaine, séparés par des virgules (ex. « lundi,samedi »)"),
+        toutes_les_minutes: num("Répéter dans la journée toutes les N minutes (ex. 60 = chaque heure) ; 0 ou absent = une fois"),
+        jusqu_a: str("Avec toutes_les_minutes : heure de fin dans la journée, HH:MM (ex. 18:00) ; absent = jusqu'à minuit"),
         projet: str("Pour modifier : projet (optionnel ; « aucun » pour le retirer)"),
       },
       ["titre", "action"],
@@ -777,12 +804,12 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
     case "creer_rappel": {
       const due = new Date(String(a.quand ?? ""));
       if (Number.isNaN(due.getTime())) throw new Error("Date du rappel invalide.");
-      const repeat = (["none", "daily", "weekdays", "weekly", "monthly"].includes(String(a.repetition))
+      const repeat = (["none", "daily", "weekdays", "days", "weekly", "monthly"].includes(String(a.repetition))
         ? a.repetition
         : "none") as ReminderRepeat;
       const project = await findProject(a.projet);
       const titre = String(a.titre ?? "").trim();
-      await createReminder({ title: titre, dueAt: due, repeat, projectId: project?.id ?? null });
+      await createReminder({ title: titre, dueAt: due, repeat, projectId: project?.id ?? null, ...ruleArgs(a) });
       const when = due.toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
       return { result: `Rappel créé pour ${due.toString()}.`, label: `Rappel : ${titre} · ${when}` };
     }
@@ -800,7 +827,7 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
       if (a.action === "modifier") {
         const when = typeof a.quand === "string" && a.quand.trim() ? new Date(a.quand) : new Date(reminder.due_at);
         if (Number.isNaN(when.getTime())) throw new Error("Date du rappel invalide.");
-        const repeat = (["none", "daily", "weekdays", "weekly", "monthly"].includes(String(a.repetition))
+        const repeat = (["none", "daily", "weekdays", "days", "weekly", "monthly"].includes(String(a.repetition))
           ? a.repetition
           : reminder.repeat) as ReminderRepeat;
         let projectId = reminder.project_id;
@@ -808,7 +835,18 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
           projectId = /^(aucun|aucune|non|rien)$/i.test(a.projet.trim()) ? null : ((await findProject(a.projet))?.id ?? null);
         }
         const title = typeof a.nouveau_titre === "string" && a.nouveau_titre.trim() ? a.nouveau_titre.trim() : reminder.title;
-        await updateReminder(reminder.id, { title, dueAt: when, repeat, projectId });
+        const current = ruleOf(reminder);
+        await updateReminder(reminder.id, {
+          title,
+          dueAt: when,
+          repeat,
+          projectId,
+          ring: !!reminder.ring,
+          days: current.days,
+          everyMin: current.everyMin,
+          until: current.until,
+          ...ruleArgs(a),
+        });
         const label = when.toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
         return { result: `Rappel modifié (${when.toString()}).`, label: `Rappel modifié : ${title} · ${label}` };
       }
@@ -829,7 +867,7 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
     }
     case "lister_rappels": {
       const reminders = (await listReminders()).filter((r) => !r.done);
-      const lines = reminders.map((r) => `- ${r.title} | ${new Date(r.due_at).toString()} | ${r.repeat}`);
+      const lines = reminders.map((r) => `- ${r.title} | prochain : ${new Date(r.due_at).toString()} | ${ruleLabel(r) || "une fois"}`);
       return { result: lines.join("\n") || "Aucun rappel.", label: `${reminders.length} rappel(s) consulté(s)` };
     }
     case "stats_temps": {

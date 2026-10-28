@@ -20,6 +20,38 @@ object Notifs {
   const val CH_REMINDER = "rappels"
   const val CH_DAY = "journee"
   const val CH_RING = "rappels_sonnerie"
+  private const val PREFS = "megatron"
+
+  /** Son choisi pour les rappels avec sonnerie (sinon le réveil du téléphone). */
+  fun ringUri(context: Context): android.net.Uri? =
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("ring_uri", null)?.let { android.net.Uri.parse(it) }
+      ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+      ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+  /** Nom du son, pour l'afficher dans l'appli. */
+  fun ringTitle(context: Context): String = try {
+    RingtoneManager.getRingtone(context, ringUri(context))?.getTitle(context) ?: "Réveil du téléphone"
+  } catch (e: Exception) {
+    "Réveil du téléphone"
+  }
+
+  /**
+   * Android fige le son d'un canal à sa création : changer de son = nouveau canal (l'ancien est supprimé).
+   * Le nom du canal en cours est gardé dans les préférences.
+   */
+  fun ringChannel(context: Context): String =
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("ring_channel", CH_RING) ?: CH_RING
+
+  fun setRingSound(context: Context, uri: android.net.Uri?) {
+    val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val old = ringChannel(context)
+    prefs.edit()
+      .putString("ring_uri", uri?.toString())
+      .putString("ring_channel", "${CH_RING}_${System.currentTimeMillis()}")
+      .apply()
+    if (Build.VERSION.SDK_INT >= 26) context.getSystemService(NotificationManager::class.java).deleteNotificationChannel(old)
+    channels(context)
+  }
   const val ID_TASK = 1
 
   fun channels(context: Context) {
@@ -37,12 +69,12 @@ object Notifs {
     nm.createNotificationChannel(
       NotificationChannel(CH_DAY, "Point du matin", NotificationManager.IMPORTANCE_DEFAULT).apply { description = "Ce que tu as à faire aujourd'hui" },
     )
-    // Rappels avec sonnerie : son de réveil du téléphone, sur le canal « alarme » (sonne même en silencieux).
+    // Rappels avec sonnerie : le son choisi (réveil du téléphone par défaut), sur le canal « alarme » (sonne même en silencieux).
     nm.createNotificationChannel(
-      NotificationChannel(CH_RING, "Rappels avec sonnerie", NotificationManager.IMPORTANCE_HIGH).apply {
+      NotificationChannel(ringChannel(context), "Rappels avec sonnerie", NotificationManager.IMPORTANCE_HIGH).apply {
         description = "Les rappels qui sonnent comme un réveil"
         setSound(
-          RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+          ringUri(context),
           AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build(),
         )
         enableVibration(true)
@@ -128,7 +160,7 @@ object Notifs {
     channels(context)
     if (!canNotify(context)) return
     val id = (1000 + r.id).toInt()
-    val n = NotificationCompat.Builder(context, if (r.ring) CH_RING else CH_REMINDER)
+    val n = NotificationCompat.Builder(context, if (r.ring) ringChannel(context) else CH_REMINDER)
       .setSmallIcon(R.drawable.ic_stat_megatron)
       .setContentTitle("${if (r.ring) "⏰" else "🔔"} ${r.title}")
       .setContentText(if (r.repeat == "none") "Rappel Mégatron" else "Rappel répété")

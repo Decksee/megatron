@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   completeReminder,
@@ -9,15 +9,15 @@ import {
   type Reminder,
   type ReminderRepeat,
 } from "../db";
-import { formatDue, REPEAT_LABEL, SNOOZE_MINUTES } from "../reminders";
+import { EVERY_OPTIONS, formatDue, REPEAT_LABEL, ruleLabel, SNOOZE_MINUTES, WEEK } from "../reminders";
 import type { Data } from "../useData";
 import { Select } from "../components/Select";
 import { DatePicker } from "../components/DatePicker";
-import { ArrowRight, BellRing, Check, Pencil, Repeat, X } from "lucide-react";
+import { ArrowRight, BellRing, Check, ChevronRight, Music, Pencil, Repeat, X } from "lucide-react";
 import { ConfirmDelete } from "../components/ConfirmDelete";
 import { EmptyState } from "../components/EmptyState";
 import { projectOptions } from "../options";
-import { isMobileApp } from "../mobile/native";
+import { isMobileApp, native } from "../mobile/native";
 
 function at(hour: number, dayOffset = 0) {
   const d = new Date();
@@ -62,11 +62,28 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
   const [repeat, setRepeat] = useState<ReminderRepeat>("none");
   const [projectId, setProjectId] = useState<number | null>(null);
   const [ring, setRing] = useState(false);
+  /** Jours choisis (repeat = « days »), répétition dans la journée et heure de fin. */
+  const [days, setDays] = useState<number[]>([]);
+  const [everyMin, setEveryMin] = useState(0);
+  const [until, setUntil] = useState("18:00");
   const [showDone, setShowDone] = useState(false);
+  /** Téléphone : nom du son des rappels avec sonnerie (choisi dans la liste des sons d'Android). */
+  const [ringSound, setRingSound] = useState<string | null>(null);
+  useEffect(() => {
+    if (isMobileApp()) native<{ title: string }>("ringSound").then((r) => setRingSound(r.title)).catch(() => {});
+  }, []);
   /** Rappel en cours de modification : le formulaire du haut sert alors à le modifier. */
   const [editing, setEditing] = useState<Reminder | null>(null);
 
-  const valid = title.trim() && due;
+  const valid = title.trim() && due && (repeat !== "days" || days.length > 0);
+  // Heures de fin possibles : après l'heure du rappel, jusqu'à la fin de la journée.
+  const untilOptions = [
+    ...Array.from({ length: 23 - (due?.getHours() ?? 0) }, (_, i) => {
+      const h = (due?.getHours() ?? 0) + i + 1;
+      return { value: `${String(h).padStart(2, "0")}:00`, label: `${h} h` };
+    }),
+    { value: "", label: "Minuit" },
+  ];
   const upcoming = reminders.filter((r) => !r.done);
   const done = reminders.filter((r) => r.done);
   const byId = new Map(projects.map((p) => [p.id, p]));
@@ -80,11 +97,14 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
     setRepeat("none");
     setProjectId(null);
     setRing(false);
+    setDays([]);
+    setEveryMin(0);
+    setUntil("18:00");
   };
 
   const add = async () => {
     if (!valid) return;
-    const r = { title: title.trim(), dueAt: due!, repeat, projectId, ring };
+    const r = { title: title.trim(), dueAt: due!, repeat, projectId, ring, days, everyMin, until };
     if (editing) {
       await updateReminder(editing.id, r);
       reset();
@@ -101,6 +121,9 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
     setRepeat(r.repeat);
     setProjectId(r.project_id);
     setRing(!!r.ring);
+    setDays((r.days ?? "").split(",").filter(Boolean).map(Number));
+    setEveryMin(r.every_min ?? 0);
+    setUntil(r.every_min ? (r.until_time ?? "") : "18:00");
     requestAnimationFrame(() => document.getElementById("reminder-title")?.focus());
   };
 
@@ -134,9 +157,9 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
         </div>
         <div className="reminder-main">
           <span className="reminder-title">{r.title}</span>
-          {r.repeat !== "none" && (
+          {ruleLabel(r) && (
             <span className="muted small with-icon">
-              <Repeat size={11} /> {REPEAT_LABEL[r.repeat]}
+              <Repeat size={11} /> {ruleLabel(r)}
             </span>
           )}
           {!!r.ring && isMobileApp() && (
@@ -216,16 +239,57 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
             </button>
           ))}
         </div>
-        <div className="row composer-meta">
-          <Select<ReminderRepeat>
-            small
-            value={repeat}
-            onChange={setRepeat}
-            options={(Object.keys(REPEAT_LABEL) as ReminderRepeat[]).map((v) => ({ value: v, label: REPEAT_LABEL[v] }))}
-            ariaLabel="Répétition"
-          />
-          <Select small value={projectId} onChange={setProjectId} options={projectOptions(projects)} ariaLabel="Projet" />
+        <div className="row composer-meta reminder-rules">
+          {/* Chaque liste porte son titre : « Quels jours » et « Dans la journée » ne se confondent pas. */}
+          <div className="rule-field">
+            <span className="rule-caption">Quels jours</span>
+            <Select<ReminderRepeat>
+              small
+              value={repeat}
+              onChange={(v) => {
+                setRepeat(v);
+                // « Certains jours » : on propose d'emblée le jour du rappel.
+                if (v === "days" && !days.length && due) setDays([due.getDay()]);
+              }}
+              options={(Object.keys(REPEAT_LABEL) as ReminderRepeat[]).map((v) => ({ value: v, label: REPEAT_LABEL[v] }))}
+              ariaLabel="Quels jours"
+            />
+          </div>
+          <div className="rule-field">
+            <span className="rule-caption">Dans la journée</span>
+            <Select<number> small value={everyMin} onChange={setEveryMin} options={EVERY_OPTIONS} ariaLabel="Dans la journée" />
+          </div>
+          {everyMin > 0 && (
+            <div className="rule-field">
+              <span className="rule-caption">Jusqu'à</span>
+              <Select<string> small value={until} onChange={setUntil} options={untilOptions} ariaLabel="Jusqu'à" />
+            </div>
+          )}
+          <div className="rule-field">
+            <span className="rule-caption">Projet</span>
+            <Select small value={projectId} onChange={setProjectId} options={projectOptions(projects)} ariaLabel="Projet" />
+          </div>
         </div>
+        {repeat === "days" && (
+          <div className="weekday-picker" role="group" aria-label="Jours du rappel">
+            {WEEK.map((w) => {
+              const on = days.includes(w.day);
+              return (
+                <button
+                  type="button"
+                  key={w.day}
+                  className={on ? "weekday on" : "weekday"}
+                  aria-pressed={on}
+                  aria-label={w.label}
+                  title={w.label}
+                  onClick={() => setDays(on ? days.filter((d) => d !== w.day) : [...days, w.day])}
+                >
+                  {w.short}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {isMobileApp() && (
           <button type="button" className={ring ? "m-ring on" : "m-ring"} onClick={() => setRing(!ring)} aria-pressed={ring}>
             <BellRing size={17} />
@@ -234,6 +298,20 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
               <span className="muted small">{ring ? "Sonne comme un réveil, même en silencieux" : "Simple notification"}</span>
             </span>
             <span className="m-ring-switch" />
+          </button>
+        )}
+        {isMobileApp() && ring && (
+          <button
+            type="button"
+            className="m-ring-sound"
+            onClick={() => native<{ title: string }>("pickRingSound").then((r) => setRingSound(r.title)).catch(() => {})}
+          >
+            <Music size={16} />
+            <span>
+              <b>Son de l'alarme</b>
+              <span className="muted small">{ringSound ?? "Réveil du téléphone"}</span>
+            </span>
+            <ChevronRight size={18} />
           </button>
         )}
       </form>
@@ -306,7 +384,7 @@ export function Reminders({ reminders, projects, now }: Data & { now: Date }) {
           </div>
           <div className="side-row static">
             <span className="side-row-name">Répétés</span>
-            <span className="side-row-value">{upcoming.filter((r) => r.repeat !== "none").length}</span>
+            <span className="side-row-value">{upcoming.filter((r) => r.repeat !== "none" || !!r.every_min).length}</span>
           </div>
         </div>
       </aside>

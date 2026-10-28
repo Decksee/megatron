@@ -81,7 +81,22 @@ object Store {
 
   // ---------- Rappels ----------
 
-  data class Reminder(val id: Long, val title: String, val dueAt: Long, val repeat: String, val ring: Boolean = false)
+  /**
+   * Un rappel. `days` : jours choisis (0 = dimanche … 6 = samedi) pour repeat = « days » ;
+   * `everyMin` / `until` : répétition dans la journée ; `start` : heure du premier rappel de chaque journée.
+   */
+  data class Reminder(
+    val id: Long,
+    val title: String,
+    val dueAt: Long,
+    val repeat: String,
+    val ring: Boolean = false,
+    val days: Set<Int> = emptySet(),
+    val everyMin: Int = 0,
+    val until: String = "",
+    val start: String = "",
+    val notified: Boolean = false,
+  )
 
   private fun isoFormat() = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
 
@@ -96,17 +111,31 @@ object Store {
 
   fun pendingReminders(context: Context): List<Reminder> = withDb(context, emptyList()) { db ->
     val list = mutableListOf<Reminder>()
-    // La colonne « ring » arrive avec une mise à jour de la base : tant que l'appli ne l'a pas créée, on fait sans.
-    val withRing = try {
-      db.rawQuery("SELECT id, title, due_at, repeat, ring FROM reminders WHERE done = 0", null)
-    } catch (e: Exception) {
-      null
-    }
-    (withRing ?: db.rawQuery("SELECT id, title, due_at, repeat FROM reminders WHERE done = 0", null)).use { c ->
+    // Colonnes ajoutées par des mises à jour de la base : tant que l'appli ne les a pas créées, on fait sans.
+    val rows = listOf(
+      "SELECT id, title, due_at, repeat, ring, days, every_min, until_time, start_time, notified_at FROM reminders WHERE done = 0",
+      "SELECT id, title, due_at, repeat, ring FROM reminders WHERE done = 0",
+      "SELECT id, title, due_at, repeat FROM reminders WHERE done = 0",
+    ).firstNotNullOf { sql -> try { db.rawQuery(sql, null) } catch (e: Exception) { null } }
+    rows.use { c ->
       while (c.moveToNext()) {
-        val due = parseIso(c.getString(2)) ?: continue
-        val ring = c.columnCount > 4 && c.getInt(4) == 1
-        list.add(Reminder(c.getLong(0), c.getString(1), due, c.getString(3).ifEmpty { "none" }, ring))
+        val dueIso = c.getString(2)
+        val due = parseIso(dueIso) ?: continue
+        val full = c.columnCount > 5
+        list.add(
+          Reminder(
+            id = c.getLong(0),
+            title = c.getString(1),
+            dueAt = due,
+            repeat = c.getString(3).ifEmpty { "none" },
+            ring = c.columnCount > 4 && c.getInt(4) == 1,
+            days = if (full) c.getString(5).split(",").mapNotNull { it.trim().toIntOrNull() }.toSet() else emptySet(),
+            everyMin = if (full) c.getInt(6) else 0,
+            until = if (full) c.getString(7) else "",
+            start = if (full) c.getString(8) else "",
+            notified = full && !c.isNull(9) && c.getString(9) == dueIso,
+          ),
+        )
       }
     }
     list
@@ -114,31 +143,84 @@ object Store {
 
   fun reminder(context: Context, id: Long): Reminder? = pendingReminders(context).firstOrNull { it.id == id }
 
-  /** Prochaine occurrence d'un rappel répété (mêmes règles que l'interface). */
-  fun nextOccurrence(from: Long, repeat: String): Long {
-    val cal = Calendar.getInstance().apply { timeInMillis = from }
-    val now = System.currentTimeMillis()
-    do {
-      when (repeat) {
-        "daily" -> cal.add(Calendar.DAY_OF_YEAR, 1)
-        "weekdays" -> {
-          do cal.add(Calendar.DAY_OF_YEAR, 1) while (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY)
-        }
-        "weekly" -> cal.add(Calendar.WEEK_OF_YEAR, 1)
-        "monthly" -> cal.add(Calendar.MONTH, 1)
-        else -> return from
-      }
-    } while (cal.timeInMillis <= now)
-    return cal.timeInMillis
+  private fun minutesOf(hhmm: String): Int {
+    val parts = hhmm.split(":")
+    return (parts.getOrNull(0)?.toIntOrNull() ?: 0) * 60 + (parts.getOrNull(1)?.toIntOrNull() ?: 0)
   }
 
-  /** « Fait » : un rappel simple est terminé, un rappel répété passe à la prochaine fois. */
+  private fun allowed(r: Reminder, cal: Calendar): Boolean {
+    val dow = cal.get(Calendar.DAY_OF_WEEK) // 1 = dimanche
+    return when (r.repeat) {
+      "weekdays" -> dow != Calendar.SATURDAY && dow != Calendar.SUNDAY
+      "days" -> r.days.contains(dow - 1)
+      else -> true
+    }
+  }
+
+  /**
+   * Prochaine occurrence après `now`, ou null si le rappel est terminé (mêmes règles que nextOccurrence dans db.ts) :
+   * toutes les N minutes jusqu'à l'heure de fin, puis le jour suivant permis, à l'heure de départ.
+   */
+  fun nextOccurrence(r: Reminder, from: Long, now: Long = System.currentTimeMillis()): Long? {
+    val cal = Calendar.getInstance().apply { timeInMillis = from }
+    val start = if (r.start.isNotEmpty()) minutesOf(r.start) else cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+    val end = if (r.until.isNotEmpty()) minutesOf(r.until) else 23 * 60 + 59
+    for (guard in 0 until 2000) {
+      if (r.everyMin > 0) {
+        val c = Calendar.getInstance().apply { timeInMillis = cal.timeInMillis; add(Calendar.MINUTE, r.everyMin) }
+        val sameDay = c.get(Calendar.YEAR) == cal.get(Calendar.YEAR) && c.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
+        if (sameDay && c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE) <= end) {
+          cal.timeInMillis = c.timeInMillis
+          if (cal.timeInMillis > now) return cal.timeInMillis
+          continue
+        }
+      }
+      when (r.repeat) {
+        "none" -> return null
+        "weekly" -> cal.add(Calendar.DAY_OF_YEAR, 7)
+        "monthly" -> cal.add(Calendar.MONTH, 1)
+        else -> {
+          var i = 0
+          do cal.add(Calendar.DAY_OF_YEAR, 1) while (!allowed(r, cal) && ++i < 8)
+        }
+      }
+      cal.set(Calendar.HOUR_OF_DAY, start / 60)
+      cal.set(Calendar.MINUTE, start % 60)
+      cal.set(Calendar.SECOND, 0)
+      cal.set(Calendar.MILLISECOND, 0)
+      if (cal.timeInMillis > now) return cal.timeInMillis
+    }
+    return null
+  }
+
+  /** Dernier créneau échu d'un rappel « toutes les N min » (il resonne même sans « Fait »). */
+  private fun currentSlot(r: Reminder, now: Long): Long {
+    var slot = r.dueAt
+    while (true) {
+      val next = nextOccurrence(r, slot, slot) ?: break
+      if (next > now) break
+      slot = next
+    }
+    return slot
+  }
+
+  /** Avant de sonner : un rappel « toutes les N min » passe au créneau du moment. */
+  fun catchUp(context: Context, r: Reminder): Reminder {
+    if (r.everyMin <= 0) return r
+    val slot = currentSlot(r, System.currentTimeMillis())
+    if (slot == r.dueAt) return r
+    withDb(context, Unit) { db -> db.execSQL("UPDATE reminders SET due_at = ?, notified_at = NULL WHERE id = ?", arrayOf(toIso(slot), r.id)) }
+    return r.copy(dueAt = slot, notified = false)
+  }
+
+  /** « Fait » : un rappel terminé, ou la prochaine fois pour un rappel répété. */
   fun completeReminder(context: Context, id: Long) = withDb(context, Unit) { db ->
     val r = reminder(context, id) ?: return@withDb
-    if (r.repeat == "none") {
+    val next = nextOccurrence(r, r.dueAt)
+    if (next == null) {
       db.execSQL("UPDATE reminders SET done = 1 WHERE id = ?", arrayOf(id))
     } else {
-      db.execSQL("UPDATE reminders SET due_at = ?, notified_at = NULL WHERE id = ?", arrayOf(toIso(nextOccurrence(r.dueAt, r.repeat)), id))
+      db.execSQL("UPDATE reminders SET due_at = ?, notified_at = NULL WHERE id = ?", arrayOf(toIso(next), id))
     }
   }
 
