@@ -2,17 +2,16 @@ import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Check, Minus, Pause, Play, Plus, ShieldCheck, Square } from "lucide-react";
 import { endFocus, pauseFocus, resumeFocus, setSetting, startFocus, listFocusSessions, type FocusSession } from "../db";
-import { activeFocus, focusElapsedMs } from "../focus";
+import { activeFocus, focusElapsedMs, FOCUS_MAX_MINUTES, focusStep } from "../focus";
 import { ProgressRing } from "../views/Today";
 import { Switch } from "../components/Switch";
 import { native } from "./native";
 import { Sheet } from "./sheets";
 import type { Data } from "../useData";
 
-const DURATIONS = [15, 25, 45, 60, 90];
-const STEP = 5;
+const DURATIONS = [25, 60, 120, 240, 480, 720];
 const MIN = 5;
-const MAX = 240;
+const MAX = FOCUS_MAX_MINUTES;
 
 const formatMinutes = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${String(m % 60).padStart(2, "0")}` : ""}`);
 const endLabel = (m: number) => new Date(Date.now() + m * 60_000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -61,7 +60,7 @@ export function MobileFocus({ focusSessions, settings }: Data) {
   const [blocker, setBlocker] = useState<{ usage: boolean; overlay: boolean; enabled: boolean } | null>(null);
   useTick(!!session && !session.paused_at);
   const block = settings.m_block !== "0";
-  // Durée libre : par pas de 5 min, de 5 min à 4 h ; retenue pour la prochaine fois.
+  // Durée libre : de 5 min à 12 h (pas de 5, 15 puis 30 min) ; retenue pour la prochaine fois.
   const choose = (m: number) => {
     const v = Math.min(MAX, Math.max(MIN, m));
     setMinutes(v);
@@ -150,9 +149,9 @@ export function MobileFocus({ focusSessions, settings }: Data) {
           <motion.button
             className="m-step"
             whileTap={{ scale: 0.88 }}
-            onClick={() => choose(minutes - STEP)}
+            onClick={() => choose(minutes - focusStep(minutes, false))}
             disabled={minutes <= MIN}
-            aria-label="5 minutes de moins"
+            aria-label="Moins longtemps"
           >
             <Minus size={22} strokeWidth={2.6} />
           </motion.button>
@@ -163,9 +162,9 @@ export function MobileFocus({ focusSessions, settings }: Data) {
           <motion.button
             className="m-step"
             whileTap={{ scale: 0.88 }}
-            onClick={() => choose(minutes + STEP)}
+            onClick={() => choose(minutes + focusStep(minutes, true))}
             disabled={minutes >= MAX}
-            aria-label="5 minutes de plus"
+            aria-label="Plus longtemps"
           >
             <Plus size={22} strokeWidth={2.6} />
           </motion.button>

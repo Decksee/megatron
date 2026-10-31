@@ -218,8 +218,8 @@ function CountdownTile({ settings, now }: Data & { now: Date }) {
 function TodoTile({ tasks, projects, now, onOpen }: Data & { now: Date; onOpen: () => void }) {
   const colorOf = new Map(projects.map((p) => [p.id, p.color]));
   const [title, setTitle] = useState("");
-  // Les tâches prévues un jour suivant n'ont rien à faire dans « Aujourd'hui ».
-  const pending = tasks.filter((t) => !t.done && taskBucket(t, now) !== "later");
+  // Seulement les tâches prévues ou à rendre aujourd'hui (ou en retard) : ni les jours suivants, ni les tâches sans date.
+  const pending = tasks.filter((t) => !t.done && taskBucket(t, now) === "today");
   const doneToday = tasks.filter(
     (t) => t.done && t.completed_at && sameDay(new Date(t.completed_at + "Z"), now),
   );

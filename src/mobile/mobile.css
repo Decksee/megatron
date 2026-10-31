@@ -811,3 +811,6 @@ html[data-window="mobile"] #root {
 [data-window="mobile"] .rule-caption { font-size: 11px; }
 /* Dernière liste seule sur sa ligne (le projet, sans « Jusqu'à ») : toute la largeur. */
 [data-window="mobile"] .reminder-rules > .rule-field:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+/* Focus : six durées (jusqu'à 12 h) sur deux lignes. */
+.m-duration-card .m-durations { grid-template-columns: repeat(3, minmax(0, 1fr)); }

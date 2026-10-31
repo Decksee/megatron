@@ -788,7 +788,7 @@ export async function executeTool(name: string, a: Record<string, unknown>): Pro
     }
     case "lancer_focus": {
       const minutes = Math.round(Number(a.minutes));
-      if (!(minutes >= 1 && minutes <= 480)) throw new Error("Durée invalide (1 à 480 minutes).");
+      if (!(minutes >= 1 && minutes <= 720)) throw new Error("Durée invalide (1 à 720 minutes, soit 12 h).");
       const project = await findProject(a.projet);
       const budget = a.distraction_autorisee == null ? 5 : Math.max(0, Math.round(Number(a.distraction_autorisee)));
       const mode: FocusMode = a.mode === "bloquer" ? "block" : "alert";

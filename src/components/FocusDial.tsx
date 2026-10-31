@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from "react";
+import { FOCUS_MAX_MINUTES, focusStep } from "../focus";
 import { motion, useSpring, useTransform } from "motion/react";
 
 const SIZE = 172;
@@ -51,7 +52,7 @@ export function FocusDial({ minutes, onChange, now }: { minutes: number; onChang
   return (
     <div
       className="focus-dial"
-      onWheel={(e) => onChange(Math.min(480, Math.max(5, minutes + (e.deltaY < 0 ? 5 : -5))))}
+      onWheel={(e) => onChange(Math.min(FOCUS_MAX_MINUTES, Math.max(5, minutes + (e.deltaY < 0 ? focusStep(minutes, true) : -focusStep(minutes, false)))))}
       title="Fais glisser le curseur ou utilise la molette"
     >
       <svg

@@ -58,6 +58,12 @@ class FocusWatchService : Service() {
     super.onDestroy()
   }
 
+  /** Appli balayée des récentes : le focus continue, on se fait relancer tout de suite. */
+  override fun onTaskRemoved(rootIntent: Intent?) {
+    if (FocusCtl.active(this)) FocusCtl.scheduleWatch(this, 2_000)
+    super.onTaskRemoved(rootIntent)
+  }
+
   private fun check() {
     if (!FocusCtl.active(this)) {
       stopSelf()

@@ -36,6 +36,33 @@ object FocusCtl {
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
+  private fun watchIntent(context: Context): PendingIntent =
+    PendingIntent.getBroadcast(
+      context, 42, Intent(context, FocusReceiver::class.java).setAction(FocusReceiver.WATCH),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+  /** Toutes les 5 minutes du focus : vérifie que le blocage tourne encore (certains téléphones le coupent). */
+  private const val WATCH_MS = 5 * 60_000L
+
+  fun scheduleWatch(context: Context, delayMs: Long = WATCH_MS) {
+    if (!active(context) || !blocking(context)) return
+    val at = minOf(System.currentTimeMillis() + delayMs, endsAt(context))
+    val am = context.getSystemService(AlarmManager::class.java)
+    if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
+      am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, watchIntent(context))
+    } else {
+      am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, watchIntent(context))
+    }
+  }
+
+  /** Relance le surveillant s'il a été arrêté par le système, puis prévoit la vérification suivante. */
+  fun watch(context: Context) {
+    if (!active(context) || !blocking(context)) return
+    if (blocked(context).isNotEmpty() && FocusWatchService.allowed(context)) FocusWatchService.start(context)
+    scheduleWatch(context)
+  }
+
   fun start(context: Context, sessionId: Long, endsAt: Long, block: Boolean, apps: Set<String>) {
     prefs(context).edit()
       .putLong("focus_session", sessionId)
@@ -52,6 +79,7 @@ object FocusCtl {
     showNotification(context, endsAt)
     // Blocage : surveillance de l'appli au premier plan, seulement pendant ce focus.
     if (block && apps.isNotEmpty() && FocusWatchService.allowed(context)) FocusWatchService.start(context)
+    scheduleWatch(context)
     refreshWidgets(context)
   }
 
@@ -82,6 +110,7 @@ object FocusCtl {
   fun stop(context: Context) {
     prefs(context).edit().putLong("focus_until", 0).apply()
     context.getSystemService(AlarmManager::class.java).cancel(endIntent(context))
+    context.getSystemService(AlarmManager::class.java).cancel(watchIntent(context))
     FocusWatchService.stop(context)
     NotificationManagerCompat.from(context).cancel(ID_FOCUS)
     refreshWidgets(context)
@@ -155,11 +184,12 @@ class FocusReceiver : BroadcastReceiver() {
     const val END = "app.megatron.FOCUS_END"
     const val START = "app.megatron.FOCUS_START"
     const val STOP = "app.megatron.FOCUS_STOP"
+    const val WATCH = "app.megatron.FOCUS_WATCH"
   }
 
   override fun onReceive(context: Context, intent: Intent) {
     val action = intent.action
-    if (action != END && action != START && action != STOP) return
+    if (action != END && action != START && action != STOP && action != WATCH) return
     val pending = goAsync()
     Thread {
       try {
@@ -167,6 +197,10 @@ class FocusReceiver : BroadcastReceiver() {
           END -> FocusCtl.finish(context)
           START -> FocusCtl.startFromWidget(context, intent.getIntExtra("minutes", 0).takeIf { it > 0 })
           STOP -> FocusCtl.stopFromWidget(context)
+          WATCH -> {
+            FocusCtl.watch(context)
+            return@Thread
+          }
         }
         MainActivity.resync()
       } finally {

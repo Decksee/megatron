@@ -26,6 +26,13 @@ export const DEFAULT_BLOCKLIST = [
 ];
 
 export const FOCUS_DURATIONS = [25, 50, 90];
+/** Durée maximale d'un focus : 12 h. */
+export const FOCUS_MAX_MINUTES = 720;
+/** Pas du réglage de durée : fin sous l'heure, plus large pour les longues sessions. */
+export const focusStep = (minutes: number, up: boolean) => {
+  const ref = up ? minutes : minutes - 1;
+  return ref < 60 ? 5 : ref < 240 ? 15 : 30;
+};
 export const FOCUS_BUDGETS = [0, 2, 5, 10, 15];
 
 const TICK_MS = 1000;

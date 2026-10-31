@@ -14,6 +14,8 @@ import {
   activeFocus,
   FOCUS_BUDGETS,
   FOCUS_DURATIONS,
+  FOCUS_MAX_MINUTES,
+  focusStep,
   focusElapsedMs,
   IDLE_KEY,
   type FocusStatus,
@@ -88,7 +90,7 @@ function Setup({ projects, settings, focusSessions, now }: Data & { now: Date })
       <div className="tile focus-hero">
         <FocusDial minutes={minutes} onChange={setMinutes} now={now} />
         <div className="duration-bar" role="group" aria-label="Durée">
-          <button className="duration-step" onClick={() => setMinutes((m) => Math.max(5, m - 5))} aria-label="5 minutes de moins">
+          <button className="duration-step" onClick={() => setMinutes((m) => Math.max(5, m - focusStep(m, false)))} aria-label="5 minutes de moins">
             <Minus size={14} />
           </button>
           {FOCUS_DURATIONS.map((m) => (
@@ -97,7 +99,7 @@ function Setup({ projects, settings, focusSessions, now }: Data & { now: Date })
               <span>{m}</span>
             </button>
           ))}
-          <button className="duration-step" onClick={() => setMinutes((m) => Math.min(480, m + 5))} aria-label="5 minutes de plus">
+          <button className="duration-step" onClick={() => setMinutes((m) => Math.min(FOCUS_MAX_MINUTES, m + focusStep(m, true)))} aria-label="5 minutes de plus">
             <Plus size={14} />
           </button>
         </div>
