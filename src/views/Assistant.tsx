@@ -6,31 +6,7 @@ import { Select } from "../components/Select";
 import { EmptyState } from "../components/EmptyState";
 import { Bot } from "../components/Bot";
 import { ErrorNote } from "../components/ErrorNote";
-import {
-  Smartphone,
-  FileCode,
-  FileText,
-  FileUp,
-  Image as ImageIcon,
-  Paperclip,
-  X,
-  AudioLines,
-  AppWindow,
-  Bell,
-  ChevronLeft,
-  Clock3,
-  ExternalLink,
-  ListChecks,
-  Lock,
-  MessageSquareText,
-  Music2,
-  RotateCcw,
-  Server,
-  Settings2,
-  Sparkles,
-  Square,
-  Zap,
-} from "lucide-react";
+import { Smartphone, FileCode, FileText, FileUp, Image as ImageIcon, Paperclip, X, AudioLines, AppWindow, Bell, ChevronLeft, Clock3, ExternalLink, ListChecks, Lock, MessageSquareText, Music2, RotateCcw, Server, Settings2, Sparkles, Square, Zap, Copy, Check, Trash2, Send } from "lucide-react";
 import { geminiFreeCandidates, PROVIDERS, sortByCost, type ProviderId } from "../ai/providers";
 import {
   aiConfig,
@@ -49,6 +25,12 @@ import {
   voiceConfig,
   VOICE_SLOT,
   type UiMessage,
+  type AiConfig,
+  type VoiceConfig,
+  DICTATION_MAX_MS,
+  dictationAutoStop,
+  discardDictation,
+  sendHeldDictation,
 } from "../ai/session";
 import type { Data } from "../useData";
 import { formatSize, pickPaths, type Attachment } from "../ai/attachments";
@@ -418,7 +400,7 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
     }
     // Bouton micro = dictée : la réponse s'affiche sans être lue (la conversation vocale, elle, parle).
     if (ai.recording) stopTalking(config, voice, { speak: false });
-    else startTalking(() => stopTalking(config, voice, { speak: false }));
+    else startTalking(dictationAutoStop(config, voice));
   };
 
   return (
@@ -485,12 +467,8 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
               <Bubble key={m.id} message={m} avatar={m.role !== "user" && groupStart} />,
             ];
           })}
-          {ai.recording && (
-            <motion.li key="listening" className="msg user listening" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <motion.span className="listening-dot" animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 1, repeat: Infinity }} />
-              Je t'écoute…
-            </motion.li>
-          )}
+          {ai.recording && <ListeningBubble key="listening" since={ai.recordingSince} dictation={!ai.conversing} />}
+          {ai.dictationFull && <DictationFull key="dictation-full" config={config} voice={voice} />}
           {ai.busy && (
             <motion.li key="typing" className="msg assistant typing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {[0, 1, 2].map((i) => (
@@ -636,18 +614,165 @@ export function timeSeparator(m: UiMessage, prev?: UiMessage) {
 
 const PHONE_BADGE = "📱 ";
 
+const clock = (ms: number) => {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+};
+
+/** « Je t'écoute… » ; en dictée, avec le temps écoulé sur les 15 min possibles. */
+export function ListeningBubble({ since, dictation }: { since: number | null; dictation: boolean }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!dictation) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [dictation]);
+  const elapsed = since ? now - since : 0;
+  const nearEnd = dictation && DICTATION_MAX_MS - elapsed < 60_000;
+  return (
+    <motion.li className="msg user listening" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+      <motion.span className="listening-dot" animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 1, repeat: Infinity }} />
+      Je t'écoute…
+      {dictation && since && (
+        <span className={nearEnd ? "listening-time near-end" : "listening-time"}>
+          {clock(elapsed)} / {clock(DICTATION_MAX_MS)}
+        </span>
+      )}
+    </motion.li>
+  );
+}
+
+/** Dictée arrivée à 15 min : l'enregistrement s'est arrêté, on choisit de l'envoyer ou de le jeter. */
+export function DictationFull({ config, voice }: { config: AiConfig; voice: VoiceConfig | null }) {
+  return (
+    <motion.li className="dictation-full" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+      <span className="dictation-full-text">
+        <b>15 minutes atteintes</b>
+        <span className="muted small">L'enregistrement s'est arrêté. Tu l'envoies ?</span>
+      </span>
+      <span className="row">
+        <button type="button" className="btn ghost" onClick={discardDictation}>
+          <Trash2 size={14} /> Jeter
+        </button>
+        <button type="button" className="btn primary" disabled={!voice} onClick={() => voice && sendHeldDictation(config, voice)}>
+          <Send size={14} /> Envoyer
+        </button>
+      </span>
+    </motion.li>
+  );
+}
+
+/** Copie dans le presse-papiers (avec repli pour les WebView qui refusent l'API moderne). */
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
+}
+
+const LONG_PRESS_MS = 450;
+
 export function Bubble({ message: m, avatar = false }: { message: UiMessage; avatar?: boolean }) {
   // Message envoyé depuis Telegram : petite étiquette plutôt que l'émoji dans le texte.
   const fromPhone = m.role === "user" && m.text.startsWith(PHONE_BADGE);
   const text = fromPhone ? m.text.slice(PHONE_BADGE.length) : m.text;
+  const mobile = isMobileApp();
+  /** Téléphone : bouton « Copier » affiché au-dessus de la bulle (toucher ou appui long). */
+  const [menu, setMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const press = useRef<{ timer: number; x: number; y: number; long: boolean } | null>(null);
+  const ref = useRef<HTMLLIElement>(null);
+
+  // Un toucher ailleurs referme le bouton.
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setMenu(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [menu]);
+
+  const copy = async () => {
+    if (!(await copyText(text))) return;
+    if ("vibrate" in navigator) navigator.vibrate(10);
+    setCopied(true);
+    window.setTimeout(() => {
+      setCopied(false);
+      setMenu(false);
+    }, 1200);
+  };
+
+  const copyable = !!text.trim();
+  const touch = mobile && copyable
+    ? {
+        onPointerDown: (e: React.PointerEvent) => {
+          const timer = window.setTimeout(() => {
+            if (press.current) press.current.long = true;
+            if ("vibrate" in navigator) navigator.vibrate(12);
+            setMenu(true);
+          }, LONG_PRESS_MS);
+          press.current = { timer, x: e.clientX, y: e.clientY, long: false };
+        },
+        onPointerMove: (e: React.PointerEvent) => {
+          const p = press.current;
+          if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 10) window.clearTimeout(p.timer);
+        },
+        onPointerUp: () => press.current && window.clearTimeout(press.current.timer),
+        onPointerCancel: () => press.current && window.clearTimeout(press.current.timer),
+        // Toucher simple : affiche (ou masque) le bouton ; après un appui long, le relâcher ne le referme pas.
+        onClick: () => {
+          if (press.current?.long) press.current.long = false;
+          else setMenu((v) => !v);
+        },
+        onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+      }
+    : {};
+
   return (
     <motion.li
+      ref={ref}
       layout
-      className={`msg ${m.role}${avatar ? " with-avatar" : ""}`}
+      className={`msg ${m.role}${avatar ? " with-avatar" : ""}${menu ? " menu-open" : ""}`}
       initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 420, damping: 32 }}
+      {...touch}
     >
+      {/* PC : petit bouton au survol. Téléphone : bouton au-dessus de la bulle. */}
+      {copyable && !mobile && (
+        <button type="button" className="msg-copy" onClick={copy} aria-label="Copier le message" title={copied ? "Copié" : "Copier"}>
+          {copied ? <Check size={12} strokeWidth={2.6} /> : <Copy size={12} />}
+        </button>
+      )}
+      <AnimatePresence>
+        {mobile && menu && (
+          <motion.button
+            type="button"
+            className="msg-copy-pill"
+            initial={{ opacity: 0, y: 6, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.95, transition: { duration: 0.12 } }}
+            transition={{ type: "spring", stiffness: 520, damping: 30 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              copy();
+            }}
+          >
+            {copied ? <Check size={15} strokeWidth={2.6} /> : <Copy size={15} />}
+            {copied ? "Copié" : "Copier"}
+          </motion.button>
+        )}
+      </AnimatePresence>
       {avatar && (
         <span className="msg-avatar" aria-hidden="true">
           <Bot bare mood={m.role === "error" ? "suspicious" : "happy"} size={12} />

@@ -3,8 +3,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowUp, RotateCcw, Settings2, Square } from "lucide-react";
 import { Bot } from "../components/Bot";
 import { PROVIDERS } from "../ai/providers";
-import { aiConfig, ask, cancelRequest, resetConversation, startTalking, stopTalking, useAi, voiceConfig } from "../ai/session";
-import { AiSetup, Bubble, timeSeparator } from "../views/Assistant";
+import { aiConfig, ask, cancelRequest, resetConversation, dictationAutoStop, startTalking, stopTalking, useAi, voiceConfig } from "../ai/session";
+import { AiSetup, Bubble, DictationFull, ListeningBubble, timeSeparator } from "../views/Assistant";
 import type { Data } from "../useData";
 
 const SUGGESTIONS = [
@@ -80,7 +80,7 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
   const toggleMic = () => {
     if (!voice) return onSettings();
     if (ai.recording) stopTalking(config, voice, { speak: false });
-    else startTalking(() => stopTalking(config, voice, { speak: false }));
+    else startTalking(dictationAutoStop(config, voice));
   };
 
   // Ouvert depuis le micro du widget : on écoute directement (sans voix configurée, l'écran reste prêt à écrire).
@@ -88,7 +88,7 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
     const listen = () => {
       if (!voicePending) return;
       voicePending = false;
-      if (voice && !ai.recording) startTalking(() => stopTalking(config, voice, { speak: false }));
+      if (voice && !ai.recording) startTalking(dictationAutoStop(config, voice));
       else inputRef.current?.focus();
     };
     listen();
@@ -144,12 +144,8 @@ function Chat({ settings, onSettings }: Pick<Data, "settings"> & { onSettings: (
                   <Bubble key={m.id} message={m} avatar={m.role !== "user" && groupStart} />,
                 ];
               })}
-              {ai.recording && (
-                <motion.li key="listening" className="msg user listening" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                  <motion.span className="listening-dot" animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 1, repeat: Infinity }} />
-                  Je t'écoute…
-                </motion.li>
-              )}
+              {ai.recording && <ListeningBubble key="listening" since={ai.recordingSince} dictation={!ai.conversing} />}
+              {ai.dictationFull && <DictationFull key="dictation-full" config={config} voice={voice} />}
               {(ai.busy || ai.transcribing) && (
                 <motion.li key="typing" className="msg assistant typing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   {[0, 1, 2].map((i) => (

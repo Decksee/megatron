@@ -7,11 +7,18 @@ import { invoke } from "@tauri-apps/api/core";
 
 const SAMPLE_RATE = 16_000;
 const MIN_SECONDS = 0.4;
-const MAX_SECONDS = 60;
+/** Durée maximale : 5 min pour une prise de parole en conversation (arrêt au silence), 15 min pour une dictée. */
+const MAX_SECONDS = 5 * 60;
+export const DICTATION_MAX_SECONDS = 15 * 60;
+/** Une longue dictée est transcrite par morceaux d'environ 1 min (limite de taille des services). */
+const PART_SECONDS = 60;
+/** Autour de chaque coupure, on cherche le passage le plus calme (pas au milieu d'un mot). */
+const CUT_SEARCH_SECONDS = 6;
 /** Détection de fin de phrase (mode mains libres) : seuils de volume et durées. */
 const SPEECH_RMS = 0.02;
 const SILENCE_RMS = 0.012;
-const SILENCE_AFTER_SPEECH_MS = 1400;
+/** Silence qui marque la fin d'une prise de parole (réglable : Réglages → IA). */
+export const DEFAULT_SILENCE_MS = 1500;
 /** Durée de voix minimale pour considérer qu'on parle (les bruits brefs sont ignorés). */
 const MIN_SPEECH_MS = 320;
 /** La voix doit dépasser le bruit ambiant de ce facteur. */
@@ -43,6 +50,8 @@ export interface RecordingOptions {
   holdWhile?: () => boolean;
   /** Appelé dès que la personne se met à parler (pour couper la parole à Mégatron). */
   onSpeechStart?: () => void;
+  /** Silence (ms) après lequel on considère qu'elle a fini de parler. */
+  silenceMs?: number;
 }
 
 /** Pendant que Mégatron parle, seuil de voix plus haut : sa propre voix ne doit pas compter. */
@@ -104,7 +113,7 @@ export async function startRecording(onAutoStop?: (reason: StopReason) => void, 
       }
       if (rms < Math.max(SILENCE_RMS, noise * NOISE_FACTOR * 0.7)) silenceSince ??= t;
     }
-    const doneTalking = spoke && silenceSince != null && t - silenceSince > SILENCE_AFTER_SPEECH_MS;
+    const doneTalking = spoke && silenceSince != null && t - silenceSince > (options.silenceMs ?? DEFAULT_SILENCE_MS);
     const neverTalked = !spoke && t - startedAt > NO_SPEECH_TIMEOUT_MS;
     if (doneTalking || neverTalked) {
       stopped = true;
@@ -114,7 +123,8 @@ export async function startRecording(onAutoStop?: (reason: StopReason) => void, 
 
   source.connect(node);
   node.connect(ctx.destination);
-  current = { stream, ctx, node, chunks, timeout: window.setTimeout(() => onAutoStop?.("max"), MAX_SECONDS * 1000) };
+  const max = options.stopOnSilence ? MAX_SECONDS : DICTATION_MAX_SECONDS;
+  current = { stream, ctx, node, chunks, timeout: window.setTimeout(() => onAutoStop?.("max"), max * 1000) };
 }
 
 export const isRecording = () => current != null;
@@ -134,6 +144,43 @@ function refreshWakeWordSoon() {
 
 /** Arrête et renvoie le WAV en base64, ou null si l'enregistrement est trop court. */
 export async function stopRecording(): Promise<string | null> {
+  const rec = await stopSamples();
+  return rec ? toBase64(encodeWav(rec.samples, rec.rate)) : null;
+}
+
+/** Arrête et renvoie l'enregistrement en morceaux WAV d'environ 1 min (coupés dans un silence), ou null s'il est trop court. */
+export async function stopRecordingParts(): Promise<string[] | null> {
+  const rec = await stopSamples();
+  if (!rec) return null;
+  const { samples, rate } = rec;
+  const parts: string[] = [];
+  let start = 0;
+  while (samples.length - start > (PART_SECONDS + CUT_SEARCH_SECONDS) * rate) {
+    const cut = quietestPoint(samples, start + (PART_SECONDS - CUT_SEARCH_SECONDS) * rate, start + (PART_SECONDS + CUT_SEARCH_SECONDS) * rate, rate);
+    parts.push(toBase64(encodeWav(samples.subarray(start, cut), rate)));
+    start = cut;
+  }
+  parts.push(toBase64(encodeWav(samples.subarray(start), rate)));
+  return parts;
+}
+
+/** Début de la tranche de 100 ms la plus calme entre `from` et `to`. */
+function quietestPoint(samples: Float32Array, from: number, to: number, rate: number) {
+  const step = Math.round(rate / 10);
+  let best = from;
+  let bestEnergy = Infinity;
+  for (let i = from; i + step <= to; i += step) {
+    let e = 0;
+    for (let j = i; j < i + step; j++) e += samples[j] * samples[j];
+    if (e < bestEnergy) {
+      bestEnergy = e;
+      best = i;
+    }
+  }
+  return best;
+}
+
+async function stopSamples(): Promise<{ samples: Float32Array; rate: number } | null> {
   const rec = current;
   if (!rec) return null;
   current = null;
@@ -152,7 +199,7 @@ export async function stopRecording(): Promise<string | null> {
     samples.set(c, offset);
     offset += c.length;
   }
-  return toBase64(encodeWav(samples, rate));
+  return { samples, rate };
 }
 
 function encodeWav(samples: Float32Array, rate: number) {

@@ -16,7 +16,7 @@ import {
 } from "./providers";
 import { setSetting } from "../db";
 import { executeTool, MEMORY_TOOLS, TOOLS } from "./tools";
-import { startRecording, stopRecording, type RecordingOptions, type StopReason } from "./voice";
+import { DEFAULT_SILENCE_MS, DICTATION_MAX_SECONDS, startRecording, stopRecording, stopRecordingParts, type RecordingOptions, type StopReason } from "./voice";
 import { isSpeaking, speakReply, stopSpeaking } from "./speech";
 import { filesNote, readPaths, type Attachment } from "./attachments";
 import { isMobileApp } from "../mobile/native";
@@ -40,6 +40,8 @@ export interface AiConfig {
   usage: Usage;
   /** Les noms par lesquels l'utilisateur aime être appelé. */
   nicknames: string[];
+  /** Conversation à voix haute : silence (ms) qui marque la fin d'une prise de parole. */
+  silenceMs: number;
 }
 
 export interface VoiceConfig {
@@ -59,6 +61,7 @@ export function aiConfig(settings: Settings): AiConfig | null {
     memory: settings.ai_memory !== "0",
     usage: usageOf(settings),
     nicknames: nicknames(settings),
+    silenceMs: Number(settings.voice_silence_ms) || DEFAULT_SILENCE_MS,
   };
 }
 
@@ -161,6 +164,10 @@ interface AiState {
   awaitingFile: boolean;
   /** Un fichier est en train d'être glissé au-dessus de la fenêtre. */
   dragging: boolean;
+  /** Début de l'enregistrement en cours (pour le compteur de la dictée). */
+  recordingSince: number | null;
+  /** La dictée a atteint 15 min : elle attend « Envoyer » ou « Jeter » (propre à cette fenêtre). */
+  dictationFull: boolean;
 }
 
 let state: AiState = {
@@ -177,6 +184,8 @@ let state: AiState = {
   pendingFiles: [],
   awaitingFile: false,
   dragging: false,
+  recordingSince: null,
+  dictationFull: false,
 };
 const listeners = new Set<() => void>();
 
@@ -551,7 +560,7 @@ export async function startTalking(onAutoStop: (reason: StopReason) => void, opt
   stopSpeaking();
   try {
     await startRecording(onAutoStop, options);
-    set({ recording: true });
+    set({ recording: true, recordingSince: Date.now(), dictationFull: false });
   } catch (e) {
     push("error", `Micro indisponible : ${errorText(e)}`);
   }
@@ -603,6 +612,26 @@ export function isNoise(text: string) {
   return t.length < 40 && HALLUCINATIONS.test(t) && !/merci.{3,}/i.test(t.replace(/merci( beaucoup)?[.!]?$/i, ""));
 }
 
+/**
+ * Transcrit un enregistrement découpé en morceaux d'environ 1 min (trois à la fois) et recolle le texte.
+ * `onProgress(fait, total)` sert à afficher l'avancement pour les longs enregistrements.
+ */
+async function transcribeParts(voice: VoiceConfig, parts: string[], onProgress?: (done: number, total: number) => void) {
+  const texts: string[] = new Array(parts.length).fill("");
+  let done = 0;
+  let next = 0;
+  const worker = async () => {
+    while (next < parts.length) {
+      const i = next++;
+      texts[i] = (await transcribe(voice, parts[i])).trim();
+      onProgress?.(++done, parts.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, parts.length) }, worker));
+  // Un morceau de pur silence peut donner « Merci. » : on ne garde que les morceaux parlés (s'il y en a plusieurs).
+  return (parts.length > 1 ? texts.filter((t) => t && !isNoise(t)) : texts).join(" ");
+}
+
 /** Arrête l'enregistrement, affiche tout de suite la bulle, transcrit, puis envoie le texte à l'assistant. */
 /**
  * Fin de la dictée : transcrit puis envoie à l'assistant.
@@ -610,14 +639,53 @@ export function isNoise(text: string) {
  */
 export async function stopTalking(config: AiConfig, voice: VoiceConfig, options: { speak?: boolean } = {}) {
   if (!state.recording) return;
+  set({ recording: false });
+  const parts = await stopRecordingParts();
+  if (parts) await sendSpeech(parts, config, voice, options);
+}
+
+/** Durée maximale d'une dictée (affichée par le compteur). */
+export const DICTATION_MAX_MS = DICTATION_MAX_SECONDS * 1000;
+/** Dictée arrivée à 15 min : enregistrement arrêté, gardé ici en attendant « Envoyer » ou « Jeter ». */
+let heldParts: string[] | null = null;
+
+/**
+ * Fin automatique d'une dictée (bouton micro) : à 15 min, rien n'est envoyé d'office,
+ * on arrête et on demande (Envoyer / Jeter). Sinon (ex. aucun son), comme un arrêt normal.
+ */
+export function dictationAutoStop(config: AiConfig, voice: VoiceConfig) {
+  return async (reason: StopReason) => {
+    if (reason !== "max") return stopTalking(config, voice, { speak: false });
+    if (!state.recording) return;
+    set({ recording: false });
+    heldParts = await stopRecordingParts();
+    if (heldParts) set({ dictationFull: true });
+  };
+}
+
+export async function sendHeldDictation(config: AiConfig, voice: VoiceConfig) {
+  const parts = heldParts;
+  heldParts = null;
+  set({ dictationFull: false });
+  if (parts) await sendSpeech(parts, config, voice, { speak: false });
+}
+
+export function discardDictation() {
+  heldParts = null;
+  set({ dictationFull: false });
+}
+
+/** Transcrit un enregistrement (en morceaux), puis envoie le texte à l'assistant. */
+async function sendSpeech(parts: string[], config: AiConfig, voice: VoiceConfig, options: { speak?: boolean }) {
   const run = ++runId;
-  set({ recording: false, transcribing: true });
+  set({ transcribing: true });
   let bubble: number | null = null;
   try {
-    const wav = await stopRecording();
-    if (!wav) return;
     bubble = push("user", "Transcription…");
-    const text = await transcribe(voice, wav);
+    // Longue dictée (jusqu'à 15 min) : chaque minute est transcrite à part, puis tout est recollé.
+    const text = await transcribeParts(voice, parts, (done, total) => {
+      if (total > 1 && bubble != null && run === runId) updateMessage(bubble, `Transcription… ${Math.round((done / total) * 100)} %`);
+    });
     if (run !== runId) return; // annulée entre-temps
     set({ transcribing: false });
     if (text.trim() && !isNoise(text)) {
@@ -667,21 +735,23 @@ const pick = (list: string[]) => list[Math.floor(Math.random() * list.length)];
 /** Fin d'un tour de parole : la voix (fini, silence, durée max) ou un fichier déposé sur la pastille. */
 type TurnReason = StopReason | "file";
 /** Termine l'enregistrement d'un tour de parole en cours (la boucle de conversation l'attend). */
-let endTurn: ((result: { wav: string | null; reason: TurnReason } | null) => void) | null = null;
+let endTurn: ((result: { wav: string[] | null; reason: TurnReason } | null) => void) | null = null;
 
 /** Écoute une phrase : s'arrête tout seul quand on a fini de parler (ou si on ne dit rien). */
-function listenOnce(): Promise<{ wav: string | null; reason: TurnReason } | null> {
+function listenOnce(silenceMs: number): Promise<{ wav: string[] | null; reason: TurnReason } | null> {
   return new Promise((resolve) => {
     endTurn = resolve;
     startRecording(
       async (reason) => {
         set({ recording: false });
-        const wav = await stopRecording();
+        // Jusqu'à 5 min de parole : découpée comme une dictée.
+        const wav = await stopRecordingParts();
         endTurn = null;
         resolve({ wav, reason });
       },
       {
         stopOnSilence: true,
+        silenceMs,
         // On écoute déjà pendant qu'il parle : si tu lui coupes la parole, il se tait et t'écoute.
         holdWhile: isSpeaking,
         onSpeechStart: () => {
@@ -736,7 +806,7 @@ export async function startConversation(config: AiConfig, voice: VoiceConfig, op
       // Laisse sa phrase démarrer : l'écoute commence pendant qu'il parle (on peut lui couper la parole).
       await new Promise((r) => setTimeout(r, 250));
       if (!active()) break;
-      const heard = await listenOnce();
+      const heard = await listenOnce(config.silenceMs);
       if (!heard || !active()) break;
       // Fichier déposé sur la pastille : il part tout de suite, l'assistant répond.
       if (heard.reason === "file") {
@@ -752,7 +822,12 @@ export async function startConversation(config: AiConfig, voice: VoiceConfig, op
       const bubble = push("user", "Transcription…");
       let text = "";
       try {
-        text = (await transcribe(voice, heard.wav)).trim();
+        const parts = heard.wav;
+        text = (
+          await transcribeParts(voice, parts, (done, total) => {
+            if (total > 1 && active()) updateMessage(bubble, `Transcription… ${Math.round((done / total) * 100)} %`);
+          })
+        ).trim();
         set({ voiceCaption: text });
       } catch (e) {
         removeMessage(bubble);

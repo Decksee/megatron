@@ -2618,3 +2618,38 @@ button.strip-tile { font: inherit; color: inherit; text-align: left; cursor: poi
 .reminder-rules { align-items: flex-end; gap: 8px; }
 .rule-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .rule-caption { padding-left: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+
+/* Copier un message : bouton au survol (PC), à côté de la bulle. */
+.msg { position: relative; }
+.msg-copy {
+  position: absolute; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 24px; height: 24px; padding: 0;
+  border: 0; border-radius: 8px; background: rgb(var(--fg-rgb) / 0.08); color: var(--muted); cursor: pointer;
+  opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.msg.user .msg-copy { right: calc(100% + 6px); }
+.msg:not(.user) .msg-copy { left: calc(100% + 6px); }
+.msg:hover .msg-copy, .msg-copy:focus-visible { opacity: 1; }
+.msg-copy:hover { background: rgb(var(--fg-rgb) / 0.14); color: var(--text); }
+
+/* Téléphone : bouton « Copier » au-dessus de la bulle touchée. */
+.msg-copy-pill {
+  position: absolute; bottom: calc(100% + 6px); z-index: 5; display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border: 0; border-radius: 999px; white-space: nowrap; cursor: pointer;
+  background: var(--text); color: var(--notch-bg); font: inherit; font-size: 14px; font-weight: 700;
+  box-shadow: 0 6px 20px rgb(var(--shadow-rgb) / 0.3);
+}
+.msg.user .msg-copy-pill { right: 0; }
+.msg:not(.user) .msg-copy-pill { left: 0; }
+.msg.menu-open { filter: brightness(0.92); }
+
+/* Dictée : temps écoulé sur 15 min (orange la dernière minute). */
+.listening-time { margin-left: 8px; font-variant-numeric: tabular-nums; font-weight: 700; opacity: 0.75; }
+.listening-time.near-end { color: var(--warning); opacity: 1; }
+
+/* Dictée arrivée à 15 min : Envoyer ou Jeter. */
+.dictation-full {
+  list-style: none; align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: 14px; background: rgb(var(--warning-rgb) / 0.12); border: 1px solid rgb(var(--warning-rgb) / 0.35);
+}
+.dictation-full-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dictation-full-text b { color: var(--warning); }

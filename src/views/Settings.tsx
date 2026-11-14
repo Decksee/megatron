@@ -432,6 +432,13 @@ function AzureSetup({ settings, onDone }: Pick<Data, "settings"> & { onDone?: ()
   );
 }
 
+const SILENCE_OPTIONS = [
+  { value: "1500", label: "1,5 s" },
+  { value: "2000", label: "2 s" },
+  { value: "2500", label: "2,5 s" },
+  { value: "3000", label: "3 s" },
+];
+
 export function SpeechSetting({ settings }: Pick<Data, "settings">) {
   const voices = useVoices();
   const prefs = speechPrefs(settings);
@@ -484,6 +491,12 @@ export function SpeechSetting({ settings }: Pick<Data, "settings">) {
 
   return (
     <div className="setting-block">
+      <Setting
+        title="Attente avant qu'il réponde"
+        hint="En conversation à voix haute : le silence qui marque la fin de ta phrase. Plus long, tu peux réfléchir sans être coupé, mais il répond un peu plus tard."
+      >
+        <Select value={settings.voice_silence_ms || "1500"} options={SILENCE_OPTIONS} onChange={(v) => setSetting("voice_silence_ms", v)} />
+      </Setting>
       <Setting title="Sa voix" hint="Mégatron peut lire ses réponses à voix haute.">
         <Select value={prefs.mode} options={SPEAK_OPTIONS} onChange={(v) => setSetting("speak_mode", v)} />
       </Setting>
